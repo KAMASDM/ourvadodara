@@ -1,0 +1,48 @@
+/* =============================================
+// src/index.css
+// ============================================= */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles for light mode */
+body {
+  @apply bg-bg-light text-text-dark;
+}
+
+/* Dark mode styles */
+.dark body {
+  @apply bg-bg-dark text-text-light;
+}
+
+/* Scrollbar hide utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Basic scrollbar styling for better aesthetics */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  @apply dark:bg-gray-800;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  @apply dark:bg-gray-600;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+  @apply dark:bg-gray-500;
+}
