@@ -7,6 +7,7 @@ import PostCard from './PostCard';
 import LoadingSpinner from '../Common/LoadingSpinner';
 import EmptyState from '../Common/EmptyState';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { sampleNews } from '../../data/newsData';
 
 const NewsFeed = ({ activeCategory, onPostClick }) => {
   const { data: postsObject, isLoading, error } = useRealtimeData('posts');
@@ -41,9 +42,10 @@ const NewsFeed = ({ activeCategory, onPostClick }) => {
   }
 
   // Convert posts object to array and sort by date
-  const posts = postsObject 
-    ? Object.values(postsObject).sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt)) 
-    : [];
+  // Use Firebase data if available, otherwise use sample data
+  const posts = postsObject && Object.keys(postsObject).length > 0
+    ? Object.values(postsObject).sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+    : sampleNews.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
   const filteredNews = activeCategory === 'all'
     ? posts

@@ -24,6 +24,7 @@ import Login from './components/Auth/Login.jsx';
 import FirebaseSetup from './components/Admin/FirebaseSetup.jsx';
 import AdminUpgrade from './components/Admin/AdminUpgrade.jsx';
 import BreakingNewsManager from './components/Breaking/BreakingNewsManager.jsx';
+import BreakingNewsView from './components/Breaking/BreakingNewsView.jsx';
 import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
 import { analytics } from './utils/analytics.js';
 import { performanceMonitor } from './utils/performance.js';
@@ -137,7 +138,11 @@ function AppContent() {
       case 'admin':
         return <AdminDashboard />;
       case 'breaking':
-        return <BreakingNewsManager />;
+        return user?.role === 'admin' ? (
+          <BreakingNewsManager />
+        ) : (
+          <BreakingNewsView onPostClick={handlePostClick} />
+        );
       case 'firebase-setup':
         return <FirebaseSetup />;
       case 'admin-upgrade':

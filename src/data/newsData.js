@@ -21,6 +21,8 @@ export const sampleNews = [
     publishedAt: new Date('2024-01-15T10:00:00Z'),
     likes: 45,
     comments: 12,
+    views: 1250,
+    shares: 8,
     isBreaking: false,
   },
   {
@@ -42,6 +44,8 @@ export const sampleNews = [
     publishedAt: new Date('2024-01-16T08:30:00Z'),
     likes: 23,
     comments: 8,
+    views: 890,
+    shares: 5,
     isBreaking: true,
   },
   {
@@ -63,8 +67,10 @@ export const sampleNews = [
     publishedAt: new Date('2024-01-14T15:20:00Z'),
     likes: 67,
     comments: 15,
+    views: 2100,
+    shares: 12,
     isBreaking: false,
-  },
+  }
 ];
 
 export const breakingNews = sampleNews.filter(news => news.isBreaking);

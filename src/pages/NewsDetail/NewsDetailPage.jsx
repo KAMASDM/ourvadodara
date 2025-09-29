@@ -26,6 +26,7 @@ import ShareModal from '../../components/Social/ShareModal';
 import ReportModal from '../../components/Report/ReportModal';
 import ImageViewer from '../../components/Media/ImageViewer';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import useReadTime from '../../hooks/useReadTime';
 import LoadingSpinner from '../../components/Common/LoadingSpinner';
 
 const NewsDetailPage = ({ newsId, onBack }) => {
@@ -36,6 +37,9 @@ const NewsDetailPage = ({ newsId, onBack }) => {
   
   // Fetch real-time data from Firebase
   const { data: postsObject, isLoading, error } = useRealtimeData('posts');
+  
+  // Initialize read time tracking
+  useReadTime(newsId, user?.uid);
   
   const [news, setNews] = useState(null);
   const [isLiked, setIsLiked] = useState(false);

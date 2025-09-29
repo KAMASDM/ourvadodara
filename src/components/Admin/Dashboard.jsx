@@ -18,6 +18,7 @@ import LoadingSpinner from '../Common/LoadingSpinner';
 import { ref, get } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { sampleNews } from '../../data/newsData';
 
 const Dashboard = () => {
   const { t } = useTranslation();
@@ -29,46 +30,263 @@ const Dashboard = () => {
   const { data: postsData } = useRealtimeData('posts');
   const { data: usersData } = useRealtimeData('users');
   const { data: commentsData } = useRealtimeData('comments');
+  const { data: analyticsData } = useRealtimeData('analytics');
 
   useEffect(() => {
     const calculateStats = () => {
       setLoading(true);
       try {
-        // Calculate real stats from Firebase data
-        const totalPosts = postsData ? Object.keys(postsData).length : 0;
-        const totalUsers = usersData ? Object.keys(usersData).length : 0;
+        // Debug: Log the Firebase data to check what's available
+        console.log('Posts Data:', postsData);
+        console.log('Users Data:', usersData);
+        console.log('Comments Data:', commentsData);
+        console.log('Analytics Data:', analyticsData);
+        
+        // Use Firebase data if available, otherwise use sample data
+        const dataSource = postsData && Object.keys(postsData).length > 0 ? postsData : sampleNews;
+        const isUsingFirebase = postsData && Object.keys(postsData).length > 0;
+        
+        console.log('Using data source:', isUsingFirebase ? 'Firebase' : 'Sample Data');
+        console.log('Data source content:', dataSource);
+        
+        // Calculate real stats from data source
+        const totalPosts = isUsingFirebase ? Object.keys(postsData).length : sampleNews.length;
+        const totalUsers = usersData ? Object.keys(usersData).length : 150; // Fallback for demo
         
         // Calculate total views from all posts
-        const totalViews = postsData ? Object.values(postsData).reduce((sum, post) => sum + (post.views || 0), 0) : 0;
+        let totalViews = 0;
+        if (isUsingFirebase) {
+          totalViews = Object.values(postsData).reduce((sum, post) => {
+            const views = post.views || 0;
+            console.log(`Post ${post.id || 'unknown'} views:`, views);
+            return sum + views;
+          }, 0);
+        } else {
+          totalViews = sampleNews.reduce((sum, post) => {
+            const views = post.views || 0;
+            console.log(`Post ${post.id} views:`, views);
+            return sum + views;
+          }, 0);
+        }
+        
+        console.log('Total Views Calculated:', totalViews);
         
         // Calculate total comments
         const totalComments = commentsData ? Object.values(commentsData).reduce((sum, postComments) => {
           return sum + (postComments ? Object.keys(postComments).length : 0);
         }, 0) : 0;
         
-        // Calculate engagement (likes + comments per post)
-        const totalLikes = postsData ? Object.values(postsData).reduce((sum, post) => sum + (post.likes || 0), 0) : 0;
-        const engagement = totalPosts > 0 ? ((totalLikes + totalComments) / totalPosts * 100).toFixed(1) : 0;
+        // Calculate total likes and shares
+        let totalLikes = 0;
+        let totalShares = 0;
+        
+        if (isUsingFirebase) {
+          totalLikes = Object.values(postsData).reduce((sum, post) => sum + (post.likes || 0), 0);
+          totalShares = Object.values(postsData).reduce((sum, post) => sum + (post.shares || 0), 0);
+        } else {
+          totalLikes = sampleNews.reduce((sum, post) => sum + (post.likes || 0), 0);
+          totalShares = sampleNews.reduce((sum, post) => sum + (post.shares || 0), 0);
+        }
+        
+        // Calculate engagement rate: (likes + comments + shares) / views * 100
+        const totalEngagements = totalLikes + totalComments + totalShares;
+        const engagementRate = totalViews > 0 ? ((totalEngagements / totalViews) * 100).toFixed(1) : 0;
+        
+        // Calculate average read time from actual analytics data
+        let avgReadTime = 0;
+        
+        if (isUsingFirebase && totalPosts > 0) {
+          avgReadTime = Object.values(postsData).reduce((sum, post) => {
+            // Check if post has analytics data with read time
+            const analyticsReadTime = post.analytics?.avgReadTime || 0;
+            
+            if (analyticsReadTime > 0) {
+              return sum + analyticsReadTime;
+            } else {
+              // Fallback: calculate based on content length for posts without analytics
+              const content = typeof post.content === 'object' ? 
+                (post.content.en || post.content.hi || post.content.gu || '') : 
+                (post.content || '');
+              const wordCount = content.split(' ').length;
+              const estimatedReadTime = Math.max(0.5, Math.round(wordCount / 200 * 60)); // seconds
+              return sum + estimatedReadTime;
+            }
+          }, 0) / totalPosts / 60; // Convert to minutes
+        } else if (!isUsingFirebase && totalPosts > 0) {
+          // Use sample data for read time calculation
+          avgReadTime = sampleNews.reduce((sum, post) => {
+            const content = typeof post.content === 'object' ? 
+              (post.content.en || post.content.hi || post.content.gu || '') : 
+              (post.content || '');
+            const wordCount = content.split(' ').length;
+            const estimatedReadTime = Math.max(0.5, Math.round(wordCount / 200 * 60)); // seconds
+            return sum + estimatedReadTime;
+          }, 0) / totalPosts / 60; // Convert to minutes
+        }
+        
+        // Calculate daily active users (estimate from recent activity)
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+        const recentUsers = usersData ? Object.values(usersData).filter(user => 
+          user.lastActiveAt && new Date(user.lastActiveAt).getTime() > oneDayAgo
+        ).length : Math.floor(totalUsers * 0.3);
+        
+        // Calculate time-based statistics for previous values
+        const getTimeFilteredData = (data, timeRange) => {
+          if (!data) return [];
+          const now = Date.now();
+          let timeThreshold = now;
+          
+          switch (timeRange) {
+            case 'day':
+              timeThreshold = now - (24 * 60 * 60 * 1000);
+              break;
+            case 'week':
+              timeThreshold = now - (7 * 24 * 60 * 60 * 1000);
+              break;
+            case 'month':
+              timeThreshold = now - (30 * 24 * 60 * 60 * 1000);
+              break;
+            case 'year':
+              timeThreshold = now - (365 * 24 * 60 * 60 * 1000);
+              break;
+            default:
+              return Object.values(data);
+          }
+          
+          return Object.values(data).filter(item => 
+            item.createdAt && new Date(item.createdAt).getTime() > timeThreshold
+          );
+        };
+        
+        // Handle time-based filtering for both Firebase and sample data
+        let filteredPosts, filteredUsers;
+        
+        if (isUsingFirebase) {
+          filteredPosts = getTimeFilteredData(postsData, timeRange);
+          filteredUsers = getTimeFilteredData(usersData, timeRange);
+        } else {
+          // Convert sample data to object format for filtering
+          const sampleDataObject = {};
+          sampleNews.forEach(post => {
+            sampleDataObject[post.id] = {
+              ...post,
+              createdAt: post.publishedAt.toISOString()
+            };
+          });
+          filteredPosts = getTimeFilteredData(sampleDataObject, timeRange);
+          filteredUsers = usersData ? getTimeFilteredData(usersData, timeRange) : [];
+        }
+        
+        // Calculate previous period stats (same period length, but previous)
+        const getPreviousPeriodData = (data, timeRange) => {
+          if (!data) return [];
+          const now = Date.now();
+          let periodLength = 7 * 24 * 60 * 60 * 1000; // default week
+          
+          switch (timeRange) {
+            case 'day':
+              periodLength = 24 * 60 * 60 * 1000;
+              break;
+            case 'week':
+              periodLength = 7 * 24 * 60 * 60 * 1000;
+              break;
+            case 'month':
+              periodLength = 30 * 24 * 60 * 60 * 1000;
+              break;
+            case 'year':
+              periodLength = 365 * 24 * 60 * 60 * 1000;
+              break;
+          }
+          
+          const currentPeriodStart = now - periodLength;
+          const previousPeriodStart = currentPeriodStart - periodLength;
+          
+          return Object.values(data).filter(item => 
+            item.createdAt && 
+            new Date(item.createdAt).getTime() > previousPeriodStart &&
+            new Date(item.createdAt).getTime() <= currentPeriodStart
+          );
+        };
+        
+        // Handle previous period data
+        let previousPosts, previousUsers;
+        
+        if (isUsingFirebase) {
+          previousPosts = getPreviousPeriodData(postsData, timeRange);
+          previousUsers = getPreviousPeriodData(usersData, timeRange);
+        } else {
+          const sampleDataObject = {};
+          sampleNews.forEach(post => {
+            sampleDataObject[post.id] = {
+              ...post,
+              createdAt: post.publishedAt.toISOString()
+            };
+          });
+          previousPosts = getPreviousPeriodData(sampleDataObject, timeRange);
+          previousUsers = usersData ? getPreviousPeriodData(usersData, timeRange) : [];
+        }
+        
+        // Calculate previous period metrics
+        const prevTotalViews = previousPosts.reduce((sum, post) => sum + (post.views || 0), 0);
+        const prevTotalLikes = previousPosts.reduce((sum, post) => sum + (post.likes || 0), 0);
+        const prevTotalShares = previousPosts.reduce((sum, post) => sum + (post.shares || 0), 0);
+        const prevTotalEngagements = prevTotalLikes + (previousPosts.length * 2); // estimated comments
+        const prevEngagementRate = prevTotalViews > 0 ? ((prevTotalEngagements / prevTotalViews) * 100).toFixed(1) : 0;
         
         setStats({
-          totalUsers: { current: totalUsers, previous: Math.max(0, totalUsers - 5) },
-          totalPosts: { current: totalPosts, previous: Math.max(0, totalPosts - 2) },
-          totalViews: { current: totalViews, previous: Math.max(0, totalViews - 100) },
-          engagement: { current: parseFloat(engagement), previous: Math.max(0, parseFloat(engagement) - 5) },
-          dailyActiveUsers: { current: Math.floor(totalUsers * 0.7), previous: Math.floor(totalUsers * 0.6) },
-          avgReadTime: { current: 3.4, previous: 3.1 },
-          shares: { current: Math.floor(totalViews * 0.08), previous: Math.floor(totalViews * 0.07) },
-          comments: { current: totalComments, previous: Math.max(0, totalComments - 10) }
+          totalUsers: { 
+            current: filteredUsers.length || totalUsers, 
+            previous: previousUsers.length || Math.max(0, totalUsers - 5) 
+          },
+          totalPosts: { 
+            current: filteredPosts.length || totalPosts, 
+            previous: previousPosts.length || Math.max(0, totalPosts - 2) 
+          },
+          totalViews: { 
+            current: filteredPosts.reduce((sum, post) => sum + (post.views || 0), 0) || totalViews, 
+            previous: prevTotalViews || Math.max(0, totalViews - 100) 
+          },
+          engagement: { 
+            current: parseFloat(engagementRate), 
+            previous: parseFloat(prevEngagementRate) || Math.max(0, parseFloat(engagementRate) - 5) 
+          },
+          dailyActiveUsers: { 
+            current: recentUsers, 
+            previous: Math.max(0, recentUsers - Math.floor(recentUsers * 0.1)) 
+          },
+          avgReadTime: { 
+            current: parseFloat(avgReadTime.toFixed(1)), 
+            previous: Math.max(1, parseFloat((avgReadTime * 0.9).toFixed(1))) 
+          },
+          shares: { 
+            current: totalShares, 
+            previous: prevTotalShares || Math.max(0, totalShares - Math.floor(totalShares * 0.1)) 
+          },
+          comments: { 
+            current: totalComments, 
+            previous: Math.max(0, totalComments - 10) 
+          }
         });
       } catch (error) {
         console.error('Error calculating stats:', error);
+        // Fallback stats in case of error
+        setStats({
+          totalUsers: { current: 0, previous: 0 },
+          totalPosts: { current: 0, previous: 0 },
+          totalViews: { current: 0, previous: 0 },
+          engagement: { current: 0, previous: 0 },
+          dailyActiveUsers: { current: 0, previous: 0 },
+          avgReadTime: { current: 0, previous: 0 },
+          shares: { current: 0, previous: 0 },
+          comments: { current: 0, previous: 0 }
+        });
       } finally {
         setLoading(false);
       }
     };
 
     calculateStats();
-  }, [timeRange, postsData, usersData, commentsData]);
+  }, [timeRange, postsData, usersData, commentsData, analyticsData]);
 
   const timeRanges = [
     { value: 'day', label: t('dashboard.today', 'Today') },
@@ -167,11 +385,11 @@ const Dashboard = () => {
         
         <StatsCard
           title={t('dashboard.avgReadTime', 'Avg. Read Time')}
-          value={stats.avgReadTime.current}
-          previousValue={stats.avgReadTime.previous}
+          value={`${stats.avgReadTime.current}m`}
+          previousValue={`${stats.avgReadTime.previous}m`}
           icon={Clock}
           color="red"
-          format="number"
+          format="text"
         />
         
         <StatsCard

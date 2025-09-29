@@ -518,7 +518,7 @@ const EditPost = ({ postId, onClose, onSave }) => {
             >
               <option value="">Select category</option>
               {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
+                <option key={category.id} value={category.value}>{category.name}</option>
               ))}
             </select>
             {errors.category && (

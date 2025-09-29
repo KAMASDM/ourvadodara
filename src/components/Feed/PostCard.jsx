@@ -5,7 +5,9 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { Heart, MessageCircle, Share, Bookmark, MoreHorizontal } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { ref, update } from 'firebase/database';
+import { db } from '../../firebase-config';
+import { formatTime } from '../../utils/helpers';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 
 const PostCard = ({ post, onPostClick }) => {
@@ -15,9 +17,24 @@ const PostCard = ({ post, onPostClick }) => {
   const [isSaved, setIsSaved] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
 
-  const handleLike = (e) => {
+  const handleLike = async (e) => {
     e.stopPropagation(); // Prevent triggering post click
-    setIsLiked(!isLiked);
+    const newLikedState = !isLiked;
+    setIsLiked(newLikedState);
+    
+    // Update likes count in Firebase
+    try {
+      const postRef = ref(db, `posts/${post.id}`);
+      const currentLikes = post.likes || 0;
+      await update(postRef, {
+        likes: newLikedState ? currentLikes + 1 : Math.max(0, currentLikes - 1),
+        lastInteraction: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error updating likes:', error);
+      // Revert the state if Firebase update fails
+      setIsLiked(!newLikedState);
+    }
   };
 
   const handleSave = (e) => {
@@ -25,18 +42,53 @@ const PostCard = ({ post, onPostClick }) => {
     setIsSaved(!isSaved);
   };
 
-  const handleShare = (e) => {
+  const handleShare = async (e) => {
     e.stopPropagation(); // Prevent triggering post click
+    
+    // Update shares count in Firebase
+    try {
+      const postRef = ref(db, `posts/${post.id}`);
+      const currentShares = post.shares || 0;
+      await update(postRef, {
+        shares: currentShares + 1,
+        lastInteraction: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error updating shares:', error);
+    }
+    
+    // Handle native sharing
     if (navigator.share) {
+      const contentText = getContentForLanguage();
       navigator.share({
-        title: post.title,
+        title: getTitleForLanguage(),
         text: contentText.substring(0, 100) + '...',
         url: window.location.href,
+      });
+    } else {
+      // Fallback: copy to clipboard
+      const shareText = `${getTitleForLanguage()}\n${window.location.href}`;
+      navigator.clipboard.writeText(shareText).then(() => {
+        alert('Link copied to clipboard!');
+      }).catch(() => {
+        alert('Unable to copy link');
       });
     }
   };
 
-  const handlePostClick = () => {
+  const handlePostClick = async () => {
+    // Update view count in Firebase
+    try {
+      const postRef = ref(db, `posts/${post.id}`);
+      const currentViews = post.views || 0;
+      await update(postRef, {
+        views: currentViews + 1,
+        lastViewed: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error updating views:', error);
+    }
+    
     if (onPostClick) {
       onPostClick(post.id);
     }
@@ -104,7 +156,7 @@ const PostCard = ({ post, onPostClick }) => {
               {post.author}
             </p>
             <p className="text-gray-500 dark:text-gray-400 text-xs">
-              {formatDistanceToNow(post.publishedAt, { addSuffix: true })}
+              {formatTime(post.publishedAt)}
             </p>
           </div>
         </div>
