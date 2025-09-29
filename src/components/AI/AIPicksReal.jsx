@@ -7,18 +7,55 @@ import React, { useState, useEffect } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { DATABASE_PATHS } from '../../utils/databaseSchema';
-import { Brain, Sparkles, Eye, Heart, MessageCircle, Clock, Star } from 'lucide-react';
+import { Brain, Sparkles, Eye, Heart, MessageCircle, Clock, Star, TrendingUp } from 'lucide-react';
+import { useLanguage } from '../../context/Language/LanguageContext';
 
 const AIPicksReal = ({ onPostClick }) => {
+  const [posts, setPosts] = useState([]);
   const [aiPicks, setAiPicks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { currentLanguage } = useLanguage();
+
+  // Calculate AI score based on engagement metrics
+  const calculateAIScore = (post) => {
+    const baseScore = 50;
+    const viewWeight = 0.1;
+    const likeWeight = 5;
+    const commentWeight = 10;
+    const recencyWeight = 20;
+    
+    const views = post.views || 0;
+    const likes = post.likes || 0;
+    const comments = post.comments || 0;
+    
+    // Recency bonus (newer posts get higher scores)
+    const hoursOld = (Date.now() - new Date(post.publishedAt || post.createdAt).getTime()) / (1000 * 60 * 60);
+    const recencyBonus = Math.max(0, recencyWeight * (1 - hoursOld / 24)); // Decreases over 24 hours
+    
+    const engagementScore = (views * viewWeight) + (likes * likeWeight) + (comments * commentWeight);
+    const finalScore = Math.min(100, baseScore + engagementScore + recencyBonus);
+    
+    return Math.round(finalScore);
+  };
 
   useEffect(() => {
-    const aiPicksRef = ref(db, DATABASE_PATHS.AI_PICKS);
-    const unsubscribe = onValue(aiPicksRef, (snapshot) => {
+    // Listen to posts and generate AI picks from actual data
+    const postsRef = ref(db, 'posts');
+    const unsubscribe = onValue(postsRef, (snapshot) => {
       const data = snapshot.val();
-      if (data && data.picks) {
-        setAiPicks(data.picks.slice(0, 6)); // Show top 6 AI picks
+      if (data) {
+        const postsArray = Object.entries(data)
+          .map(([id, post]) => ({ ...post, id }))
+          .filter(post => post.status === 'published')
+          .map(post => ({
+            ...post,
+            aiScore: calculateAIScore(post),
+            trending: (post.views || 0) > 100 && (Date.now() - new Date(post.publishedAt || post.createdAt).getTime()) < 24 * 60 * 60 * 1000
+          }))
+          .sort((a, b) => b.aiScore - a.aiScore)
+          .slice(0, 6); // Top 6 AI picks
+
+        setAiPicks(postsArray);
       } else {
         setAiPicks([]);
       }
@@ -112,11 +149,11 @@ const AIPicksReal = ({ onPostClick }) => {
                 {/* Content */}
                 <div className="flex space-x-3">
                   {/* Story Image */}
-                  {pick.imageUrl && (
+                  {(pick.media?.[0]?.url || pick.imageUrl) && (
                     <div className="flex-shrink-0">
                       <img
-                        src={pick.imageUrl}
-                        alt={pick.title?.en || 'AI Pick'}
+                        src={pick.media?.[0]?.url || pick.imageUrl}
+                        alt={typeof pick.title === 'object' ? (pick.title[currentLanguage] || pick.title.en) : pick.title || 'AI Pick'}
                         className="w-20 h-20 rounded-lg object-cover"
                       />
                     </div>
@@ -124,27 +161,33 @@ const AIPicksReal = ({ onPostClick }) => {
                   
                   {/* Story Content */}
                   <div className="flex-1 min-w-0">
+                    {/* Trending indicator */}
+                    {pick.trending && (
+                      <div className="flex items-center mb-1">
+                        <TrendingUp className="h-3 w-3 text-red-500 mr-1" />
+                        <span className="text-xs text-red-500 font-medium">Trending Now</span>
+                      </div>
+                    )}
+                    
                     <h3 className="font-semibold text-gray-900 text-sm leading-tight mb-1 line-clamp-2 pr-16">
-                      {pick.title?.en || 'AI Recommended Story'}
+                      {typeof pick.title === 'object' ? (pick.title[currentLanguage] || pick.title.en || Object.values(pick.title)[0]) : (pick.title || 'AI Recommended Story')}
                     </h3>
                     
-                    {pick.excerpt?.en && (
-                      <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-                        {pick.excerpt.en}
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                      {typeof pick.excerpt === 'object' ? (pick.excerpt[currentLanguage] || pick.excerpt.en || Object.values(pick.excerpt)[0]) : (pick.excerpt || '')}
+                    </p>
                     
                     {/* Why AI Picked This */}
                     <div className="mb-2">
                       <div className="flex items-center text-xs text-purple-600">
                         <Sparkles className="h-3 w-3 mr-1" />
                         <span className="italic">
-                          {index === 0 && "Trending in your interests"}
-                          {index === 1 && "High engagement from similar readers"}
-                          {index === 2 && "Breaking news in your area"}
-                          {index === 3 && "Popular in your reading history"}
-                          {index === 4 && "Recommended based on your activity"}
-                          {index >= 5 && "Curated for your preferences"}
+                          {pick.aiScore >= 90 && "Exceptional engagement"}
+                          {pick.aiScore >= 80 && pick.aiScore < 90 && "Trending in your interests"}
+                          {pick.aiScore >= 70 && pick.aiScore < 80 && "High engagement from readers"}
+                          {pick.aiScore >= 60 && pick.aiScore < 70 && "Popular in your area"}
+                          {pick.aiScore >= 50 && pick.aiScore < 60 && "Recommended for you"}
+                          {pick.aiScore < 50 && "Fresh content"}
                         </span>
                       </div>
                     </div>
@@ -153,12 +196,12 @@ const AIPicksReal = ({ onPostClick }) => {
                     <div className="flex items-center space-x-3 text-xs text-gray-500 mb-2">
                       <div className="flex items-center">
                         <Eye className="h-3 w-3 mr-1" />
-                        {formatNumber(pick.analytics?.views || 0)}
+                        {formatNumber(pick.views || 0)}
                       </div>
                       
                       <div className="flex items-center">
                         <Heart className="h-3 w-3 mr-1" />
-                        {formatNumber(pick.analytics?.likes || 0)}
+                        {formatNumber(pick.likes || 0)}
                       </div>
                       
                       <div className="flex items-center">

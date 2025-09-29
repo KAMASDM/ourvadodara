@@ -21,6 +21,7 @@ import NotificationSettings from './components/Settings/NotificationSettings.jsx
 import Login from './components/Auth/Login.jsx';
 import FirebaseSetup from './components/Admin/FirebaseSetup.jsx';
 import AdminUpgrade from './components/Admin/AdminUpgrade.jsx';
+import BreakingNewsManager from './components/Breaking/BreakingNewsManager.jsx';
 import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
 import { analytics } from './utils/analytics.js';
 import { performanceMonitor } from './utils/performance.js';
@@ -68,6 +69,7 @@ function AppContent() {
   // Define which views should take up the full screen width
   const isFullWidthView = [
     'admin', 
+    'breaking',
     'firebase-setup', 
     'admin-upgrade'
   ].includes(currentView.type);
@@ -90,7 +92,7 @@ function AppContent() {
   };
 
   const handleTabChange = (tab) => {
-    if (['profile', 'admin'].includes(tab) && !user) {
+    if (['profile', 'admin', 'breaking'].includes(tab) && !user) {
       setShowLogin(true);
       return;
     }
@@ -116,6 +118,8 @@ function AppContent() {
         return <ProfilePage />;
       case 'admin':
         return <AdminDashboard />;
+      case 'breaking':
+        return <BreakingNewsManager />;
       case 'firebase-setup':
         return <FirebaseSetup />;
       case 'admin-upgrade':

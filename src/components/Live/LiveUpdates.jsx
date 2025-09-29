@@ -14,17 +14,23 @@ import {
   Maximize2,
   Minimize2,
   Users,
-  Eye
+  Eye,
+  Zap
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { ref, onValue } from 'firebase/database';
+import { db } from '../../firebase-config';
+import { useLanguage } from '../../context/Language/LanguageContext';
 
 const LiveUpdates = ({ className = '' }) => {
   const { t } = useTranslation();
+  const { currentLanguage } = useLanguage();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [viewerCount, setViewerCount] = useState(1247);
+  const [viewerCount, setViewerCount] = useState(0);
   const [updates, setUpdates] = useState([]);
+  const [loading, setLoading] = useState(true);
   const audioRef = useRef(null);
   const updateIntervalRef = useRef(null);
 
@@ -65,26 +71,41 @@ const LiveUpdates = ({ className = '' }) => {
   ];
 
   useEffect(() => {
-    setUpdates(mockUpdates);
+    // Listen to live updates from Firebase
+    const liveUpdatesRef = ref(db, 'liveUpdates');
+    const unsubscribe = onValue(liveUpdatesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const updatesArray = Object.entries(data)
+          .map(([id, update]) => ({ ...update, id }))
+          .filter(update => update.isActive)
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .slice(0, 10); // Show latest 10 updates
+        
+        setUpdates(updatesArray);
+      } else {
+        // Fallback to mock data if no Firebase data
+        setUpdates(mockUpdates);
+      }
+      setLoading(false);
+    });
 
-    // Simulate live updates
-    const interval = setInterval(() => {
-      const newUpdate = {
-        id: Date.now(),
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        type: ['breaking', 'weather', 'local', 'sports'][Math.floor(Math.random() * 4)],
-        title: 'Live Update: ' + ['Traffic', 'Weather', 'Government', 'Sports'][Math.floor(Math.random() * 4)] + ' news',
-        content: 'This is a simulated live update for demonstration purposes.',
-        priority: ['high', 'medium', 'low'][Math.floor(Math.random() * 3)]
-      };
+    // Listen to live viewer count
+    const viewersRef = ref(db, 'liveViewers/count');
+    const viewersUnsubscribe = onValue(viewersRef, (snapshot) => {
+      const count = snapshot.val();
+      if (count) {
+        setViewerCount(count);
+      } else {
+        // Simulate viewer count
+        setViewerCount(Math.floor(Math.random() * 1000) + 500);
+      }
+    });
 
-      setUpdates(prev => [newUpdate, ...prev.slice(0, 9)]);
-      
-      // Simulate viewer count changes
-      setViewerCount(prev => prev + Math.floor(Math.random() * 20) - 10);
-    }, 15000);
-
-    return () => clearInterval(interval);
+    return () => {
+      unsubscribe();
+      viewersUnsubscribe();
+    };
   }, []);
 
   const getPriorityColor = (priority) => {
@@ -195,11 +216,17 @@ const LiveUpdates = ({ className = '' }) => {
                 </div>
                 
                 <h4 className="font-semibold text-gray-900 dark:text-white mb-1 text-sm">
-                  {update.title}
+                  {typeof update.title === 'object' 
+                    ? (update.title[currentLanguage] || update.title.en || Object.values(update.title)[0])
+                    : update.title
+                  }
                 </h4>
                 
                 <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed">
-                  {update.content}
+                  {typeof update.content === 'object' 
+                    ? (update.content[currentLanguage] || update.content.en || Object.values(update.content)[0])
+                    : update.content
+                  }
                 </p>
               </div>
             ))}

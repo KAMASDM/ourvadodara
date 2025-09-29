@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { Heart, MessageCircle, Share, Bookmark, MoreHorizontal } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 
 const PostCard = ({ post, onPostClick }) => {
   const { t } = useTranslation();
@@ -91,8 +92,12 @@ const PostCard = ({ post, onPostClick }) => {
       {/* Header */}
       <div className="flex items-center justify-between p-4 pb-2">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center">
-            <span className="text-white font-bold text-sm">OV</span>
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-white shadow-sm border border-gray-200">
+            <img 
+              src={logoImage} 
+              alt="Our Vadodara" 
+              className="w-full h-full object-contain p-1"
+            />
           </div>
           <div>
             <p className="font-semibold text-gray-900 dark:text-white text-sm">

@@ -16,6 +16,7 @@ import {
 import { ref, get, remove } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { useToast } from '../Common/Toast';
+import EditPost from './EditPost';
 
 const PostManager = () => {
   const [posts, setPosts] = useState([]);
@@ -24,6 +25,7 @@ const PostManager = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedPosts, setSelectedPosts] = useState([]);
+  const [editingPost, setEditingPost] = useState(null);
   const toast = useToast();
 
   // Fetch posts from Firebase
@@ -360,19 +362,30 @@ const PostManager = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center space-x-2">
-                        <button className="text-blue-600 hover:text-blue-900">
+                        <button 
+                          className="text-blue-600 hover:text-blue-900"
+                          title="View Post"
+                        >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button className="text-green-600 hover:text-green-900">
+                        <button 
+                          onClick={() => setEditingPost(post.id)}
+                          className="text-green-600 hover:text-green-900"
+                          title="Edit Post"
+                        >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button 
                           onClick={() => deletePost(post.id)}
                           className="text-red-600 hover:text-red-900"
+                          title="Delete Post"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        <button className="text-gray-600 hover:text-gray-900">
+                        <button 
+                          className="text-gray-600 hover:text-gray-900"
+                          title="More Actions"
+                        >
                           <MoreVertical className="w-4 h-4" />
                         </button>
                       </div>
@@ -384,6 +397,18 @@ const PostManager = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Post Modal */}
+      {editingPost && (
+        <EditPost
+          postId={editingPost}
+          onClose={() => setEditingPost(null)}
+          onSave={() => {
+            fetchPosts(); // Refresh posts after save
+            setEditingPost(null);
+          }}
+        />
+      )}
     </div>
   );
 };
