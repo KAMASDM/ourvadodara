@@ -212,7 +212,32 @@ const NewsDetailPage = ({ newsId, onBack }) => {
   }
 
   // Show loading state while finding specific post
-  if (!news) {
+  if (!news && !isLoading) {
+    // If we have loaded posts but didn't find the specific post
+    if (postsObject) {
+      return (
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 flex items-center justify-center">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 max-w-md mx-4">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
+                Post Not Found
+              </h3>
+              <p className="text-yellow-600 dark:text-yellow-300 mb-4">
+                The post you're looking for might have been removed or doesn't exist. Post ID: {newsId}
+              </p>
+              <button
+                onClick={onBack}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"
+              >
+                Go Back to Home
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Still loading posts
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 flex items-center justify-center">
         <div className="text-center">

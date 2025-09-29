@@ -136,7 +136,7 @@ const AIPicksReal = ({ onPostClick }) => {
               <div 
                 key={pick.id} 
                 className="relative p-4 rounded-lg border border-gray-200 hover:border-purple-300 hover:shadow-md cursor-pointer transition-all"
-                onClick={() => onPostClick && onPostClick(pick)}
+                onClick={() => onPostClick && onPostClick(pick.id)}
               >
                 {/* AI Score Badge */}
                 <div className="absolute top-2 right-2">

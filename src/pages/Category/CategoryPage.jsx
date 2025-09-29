@@ -9,7 +9,7 @@ import PostCard from '../../components/Feed/PostCard';
 import { sampleNews } from '../../data/newsData';
 import { ArrowLeft, Filter } from 'lucide-react';
 
-const CategoryPage = ({ categoryId, onBack }) => {
+const CategoryPage = ({ categoryId, onBack, onPostClick }) => {
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
   const [sortBy, setSortBy] = useState('latest');
@@ -110,7 +110,7 @@ const CategoryPage = ({ categoryId, onBack }) => {
           <div className="space-y-4">
             {filteredNews.map((post) => (
               <div key={post.id} className="bg-white dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                <PostCard post={post} />
+                <PostCard post={post} onPostClick={onPostClick} />
               </div>
             ))}
           </div>

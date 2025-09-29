@@ -9,6 +9,8 @@ import { ToastProvider } from './components/Common/Toast.jsx';
 import ErrorBoundary from './components/Common/ErrorBoundary.jsx';
 import OfflineIndicator from './components/Common/OfflineIndicator.jsx';
 import NotificationCenter from './components/Notifications/NotificationCenter.jsx';
+import SplashScreen from './components/Common/SplashScreen.jsx';
+import InstallPrompt from './components/PWA/InstallPrompt.jsx';
 import Header from './components/Layout/Header.jsx';
 import Navigation from './components/Layout/Navigation.jsx';
 import HomePage from './pages/Home/HomePage.jsx';
@@ -32,12 +34,18 @@ function AppContent() {
   const [currentView, setCurrentView] = useState({ type: 'home', data: null });
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
   const { user } = useAuth();
 
-  // Check for Firebase setup URL parameter
+  // Check for Firebase setup URL parameter and admin route
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('setup') === 'firebase') {
+    const path = window.location.pathname;
+    
+    if (path === '/admin' || path.includes('/admin')) {
+      setCurrentView({ type: 'admin', data: null });
+      setActiveTab('admin');
+    } else if (urlParams.get('setup') === 'firebase') {
       setCurrentView({ type: 'firebase-setup', data: null });
       setActiveTab('firebase-setup');
     } else if (urlParams.get('admin') === 'upgrade') {
@@ -81,7 +89,6 @@ function AppContent() {
   // --- LAYOUT FIX END ---
 
   const handlePostClick = (postId) => {
-    console.log('App: handlePostClick called with postId:', postId);
     setCurrentView({ type: 'news-detail', data: { newsId: postId } });
     analytics.track('post_viewed', { postId });
   };
@@ -91,9 +98,20 @@ function AppContent() {
     setActiveTab('home');
   };
 
+  const handleSplashComplete = () => {
+    setShowSplash(false);
+  };
+
   const handleTabChange = (tab) => {
-    if (['profile', 'admin', 'breaking'].includes(tab) && !user) {
+    if (['profile', 'admin'].includes(tab) && !user) {
       setShowLogin(true);
+      return;
+    }
+    
+    // Breaking news can be accessed without authentication
+    if (tab === 'breaking') {
+      setActiveTab(tab);
+      setCurrentView({ type: 'breaking', data: null });
       return;
     }
     
@@ -135,35 +153,47 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <OfflineIndicator />
-      
-      {currentView.type !== 'news-detail' && !isFullWidthView && (
-        <Header 
-          onNotificationClick={() => setShowNotifications(true)}
-          onLoginClick={() => setShowLogin(true)}
-        />
+      {/* Splash Screen */}
+      {showSplash && (
+        <SplashScreen onComplete={handleSplashComplete} />
       )}
       
-      {/* Apply the dynamic container class to the main element */}
-      <main className={mainContainerClass}>
-        {renderContent()}
-      </main>
-      
-      {currentView.type !== 'news-detail' && !isFullWidthView && (
-        <Navigation 
-          activeTab={activeTab} 
-          setActiveTab={handleTabChange}
-        />
-      )}
+      {!showSplash && (
+        <>
+          <OfflineIndicator />
+          
+          {currentView.type !== 'news-detail' && !isFullWidthView && (
+            <Header 
+              onNotificationClick={() => setShowNotifications(true)}
+              onLoginClick={() => setShowLogin(true)}
+            />
+          )}
+          
+          {/* Apply the dynamic container class to the main element */}
+          <main className={mainContainerClass}>
+            {renderContent()}
+          </main>
+          
+          {currentView.type !== 'news-detail' && !isFullWidthView && (
+            <Navigation 
+              activeTab={activeTab} 
+              setActiveTab={handleTabChange}
+            />
+          )}
 
-      {/* Modals */}
-      <NotificationCenter 
-        isOpen={showNotifications}
-        onClose={() => setShowNotifications(false)}
-      />
-      
-      {showLogin && (
-        <Login onClose={() => setShowLogin(false)} />
+          {/* PWA Install Prompt */}
+          <InstallPrompt />
+
+          {/* Modals */}
+          <NotificationCenter 
+            isOpen={showNotifications}
+            onClose={() => setShowNotifications(false)}
+          />
+          
+          {showLogin && (
+            <Login onClose={() => setShowLogin(false)} />
+          )}
+        </>
       )}
     </div>
   );

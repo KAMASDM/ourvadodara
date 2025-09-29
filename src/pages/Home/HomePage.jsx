@@ -12,7 +12,7 @@ import LiveUpdates from '../../components/Live/LiveUpdates';
 import TrendingTopics from '../../components/Trending/TrendingTopics';
 import EventsCalendar from '../../components/Events/EventsCalendar';
 import PollWidget from '../../components/Polls/PollWidget';
-import SmartRecommendations from '../../components/AI/SmartRecommendations';
+import AIPicksReal from '../../components/AI/AIPicksReal';
 import { 
   Cloud, 
   TrendingUp, 
@@ -65,7 +65,7 @@ const HomePage = ({ onPostClick }) => {
       name: 'AI Picks',
       icon: Sparkles,
       color: 'bg-yellow-500',
-      component: SmartRecommendations
+      component: AIPicksReal
     },
     {
       id: 'live',
@@ -156,7 +156,7 @@ const HomePage = ({ onPostClick }) => {
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
-              <ActiveSectionComponent />
+              <ActiveSectionComponent onPostClick={onPostClick} />
             </div>
           </div>
         )}
