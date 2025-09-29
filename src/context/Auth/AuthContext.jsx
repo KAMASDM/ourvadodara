@@ -10,7 +10,7 @@ import {
   signOut, 
   onAuthStateChanged 
 } from '../../firebase-config';
-import { updateProfile } from 'firebase/auth';
+import { updateProfile, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { getUserProfile, createAdminUser, createUserProfile } from '../../utils/adminSetup';
 
 const AuthContext = createContext();
@@ -112,6 +112,35 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+      
+      const result = await signInWithPopup(firebaseAuth, provider);
+      
+      // Create or update user profile
+      if (result.user) {
+        const { createUserProfile } = await import('../../utils/adminSetup');
+        await createUserProfile(result.user.uid, {
+          email: result.user.email,
+          displayName: result.user.displayName,
+          photoURL: result.user.photoURL,
+          provider: 'google'
+        });
+      }
+      
+      return { user: result.user };
+    } catch (error) {
+      console.error('Google sign in error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     setLoading(true);
     try {
@@ -147,6 +176,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     signIn,
     signUp,
+    signInWithGoogle,
     logout,
     createAdmin,
     isAdmin

@@ -7,13 +7,15 @@ import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { ref, push, update, serverTimestamp, increment } from '../../firebase-config';
 import { db } from '../../firebase-config';
-import { Send, Heart } from 'lucide-react';
+import { Send, Heart, LogIn } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import LoadingSpinner from '../Common/LoadingSpinner';
+import Login from '../Auth/Login';
 
 const CommentSection = ({ postId }) => {
   const { user } = useAuth();
   const [newComment, setNewComment] = useState('');
+  const [showLogin, setShowLogin] = useState(false);
   const { data: commentsObject, isLoading } = useRealtimeData(`comments/${postId}`);
 
   const comments = commentsObject ? Object.entries(commentsObject).map(([key, value]) => ({...value, id: key})).sort((a,b) => b.createdAt - a.createdAt) : [];
@@ -78,7 +80,7 @@ const CommentSection = ({ postId }) => {
         )}
       </div>
 
-      {user && (
+      {user ? (
         <div className="border-t border-gray-200 dark:border-gray-700 p-4">
           <form onSubmit={handleSubmitComment} className="flex space-x-3">
             <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded-full px-4 py-2 text-sm" />
@@ -87,7 +89,24 @@ const CommentSection = ({ postId }) => {
             </button>
           </form>
         </div>
+      ) : (
+        <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+          <div className="text-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              Please sign in to join the conversation
+            </p>
+            <button
+              onClick={() => setShowLogin(true)}
+              className="inline-flex items-center px-4 py-2 bg-primary-red text-white rounded-lg hover:bg-secondary-red transition-colors text-sm"
+            >
+              <LogIn className="w-4 h-4 mr-2" />
+              Sign In to Comment
+            </button>
+          </div>
+        </div>
       )}
+
+      {showLogin && <Login onClose={() => setShowLogin(false)} />}
     </div>
   );
 };

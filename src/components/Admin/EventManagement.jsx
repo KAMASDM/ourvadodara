@@ -1,54 +1,90 @@
 // =============================================
 // src/components/Admin/EventManagement.jsx
-// Event Creation and Management
+// Comprehensive Event Management System
 // =============================================
-import React, { useState, useEffect } from 'react';
-import { ref, push, onValue, update, remove } from 'firebase/database';
-import { db } from '../../firebase-config';
+
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
+import { createEvent, DATABASE_PATHS } from '../../utils/databaseSchema';
+import { ref, onValue, update, remove } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../firebase-config';
 import { 
   Calendar, 
-  Plus, 
-  Edit, 
-  Trash2, 
   MapPin, 
+  Phone, 
+  Mail, 
+  Globe, 
   Clock, 
   Users, 
+  Image, 
+  Plus, 
+  Edit3, 
+  Trash2, 
+  Eye, 
   Save,
-  X
+  X,
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
 
 const EventManagement = () => {
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+  const imageInputRef = useRef(null);
+
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    date: '',
-    time: '',
-    location: '',
-    category: 'general',
-    maxAttendees: '',
-    isPublic: true
+    title: { en: '', hi: '', gu: '' },
+    description: { en: '', hi: '', gu: '' },
+    imageUrl: '',
+    location: {
+      address: '',
+      coordinates: { lat: 22.3072, lng: 73.1812 }, // Default to Vadodara
+      venue: '',
+      city: 'Vadodara',
+      state: 'Gujarat'
+    },
+    contactInfo: {
+      phone: '',
+      email: '',
+      website: '',
+      organizer: ''
+    },
+    dateTime: {
+      start: '',
+      end: '',
+      timezone: 'Asia/Kolkata'
+    },
+    category: '',
+    tags: [],
+    ticketInfo: {
+      isFree: true,
+      price: 0,
+      bookingUrl: '',
+      capacity: 100
+    },
+    status: 'upcoming',
+    isPublished: false
   });
 
+  // Load events from Firebase
   useEffect(() => {
-    const eventsRef = ref(db, 'events');
+    const eventsRef = ref(db, DATABASE_PATHS.EVENTS);
     const unsubscribe = onValue(eventsRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const eventsData = snapshot.val();
-        const eventsArray = Object.entries(eventsData).map(([id, data]) => ({
-          id,
-          ...data
+      const eventsData = snapshot.val();
+      if (eventsData) {
+        const eventsList = Object.keys(eventsData).map(key => ({
+          id: key,
+          ...eventsData[key]
         }));
-        setEvents(eventsArray.sort((a, b) => new Date(a.date) - new Date(b.date)));
+        setEvents(eventsList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
       } else {
         setEvents([]);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();

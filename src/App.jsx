@@ -133,7 +133,7 @@ function AppContent() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <OfflineIndicator />
       
-      {currentView.type !== 'news-detail' && (
+      {currentView.type !== 'news-detail' && !isFullWidthView && (
         <Header 
           onNotificationClick={() => setShowNotifications(true)}
           onLoginClick={() => setShowLogin(true)}
@@ -145,7 +145,7 @@ function AppContent() {
         {renderContent()}
       </main>
       
-      {currentView.type !== 'news-detail' && (
+      {currentView.type !== 'news-detail' && !isFullWidthView && (
         <Navigation 
           activeTab={activeTab} 
           setActiveTab={handleTabChange}

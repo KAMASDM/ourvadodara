@@ -5,8 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   plugins: [
     react({
-      // Enable fast refresh
-      fastRefresh: true
+      fastRefresh: true,
+      include: "**/*.{jsx,tsx}"
     }),
     VitePWA({
       registerType: 'autoUpdate',
@@ -71,9 +71,27 @@ export default defineConfig({
     port: 5173,
     hmr: {
       port: 5173
+    },
+    fs: {
+      strict: false
     }
   },
   optimizeDeps: {
-    include: ['react', 'react-dom']
+    include: [
+      'react', 
+      'react-dom', 
+      'firebase/app',
+      'firebase/auth',
+      'firebase/database',
+      'firebase/storage'
+    ],
+    force: true
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: undefined
+      }
+    }
   }
 })

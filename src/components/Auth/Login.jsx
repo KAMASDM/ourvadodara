@@ -7,11 +7,12 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD } from '../../utils/adminSetup';
 import { Eye, EyeOff, Mail, Lock, User, Shield } from 'lucide-react';
+import { FcGoogle } from 'react-icons/fc';
 import { FirebaseError } from 'firebase/app';
 
 const Login = ({ onClose }) => {
   const { t } = useTranslation();
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, signInWithGoogle } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -78,6 +79,20 @@ const Login = ({ onClose }) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setIsLoading(true);
+
+    try {
+      await signInWithGoogle();
+      onClose();
+    } catch (err) {
+      setError(handleFirebaseError(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-md">
@@ -134,6 +149,25 @@ const Login = ({ onClose }) => {
             </div>
           )}
           <button type="submit" disabled={isLoading} className="w-full bg-primary-red hover:bg-secondary-red text-white py-3 rounded-lg font-semibold">{isLoading ? 'Loading...' : (isLogin ? 'Sign In' : 'Create Account')}</button>
+          
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white dark:bg-gray-900 text-gray-500">Or continue with</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={isLoading}
+            className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <FcGoogle className="w-5 h-5 mr-3" />
+            Sign in with Google
+          </button>
           
           <div className="text-center">
             <button type="button" onClick={() => { setIsLogin(!isLogin); setError(''); }} className="text-primary-red hover:underline text-sm font-medium">

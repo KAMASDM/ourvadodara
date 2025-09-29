@@ -144,13 +144,54 @@ const PostCard = ({ post, onPostClick }) => {
           )}
         </div>
 
-        {/* Image */}
-        {post.image && (
+        {/* Media - Images and Videos */}
+        {post.media && post.media.length > 0 && (
+          <div className="px-4 pb-2">
+            {post.media.filter(media => media.type === 'image').slice(0, 1).map((media, index) => (
+              <div key={index} className="mb-2">
+                <img
+                  src={media.url}
+                  alt={titleText}
+                  className="w-full h-64 object-cover rounded-lg"
+                  onLoad={() => console.log('Image loaded successfully:', media.url)}
+                  onError={(e) => {
+                    console.error('Image failed to load:', media.url);
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+            ))}
+            {post.media.filter(media => media.type === 'video').slice(0, 1).map((media, index) => (
+              <div key={index} className="mb-2">
+                <video
+                  src={media.url}
+                  controls
+                  className="w-full h-64 object-cover rounded-lg"
+                  onLoadedData={() => console.log('Video loaded successfully:', media.url)}
+                  onError={(e) => {
+                    console.error('Video failed to load:', media.url);
+                    e.target.style.display = 'none';
+                  }}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {/* Legacy image support for backward compatibility */}
+        {!post.media && post.image && (
           <div className="px-4 pb-2">
             <img
               src={post.image}
               alt={titleText}
               className="w-full h-64 object-cover rounded-lg"
+              onLoad={() => console.log('Legacy image loaded successfully:', post.image)}
+              onError={(e) => {
+                console.error('Legacy image failed to load:', post.image);
+                e.target.style.display = 'none';
+              }}
             />
           </div>
         )}

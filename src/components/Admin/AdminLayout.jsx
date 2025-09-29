@@ -18,7 +18,9 @@ import {
   BarChart3,
   MessageSquare,
   Calendar,
-  Globe
+  Globe,
+  CheckSquare,
+  Zap
 } from 'lucide-react';
 import Dashboard from './Dashboard';
 import PostManager from './PostManager';
@@ -29,6 +31,10 @@ import AdminSettings from './AdminSettings';
 import ContentManagement from './ContentManagement';
 import CommentManagement from './CommentManagement';
 import EventManagement from './EventManagement';
+import PollManagement from './PollManagement';
+import CommentModeration from './CommentModeration';
+import RealTimeContent from './RealTimeContent';
+
 
 const AdminLayout = () => {
   const { user, isAdmin } = useAuth();
@@ -66,7 +72,10 @@ const AdminLayout = () => {
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     { id: 'comments', label: 'Comments', icon: MessageSquare },
+    { id: 'comment-moderation', label: 'Comment Moderation', icon: CheckSquare },
     { id: 'events', label: 'Events', icon: Calendar },
+    { id: 'polls', label: 'Polls', icon: BarChart3 },
+    { id: 'realtime-content', label: 'Breaking News & Live', icon: Zap },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -99,8 +108,14 @@ const AdminLayout = () => {
         return <Analytics />;
       case 'comments':
         return isMobile ? <MobileContentWarning /> : <CommentManagement />;
+      case 'comment-moderation':
+        return isMobile ? <MobileContentWarning /> : <CommentModeration />;
       case 'events':
         return isMobile ? <MobileContentWarning /> : <EventManagement />;
+      case 'polls':
+        return isMobile ? <MobileContentWarning /> : <PollManagement />;
+      case 'realtime-content':
+        return isMobile ? <MobileContentWarning /> : <RealTimeContent />;
       case 'settings':
         return <AdminSettings />;
       default:
@@ -109,7 +124,7 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gray-50">
+    <div className="fixed inset-0 bg-gray-50 z-50 overflow-hidden">
       {/* Mobile Header */}
       {isMobile && (
         <div className="bg-white shadow-sm border-b">
@@ -128,14 +143,14 @@ const AdminLayout = () => {
         </div>
       )}
 
-      <div className="flex w-full">
+      <div className="flex w-full h-full">
         {/* Sidebar */}
         <div className={`
           ${isMobile 
             ? `fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full'
               }` 
-            : 'w-64 bg-white shadow-sm flex-shrink-0'
+            : 'w-64 bg-white shadow-sm flex-shrink-0 h-full'
           }
         `}>
           {/* Desktop Header */}
@@ -206,10 +221,10 @@ const AdminLayout = () => {
         )}
 
         {/* Main Content */}
-        <div className="flex-1 min-w-0 w-full">
+        <div className="flex-1 min-w-0 w-full h-full flex flex-col">
           {/* Desktop Header */}
           {!isMobile && (
-            <div className="bg-white shadow-sm border-b w-full">
+            <div className="bg-white shadow-sm border-b w-full flex-shrink-0">
               <div className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -230,7 +245,7 @@ const AdminLayout = () => {
           )}
 
           {/* Content Area */}
-          <main className="p-6 w-full max-w-none">
+          <main className="flex-1 p-6 w-full max-w-none overflow-y-auto">
             <div className="w-full">
               {renderContent()}
             </div>

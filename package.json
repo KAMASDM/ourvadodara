@@ -10,8 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google-cloud/translate": "^9.2.0",
     "@headlessui/react": "^2.2.9",
     "@heroicons/react": "^2.2.0",
+    "@react-oauth/google": "^0.12.2",
+    "axios": "^1.12.2",
     "date-fns": "^4.1.0",
     "firebase": "^12.3.0",
     "firebase-admin": "^13.5.0",
@@ -21,6 +24,7 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-i18next": "^16.0.0",
+    "react-icons": "^5.5.0",
     "react-router-dom": "^7.9.3",
     "vite-plugin-pwa": "^1.0.3",
     "workbox-sw": "^7.3.0",
