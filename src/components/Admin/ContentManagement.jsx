@@ -26,6 +26,17 @@ const ContentManagement = () => {
   const [sortBy, setSortBy] = useState('createdAt');
   const [selectedPosts, setSelectedPosts] = useState([]);
 
+  // Helper function to extract text from multi-language objects or strings
+  const getTextContent = (content) => {
+    if (!content) return '';
+    if (typeof content === 'string') return content;
+    if (typeof content === 'object') {
+      // Return the first available language content
+      return content.en || content.hi || content.gu || Object.values(content)[0] || '';
+    }
+    return '';
+  };
+
   useEffect(() => {
     const postsRef = ref(db, 'posts');
     const unsubscribe = onValue(postsRef, (snapshot) => {
@@ -72,8 +83,15 @@ const ContentManagement = () => {
   };
 
   const filteredPosts = posts.filter(post => {
-    const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         post.content.toLowerCase().includes(searchTerm.toLowerCase());
+    // Safety check for post object
+    if (!post || typeof post !== 'object') return false;
+    
+    const titleText = getTextContent(post.title);
+    const contentText = getTextContent(post.content);
+    
+    const matchesSearch = !searchTerm || 
+      titleText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contentText.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === 'all' || post.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
@@ -96,6 +114,17 @@ const ContentManagement = () => {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Safety check for posts array
+  if (!Array.isArray(posts)) {
+    return (
+      <div className="p-6">
+        <div className="text-center text-gray-500">
+          <p>Error loading posts. Please refresh the page.</p>
+        </div>
       </div>
     );
   }
@@ -177,10 +206,10 @@ const ContentManagement = () => {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h3 className="text-lg font-medium text-gray-900 mb-1">
-                          {post.title}
+                          {getTextContent(post.title)}
                         </h3>
                         <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                          {post.excerpt}
+                          {getTextContent(post.excerpt) || getTextContent(post.content)?.substring(0, 100) + '...'}
                         </p>
                         <div className="flex items-center space-x-4 text-xs text-gray-500">
                           <span className="flex items-center">

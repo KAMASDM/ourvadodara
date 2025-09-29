@@ -1,8 +1,8 @@
 
-  {
-    "name": "Our Vadodara News",
-  "short_name": "OurVadodara",
-  "description": "Stay updated with Vadodara news and media",
+{
+  "name": "Our Vadodara - Local News Hub",
+  "short_name": "Our Vadodara",
+  "description": "Your local news hub for Vadodara city. Stay updated with breaking news, events, community updates, and more.",
   "theme_color": "#f97316",
   "background_color": "#ffffff",
   "display": "standalone",

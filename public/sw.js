@@ -3,12 +3,18 @@
 // =============================================
 // This content should be added to public/sw.js
 
-const CACHE_NAME = 'our-vadodara-v1';
+const CACHE_NAME = 'our-vadodara-v2';
 const urlsToCache = [
   '/',
   '/static/js/bundle.js',
   '/static/css/main.css',
-  '/manifest.json'
+  '/manifest.json',
+  '/favicon.ico',
+  '/favicon.png',
+  '/logo.png',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
+  '/apple-splash-750x1334.png'
 ];
 
 self.addEventListener('install', (event) => {
