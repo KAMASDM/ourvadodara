@@ -9,6 +9,7 @@ import { useLanguage } from '../../context/Language/LanguageContext';
 import { LANGUAGES } from '../../utils/constants';
 import { Sun, Moon, Globe, Bell, User, LogIn } from 'lucide-react';
 import Logo from '../Shared/Logo'; // Import the new Logo component
+import PWAInstallButton from '../PWA/PWAInstallButton';
 
 const Header = ({ onNotificationClick, onLoginClick }) => {
   const { t } = useTranslation();
@@ -84,6 +85,9 @@ const Header = ({ onNotificationClick, onLoginClick }) => {
             >
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
+
+            {/* PWA Install Button */}
+            <PWAInstallButton />
 
             {/* User Menu */}
             <div className="relative" ref={userMenuRef}>

@@ -13,38 +13,58 @@ const InstallPrompt = () => {
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
+    console.log('PWA InstallPrompt: Component mounted');
+    
     // Check if it's iOS
     const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     setIsIOS(isIOSDevice);
+    console.log('PWA InstallPrompt: Is iOS device:', isIOSDevice);
 
     // Check if app is already installed
     const isAppInstalled = window.matchMedia('(display-mode: standalone)').matches || 
                           window.navigator.standalone || 
                           document.referrer.includes('android-app://');
+    console.log('PWA InstallPrompt: Is app installed:', isAppInstalled);
 
     if (isAppInstalled) {
+      console.log('PWA InstallPrompt: App already installed, not showing prompt');
       return; // Don't show install prompt if already installed
     }
 
     // Check if user has previously dismissed the prompt
     const hasPromptBeenDismissed = localStorage.getItem('pwa-install-dismissed');
+    console.log('PWA InstallPrompt: Prompt previously dismissed:', hasPromptBeenDismissed);
+    
     if (hasPromptBeenDismissed) {
+      return;
+    }
+
+    // Check if we're on HTTPS or localhost
+    const isSecureContext = window.isSecureContext || location.hostname === 'localhost';
+    console.log('PWA InstallPrompt: Is secure context (HTTPS or localhost):', isSecureContext);
+    
+    if (!isSecureContext) {
+      console.log('PWA InstallPrompt: Not in secure context, PWA install not available');
       return;
     }
 
     // Listen for beforeinstallprompt event (Android/Chrome)
     const handleBeforeInstallPrompt = (e) => {
+      console.log('PWA InstallPrompt: beforeinstallprompt event fired', e);
       e.preventDefault();
       setDeferredPrompt(e);
       setShowInstallPrompt(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    console.log('PWA InstallPrompt: Added beforeinstallprompt listener');
 
     // For iOS, show manual instruction prompt
-    if (isIOSDevice && !isAppInstalled) {
+    if (isIOSDevice && !isAppInstalled && isSecureContext) {
+      console.log('PWA InstallPrompt: Setting up iOS prompt timer');
       // Delay showing iOS prompt
       const timer = setTimeout(() => {
+        console.log('PWA InstallPrompt: Showing iOS install prompt');
         setShowInstallPrompt(true);
       }, 5000);
       
