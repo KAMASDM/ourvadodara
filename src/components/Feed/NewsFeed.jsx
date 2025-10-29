@@ -57,9 +57,9 @@ const NewsFeed = ({ activeCategory, onPostClick }) => {
 
   return (
     <div className="space-y-0">
-      {filteredNews.map((post) => (
+      {filteredNews.map((post, index) => (
         <PostCard 
-          key={post.id} 
+          key={post.id || `post-${index}`} 
           post={post} 
           onPostClick={onPostClick}
         />

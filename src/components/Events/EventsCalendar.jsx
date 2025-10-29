@@ -1,6 +1,6 @@
 // =============================================
 // src/components/Events/EventsCalendar.jsx
-// Local events and calendar integration
+// Local events and calendar integration with better UI
 // =============================================
 import React, { useState, useEffect } from 'react';
 import { 
@@ -8,15 +8,24 @@ import {
   MapPin, 
   Clock, 
   Users, 
-  Star,
-  ChevronLeft,
+  Star, 
+  ChevronLeft, 
   ChevronRight,
-  Plus,
   Filter,
+  Search,
+  Tag,
+  Heart,
+  Share2,
   ExternalLink,
-  Bookmark,
-  Share2
+  Ticket,
+  DollarSign,
+  Plus,
+  Bookmark
 } from 'lucide-react';
+import { ref, onValue } from 'firebase/database';
+import { db } from '../../firebase-config';
+import EventRegistration from './EventRegistration';
+import EventCard from './EventCard';
 import { useTranslation } from 'react-i18next';
 
 const EventsCalendar = ({ className = '' }) => {
@@ -24,144 +33,206 @@ const EventsCalendar = ({ className = '' }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState([]);
-  const [viewMode, setViewMode] = useState('month'); // month, week, day
+  const [viewMode, setViewMode] = useState('month');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [savedEvents, setSavedEvents] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [showRegistration, setShowRegistration] = useState(false);
+  const [dateFilter, setDateFilter] = useState('all');
+  const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
 
   // Mock events data
   const mockEvents = [
     {
       id: 1,
-      title: 'Navratri Festival',
+      title: 'Navratri Festival 2025',
       description: 'Traditional Gujarati folk dance and music celebration',
-      date: '2025-10-15',
+      date: '2025-11-15',
       time: '19:00',
-      endTime: '23:00',
-      location: 'VUDA Ground, Vadodara',
-      category: 'cultural',
-      attendees: 5000,
-      price: 'Free',
-      organizer: 'Vadodara Cultural Society',
-      image: '/images/events/navratri.jpg',
+      venue: 'Sayajibaug Gardens, Vadodara',
+      organizer: 'Cultural Society',
+      category: 'Festival',
+      price: 0,
+      capacity: 1000,
+      registered: 350,
+      image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800',
       rating: 4.8,
-      isPopular: true
+      tags: ['Traditional', 'Dance', 'Music'],
+      ticketTypes: [
+        {
+          id: 1,
+          name: 'General Entry',
+          price: 0,
+          totalSeats: 1000,
+          availableSeats: 650,
+          benefits: ['Entry to all dance performances', 'Traditional snacks', 'Cultural activities']
+        }
+      ]
     },
     {
       id: 2,
-      title: 'Tech Startup Meetup',
-      description: 'Networking event for local entrepreneurs and tech enthusiasts',
-      date: '2025-10-18',
+      title: 'Tech Meetup Vadodara',
+      description: 'Monthly tech meetup for developers and entrepreneurs',
+      date: '2025-11-08',
       time: '18:30',
-      endTime: '21:00',
-      location: 'MSU Innovation Hub',
-      category: 'business',
-      attendees: 150,
-      price: '₹500',
-      organizer: 'Vadodara Startup Community',
-      image: '/images/events/tech-meetup.jpg',
+      venue: 'MS University',
+      organizer: 'Dev Community',
+      category: 'Technology',
+      price: 100,
+      capacity: 150,
+      registered: 89,
+      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
       rating: 4.5,
-      isPopular: false
+      tags: ['Tech', 'Networking'],
+      ticketTypes: [
+        {
+          id: 1,
+          name: 'Regular Pass',
+          price: 100,
+          totalSeats: 100,
+          availableSeats: 61,
+          benefits: ['Access to all sessions', 'Networking tea', 'Certificate of participation']
+        },
+        {
+          id: 2,
+          name: 'Student Pass',
+          price: 50,
+          totalSeats: 50,
+          availableSeats: 11,
+          benefits: ['Access to all sessions', 'Student networking', 'Certificate of participation']
+        }
+      ]
     },
     {
       id: 3,
-      title: 'Food Festival',
-      description: 'Taste the best of Gujarati and international cuisines',
-      date: '2025-10-20',
-      time: '17:00',
-      endTime: '22:00',
-      location: 'Sayaji Garden',
-      category: 'food',
-      attendees: 2500,
-      price: '₹200',
-      organizer: 'Vadodara Food Club',
-      image: '/images/events/food-festival.jpg',
+      title: 'Food Festival Gujarat',
+      description: 'Authentic Gujarati cuisine festival',
+      date: '2025-11-20',
+      time: '11:00',
+      venue: 'Inox Road',
+      organizer: 'Food Association',
+      category: 'Food',
+      price: 50,
+      capacity: 500,
+      registered: 200,
+      image: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=800',
       rating: 4.7,
-      isPopular: true
-    },
-    {
-      id: 4,
-      title: 'Marathon 2025',
-      description: 'Annual city marathon promoting health and fitness',
-      date: '2025-10-25',
-      time: '06:00',
-      endTime: '10:00',
-      location: 'Starting from Race Course Ground',
-      category: 'sports',
-      attendees: 3000,
-      price: '₹300',
-      organizer: 'Vadodara Runners Club',
-      image: '/images/events/marathon.jpg',
-      rating: 4.6,
-      isPopular: true
+      tags: ['Food', 'Cultural'],
+      ticketTypes: [
+        {
+          id: 1,
+          name: 'Food Explorer',
+          price: 50,
+          totalSeats: 300,
+          availableSeats: 100,
+          benefits: ['Access to all food stalls', 'Complimentary water', 'Recipe booklet']
+        },
+        {
+          id: 2,
+          name: 'VIP Foodie',
+          price: 150,
+          totalSeats: 100,
+          availableSeats: 50,
+          benefits: ['Priority access', 'Chef interactions', 'Premium tasting menu', 'Recipe booklet', 'Goodie bag']
+        },
+        {
+          id: 3,
+          name: 'Family Pack (4 people)',
+          price: 180,
+          totalSeats: 100,
+          availableSeats: 50,
+          benefits: ['Entry for 4 people', 'Family seating area', 'Kids activities', 'Recipe booklet']
+        }
+      ]
     }
   ];
 
   const categories = [
-    { id: 'all', name: t('events.categories.all', 'All Events'), color: 'gray' },
-    { id: 'cultural', name: t('events.categories.cultural', 'Cultural'), color: 'purple' },
-    { id: 'business', name: t('events.categories.business', 'Business'), color: 'blue' },
-    { id: 'food', name: t('events.categories.food', 'Food'), color: 'orange' },
-    { id: 'sports', name: t('events.categories.sports', 'Sports'), color: 'green' },
-    { id: 'education', name: t('events.categories.education', 'Education'), color: 'indigo' }
+    { id: 'all', name: 'All Events', color: 'blue' },
+    { id: 'Festival', name: 'Festivals', color: 'orange' },
+    { id: 'Technology', name: 'Tech', color: 'purple' },
+    { id: 'Food', name: 'Food', color: 'green' },
+    { id: 'Sports', name: 'Sports', color: 'red' },
+    { id: 'Music', name: 'Music', color: 'pink' }
   ];
 
   useEffect(() => {
-    setEvents(mockEvents);
+    // Load events from Firebase
+    const eventsRef = ref(db, 'events');
+    const unsubscribe = onValue(eventsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const eventsData = snapshot.val();
+        const eventsArray = Object.entries(eventsData).map(([id, event]) => ({
+          id,
+          ...event
+        }));
+        setEvents([...eventsArray, ...mockEvents]);
+      } else {
+        setEvents(mockEvents);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const filteredEvents = events.filter(event => 
-    categoryFilter === 'all' || event.category === categoryFilter
-  );
-
-  const getDaysInMonth = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const days = [];
+  const filteredEvents = events.filter(event => {
+    // Category filter
+    const categoryMatch = categoryFilter === 'all' || event.category === categoryFilter;
     
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
+    // Date filter
+    const eventDate = new Date(event.date);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+    const nextMonth = new Date(today);
+    nextMonth.setMonth(today.getMonth() + 1);
+    
+    let dateMatch = true;
+    
+    switch (dateFilter) {
+      case 'today':
+        dateMatch = eventDate.toDateString() === today.toDateString();
+        break;
+      case 'tomorrow':
+        dateMatch = eventDate.toDateString() === tomorrow.toDateString();
+        break;
+      case 'week':
+        dateMatch = eventDate >= today && eventDate <= nextWeek;
+        break;
+      case 'month':
+        dateMatch = eventDate >= today && eventDate <= nextMonth;
+        break;
+      case 'past':
+        dateMatch = eventDate < today;
+        break;
+      case 'custom':
+        if (customDateRange.start && customDateRange.end) {
+          const startDate = new Date(customDateRange.start);
+          const endDate = new Date(customDateRange.end);
+          dateMatch = eventDate >= startDate && eventDate <= endDate;
+        }
+        break;
+      default:
+        dateMatch = true;
     }
     
-    // Add all days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(new Date(year, month, day));
-    }
-    
-    return days;
-  };
+    return categoryMatch && dateMatch;
+  });
 
-  const getEventsForDate = (date) => {
-    if (!date) return [];
-    const dateString = date.toISOString().split('T')[0];
-    return filteredEvents.filter(event => event.date === dateString);
-  };
-
-  const toggleSaveEvent = (eventId) => {
-    const newSavedEvents = new Set(savedEvents);
-    if (newSavedEvents.has(eventId)) {
-      newSavedEvents.delete(eventId);
-    } else {
-      newSavedEvents.add(eventId);
-    }
-    setSavedEvents(newSavedEvents);
-  };
-
-  const formatTime = (time) => {
-    return new Date(`2000-01-01T${time}`).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+  const handleSaveEvent = (eventId) => {
+    setSavedEvents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
     });
-  };
-
-  const getCategoryColor = (category) => {
-    const cat = categories.find(c => c.id === category);
-    return cat ? cat.color : 'gray';
   };
 
   const navigateMonth = (direction) => {
@@ -178,194 +249,347 @@ const EventsCalendar = ({ className = '' }) => {
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-md ${className}`}>
+    <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 -mx-4 ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b dark:border-gray-700">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <Calendar className="w-5 h-5 text-blue-500" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {t('events.title', 'Local Events')}
-            </h3>
-          </div>
-          <button className="flex items-center space-x-1 bg-blue-500 text-white px-3 py-1 rounded-lg hover:bg-blue-600 transition-colors">
-            <Plus className="w-4 h-4" />
-            <span className="text-sm">{t('events.addEvent', 'Add Event')}</span>
-          </button>
-        </div>
-
-        {/* Category Filter */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => setCategoryFilter(category.id)}
-              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                categoryFilter === category.id
-                  ? `bg-${category.color}-500 text-white`
-                  : `bg-${category.color}-100 text-${category.color}-800 dark:bg-${category.color}-900 dark:text-${category.color}-200 hover:bg-${category.color}-200 dark:hover:bg-${category.color}-800`
-              }`}
-            >
-              {category.name}
-            </button>
-          ))}
-        </div>
-
-        {/* Calendar Navigation */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => navigateMonth(-1)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-          </h4>
-          <button
-            onClick={() => navigateMonth(1)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Calendar Grid */}
-      <div className="p-3">
-        {/* Week Days Header */}
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {weekDays.map((day) => (
-            <div key={day} className="p-2 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar Days */}
-        <div className="grid grid-cols-7 gap-1">
-          {getDaysInMonth(currentDate).map((date, index) => {
-            const dayEvents = getEventsForDate(date);
-            const isSelected = date && selectedDate && 
-              date.toDateString() === selectedDate.toDateString();
-            const isToday = date && date.toDateString() === new Date().toDateString();
-
-            return (
-              <div
-                key={index}
-                onClick={() => date && setSelectedDate(date)}
-                className={`min-h-[60px] p-1 border dark:border-gray-700 rounded cursor-pointer transition-colors ${
-                  !date 
-                    ? 'bg-gray-50 dark:bg-gray-900' 
-                    : isSelected
-                      ? 'bg-blue-500 text-white'
-                      : isToday
-                        ? 'bg-blue-100 dark:bg-blue-900'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                {date && (
-                  <div>
-                    <div className="text-sm font-medium mb-1">
-                      {date.getDate()}
-                    </div>
-                    {dayEvents.slice(0, 2).map((event) => (
-                      <div
-                        key={event.id}
-                        className={`text-xs p-1 rounded mb-1 bg-${getCategoryColor(event.category)}-100 text-${getCategoryColor(event.category)}-800 dark:bg-${getCategoryColor(event.category)}-900 dark:text-${getCategoryColor(event.category)}-200 truncate`}
-                      >
-                        {event.title}
-                      </div>
-                    ))}
-                    {dayEvents.length > 2 && (
-                      <div className="text-xs text-gray-500">
-                        +{dayEvents.length - 2} more
-                      </div>
-                    )}
-                  </div>
-                )}
+      <div className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 px-4 py-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                <Calendar className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
-            );
-          })}
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {t('events.title', 'Local Events')}
+                </h1>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Discover amazing events in Vadodara
+                </p>
+              </div>
+            </div>
+            <button className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+              <Plus className="w-4 h-4" />
+              <span>{t('events.addEvent', 'Add Event')}</span>
+            </button>
+          </div>
+
+          {/* Category Filter */}
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filter by Category</h3>
+            <div className="flex flex-wrap gap-3">
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => setCategoryFilter(category.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    categoryFilter === category.id
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Date Filter */}
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filter by Date</h3>
+            <div className="flex flex-wrap gap-3 mb-3">
+              {[
+                { id: 'all', name: 'All Dates' },
+                { id: 'today', name: 'Today' },
+                { id: 'tomorrow', name: 'Tomorrow' },
+                { id: 'week', name: 'This Week' },
+                { id: 'month', name: 'This Month' },
+                { id: 'past', name: 'Past Events' },
+                { id: 'custom', name: 'Custom Range' }
+              ].map((date) => (
+                <button
+                  key={date.id}
+                  onClick={() => setDateFilter(date.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    dateFilter === date.id
+                      ? 'bg-green-600 text-white shadow-md'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {date.name}
+                </button>
+              ))}
+            </div>
+            
+            {/* Custom Date Range Inputs */}
+            {dateFilter === 'custom' && (
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm text-gray-600 dark:text-gray-400">From:</label>
+                  <input
+                    type="date"
+                    value={customDateRange.start}
+                    onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm text-gray-600 dark:text-gray-400">To:</label>
+                  <input
+                    type="date"
+                    value={customDateRange.end}
+                    onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Selected Date Events */}
-      {selectedDate && (
-        <div className="border-t dark:border-gray-700 p-3 max-h-48 overflow-y-auto">
-          <h4 className="font-semibold text-gray-900 dark:text-white mb-3 text-sm">
-            {t('events.eventsOn', 'Events on')} {selectedDate.toLocaleDateString()}
-          </h4>
-          
-          {getEventsForDate(selectedDate).length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-4">
-              {t('events.noEventsSelected', 'No events on this date')}
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-6 pb-24">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        ) : filteredEvents.length === 0 ? (
+          <div className="text-center py-12">
+            <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              No Events Found
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              No events match your current filter.
             </p>
-          ) : (
-            <div className="space-y-3">
-              {getEventsForDate(selectedDate).map((event) => (
-                <div key={event.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h5 className="font-semibold text-gray-900 dark:text-white">
-                          {event.title}
-                        </h5>
-                        {event.isPopular && (
-                          <Star className="w-4 h-4 text-yellow-500" />
+          </div>
+        ) : (
+          <div className="grid gap-6">
+            {filteredEvents.map((event) => {
+              const eventDate = new Date(event.date);
+              const isExpired = eventDate < new Date();
+              const isToday = eventDate.toDateString() === new Date().toDateString();
+              
+              return (
+                <div
+                  key={event.id}
+                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 dark:border-gray-700"
+                >
+                  <div className="relative">
+                    {/* Event Image */}
+                    <div className="relative h-48 md:h-56">
+                      <img
+                        src={event.image || 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800'}
+                        alt={event.title}
+                        className="w-full h-full object-cover"
+                      />
+                      {/* Status Badge */}
+                      <div className="absolute top-4 left-4">
+                        {isExpired ? (
+                          <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                            Expired
+                          </span>
+                        ) : isToday ? (
+                          <span className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                            Today
+                          </span>
+                        ) : (
+                          <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                            Upcoming
+                          </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                      
+                      {/* Bookmark Button */}
+                      <button
+                        onClick={() => handleSaveEvent(event.id)}
+                        className="absolute top-4 right-4 p-2 bg-white dark:bg-gray-800 bg-opacity-90 hover:bg-opacity-100 rounded-lg transition-all shadow-md"
+                      >
+                        <Bookmark 
+                          className={`w-5 h-5 ${
+                            savedEvents.has(event.id) 
+                              ? 'text-blue-600 fill-current' 
+                              : 'text-gray-600 dark:text-gray-400'
+                          }`} 
+                        />
+                      </button>
+                    </div>
+                    
+                    {/* Event Content */}
+                    <div className="p-6">
+                      {/* Category and Rating */}
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm font-medium rounded-full">
+                          {event.category}
+                        </span>
+                        {event.rating && (
+                          <div className="flex items-center bg-yellow-50 dark:bg-yellow-900 px-2 py-1 rounded-lg">
+                            <Star className="w-4 h-4 text-yellow-500 fill-current mr-1" />
+                            <span className="text-sm font-medium text-yellow-700 dark:text-yellow-300">
+                              {event.rating}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Event Title */}
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 line-clamp-2">
+                        {event.title}
+                      </h3>
+                      
+                      {/* Event Description */}
+                      <p className="text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
                         {event.description}
                       </p>
-                    </div>
-                    <button
-                      onClick={() => toggleSaveEvent(event.id)}
-                      className={`p-1 rounded transition-colors ${
-                        savedEvents.has(event.id)
-                          ? 'text-blue-500 hover:text-blue-600'
-                          : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                      }`}
-                    >
-                      <Bookmark className="w-4 h-4" />
-                    </button>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-400">
-                    <div className="flex items-center space-x-1">
-                      <Clock className="w-4 h-4" />
-                      <span>{formatTime(event.time)} - {formatTime(event.endTime)}</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <MapPin className="w-4 h-4" />
-                      <span>{event.location}</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Users className="w-4 h-4" />
-                      <span>{event.attendees.toLocaleString()} attending</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <span className="font-medium">{event.price}</span>
-                    </div>
-                  </div>
+                      {/* Event Details Grid */}
+                      <div className="space-y-3 mb-4">
+                        <div className="flex items-center space-x-3 text-gray-600 dark:text-gray-400">
+                          <div className="flex items-center justify-center w-8 h-8 bg-blue-50 dark:bg-blue-900 rounded-lg">
+                            <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white block">
+                              {eventDate.toLocaleDateString('en-US', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}
+                            </span>
+                            <span className="text-sm text-gray-500">{event.time}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-3 text-gray-600 dark:text-gray-400">
+                          <div className="flex items-center justify-center w-8 h-8 bg-green-50 dark:bg-green-900 rounded-lg">
+                            <MapPin className="w-4 h-4 text-green-600 dark:text-green-400" />
+                          </div>
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white block">
+                              {typeof event.venue === 'string' ? event.venue : event.venue?.name || 'Venue TBD'}
+                            </span>
+                            {typeof event.venue === 'object' && event.venue?.address && (
+                              <span className="text-sm text-gray-500">{event.venue.address}</span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-3 text-gray-600 dark:text-gray-400">
+                          <div className="flex items-center justify-center w-8 h-8 bg-purple-50 dark:bg-purple-900 rounded-lg">
+                            <Users className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white block">
+                              {event.registered || 0} attending
+                            </span>
+                            <span className="text-sm text-gray-500">
+                              {event.capacity ? `${event.capacity} capacity` : 'Unlimited'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
 
-                  <div className="flex items-center justify-between mt-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium bg-${getCategoryColor(event.category)}-100 text-${getCategoryColor(event.category)}-800 dark:bg-${getCategoryColor(event.category)}-900 dark:text-${getCategoryColor(event.category)}-200`}>
-                      {categories.find(c => c.id === event.category)?.name}
-                    </span>
-                    <div className="flex space-x-2">
-                      <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                        <Share2 className="w-4 h-4" />
-                      </button>
-                      <button className="text-blue-500 hover:text-blue-600">
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
+                      {/* Tags */}
+                      {event.tags && (
+                        <div className="flex flex-wrap gap-2 mb-6">
+                          {event.tags.map((tag, index) => (
+                            <span
+                              key={index}
+                              className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Price and Actions */}
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700">
+                        <div className="flex flex-col">
+                          <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                            {(event.price === 0 || event.price === '0') ? (
+                              <span className="text-green-600">Free</span>
+                            ) : (
+                              <span>₹{typeof event.price === 'number' ? event.price : event.price?.amount || 'TBD'}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-1 text-blue-600 text-xs">
+                            <Ticket className="w-3 h-3" />
+                            <span>Registration Required</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex space-x-3">
+                          <button
+                            onClick={() => {/* Share functionality */}}
+                            className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 rounded-lg transition-colors"
+                            title="Share Event"
+                          >
+                            <Share2 className="w-5 h-5" />
+                          </button>
+                          
+                          <button
+                            onClick={() => {
+                              setSelectedEventId(event.id);
+                              setShowRegistration(true);
+                            }}
+                            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
+                              isExpired
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl'
+                            }`}
+                            disabled={isExpired}
+                          >
+                            {isExpired ? 'Expired' : 'Register Now'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Event Registration Modal */}
+      {showRegistration && selectedEventId && (
+        <div 
+          className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            // Close modal when clicking on backdrop
+            if (e.target === e.currentTarget) {
+              setShowRegistration(false);
+              setSelectedEventId(null);
+            }
+          }}
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
+            {/* Close Button */}
+            <button
+              onClick={() => {
+                setShowRegistration(false);
+                setSelectedEventId(null);
+              }}
+              className="absolute top-4 right-4 z-10 p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors"
+              title="Close"
+            >
+              <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            
+            <EventRegistration 
+              eventId={selectedEventId}
+              event={events.find(e => e.id === selectedEventId)}
+              onClose={() => {
+                setShowRegistration(false);
+                setSelectedEventId(null);
+              }}
+            />
+          </div>
         </div>
       )}
     </div>

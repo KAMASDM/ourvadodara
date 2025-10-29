@@ -11,16 +11,44 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Our Vadodara Brand Colors
-        'primary-red': '#E44F4F', // The prominent red from the logo (adjust if needed to match exact hex)
-        'secondary-red': '#B23A3A', // A slightly darker red for hover/active states
-        'text-light': '#F8FAFC', // Light text, e.g., on dark backgrounds (similar to white)
-        'text-dark': '#1A202C',  // Dark text, e.g., on light backgrounds (similar to black)
-        'bg-light': '#F8FAFC',  // Light background (similar to white)
-        'bg-dark': '#1A202C',   // Dark background (similar to black)
-        'border-light': '#E2E8F0', // Light border color
-        'border-dark': '#2D3748', // Dark border color
-        'accent-red': '#CC0000', // A pure, strong red for accents
+        // Modern Red, Black & White Theme
+        primary: {
+          50: '#fef2f2',   // Very light red
+          100: '#fee2e2',  // Light red
+          200: '#fecaca',  // Lighter red
+          300: '#fca5a5',  // Medium light red
+          400: '#f87171',  // Medium red
+          500: '#ef4444',  // Main red (primary)
+          600: '#dc2626',  // Darker red
+          700: '#b91c1c',  // Dark red
+          800: '#991b1b',  // Very dark red
+          900: '#7f1d1d',  // Darkest red
+        },
+        gray: {
+          50: '#fafafa',   // Almost white
+          100: '#f4f4f5',  // Very light gray
+          200: '#e4e4e7',  // Light gray
+          300: '#d4d4d8',  // Medium light gray
+          400: '#a1a1aa',  // Medium gray
+          500: '#71717a',  // Main gray
+          600: '#52525b',  // Darker gray
+          700: '#3f3f46',  // Dark gray
+          800: '#27272a',  // Very dark gray
+          900: '#18181b',  // Almost black
+        },
+        // Semantic colors using red, black, white theme
+        'text-light': '#fafafa',     // White text for dark backgrounds
+        'text-dark': '#18181b',      // Black text for light backgrounds
+        'bg-light': '#ffffff',       // Pure white background
+        'bg-dark': '#18181b',        // Pure black background
+        'bg-card-light': '#fafafa',  // Light gray for cards on white
+        'bg-card-dark': '#27272a',   // Dark gray for cards on black
+        'border-light': '#e4e4e7',   // Light border
+        'border-dark': '#3f3f46',    // Dark border
+        'accent': '#ef4444',         // Primary red accent
+        'accent-hover': '#dc2626',   // Darker red for hover states
+        'surface-light': '#f4f4f5',  // Light surface color
+        'surface-dark': '#27272a',   // Dark surface color
       },
       fontFamily: {
         // You can add custom fonts here if needed

@@ -65,31 +65,106 @@ export const registerServiceWorker = async () => {
       const registration = await navigator.serviceWorker.register('/sw.js');
       console.log('SW registered: ', registration);
       
+      // Check for updates immediately
+      registration.update();
+      
       // Listen for updates
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            showUpdateAvailable();
+            // Skip intermediate versions and update directly to latest
+            showUpdateAvailable(registration);
           }
         });
       });
+
+      // Also check periodically for updates
+      setInterval(() => {
+        registration.update();
+      }, 60000); // Check every minute
+      
     } catch (error) {
       console.log('SW registration failed: ', error);
     }
   }
 };
 
-export const showUpdateAvailable = () => {
+export const showUpdateAvailable = (registration) => {
+  // Remove any existing update banners
+  const existingBanner = document.getElementById('update-banner');
+  if (existingBanner) {
+    existingBanner.remove();
+  }
+
   const updateBanner = document.createElement('div');
-  updateBanner.className = 'fixed top-0 left-0 right-0 bg-blue-500 text-white p-3 text-center z-50';
+  updateBanner.id = 'update-banner';
+  updateBanner.className = 'fixed top-0 left-0 right-0 bg-blue-600 text-white p-4 text-center z-50 shadow-lg animate-slideDown';
   updateBanner.innerHTML = `
-    <p class="text-sm">
-      A new version is available! 
-      <button onclick="window.location.reload()" class="underline ml-2">Update now</button>
-    </p>
+    <div class="flex items-center justify-center space-x-4">
+      <div class="flex-1">
+        <p class="text-sm font-medium">🚀 New version available!</p>
+        <p class="text-xs opacity-90">Update now for the latest features and improvements</p>
+      </div>
+      <button id="update-now" class="bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Update Now
+      </button>
+      <button id="update-later" class="text-white opacity-75 hover:opacity-100 text-xl">×</button>
+    </div>
   `;
+  
   document.body.appendChild(updateBanner);
+
+  // Handle update now button
+  document.getElementById('update-now').addEventListener('click', async () => {
+    updateBanner.remove();
+    
+    // Show loading indicator
+    const loadingBanner = document.createElement('div');
+    loadingBanner.className = 'fixed top-0 left-0 right-0 bg-green-600 text-white p-3 text-center z-50';
+    loadingBanner.innerHTML = `
+      <p class="text-sm">📦 Updating to latest version...</p>
+    `;
+    document.body.appendChild(loadingBanner);
+    
+    try {
+      // Force update to latest version
+      if (registration && registration.waiting) {
+        // Skip intermediate versions and activate latest
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        
+        // Listen for controlling worker change
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        });
+      } else {
+        // Fallback: Clear all caches and reload
+        await clearAllCaches();
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Update failed:', error);
+      // Fallback: just reload
+      window.location.reload();
+    }
+  });
+
+  // Handle close button
+  document.getElementById('update-later').addEventListener('click', () => {
+    updateBanner.remove();
+  });
+};
+
+// Helper function to clear all caches
+const clearAllCaches = async () => {
+  try {
+    const cacheNames = await caches.keys();
+    await Promise.all(
+      cacheNames.map(cacheName => caches.delete(cacheName))
+    );
+  } catch (error) {
+    console.error('Failed to clear caches:', error);
+  }
 };
 
 export const requestNotificationPermission = async () => {
@@ -98,6 +173,35 @@ export const requestNotificationPermission = async () => {
     return permission === 'granted';
   }
   return false;
+};
+
+export const initializePushNotifications = async (userId) => {
+  try {
+    // Dynamic import to avoid loading FCM if not needed
+    const { pushNotificationService } = await import('./pushNotifications.js');
+    
+    const success = await pushNotificationService.init(userId);
+    
+    if (success) {
+      console.log('Push notifications initialized successfully');
+      
+      // Listen for notification clicks from service worker
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'NOTIFICATION_CLICK') {
+          // Handle notification click navigation
+          const { url } = event.data;
+          if (url && url !== window.location.pathname + window.location.search) {
+            window.location.href = url;
+          }
+        }
+      });
+    }
+    
+    return success;
+  } catch (error) {
+    console.error('Error initializing push notifications:', error);
+    return false;
+  }
 };
 
 export const showNotification = (title, options = {}) => {

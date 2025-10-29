@@ -4,9 +4,11 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/Auth/AuthContext';
-import StorySection from '../../components/Story/StorySection';
+import EnhancedStorySection from '../../components/Story/EnhancedStorySection';
+import StorySection from '../../components/Story/StorySection'; // Fallback
 import CategoryFilter from '../../components/Category/CategoryFilter';
-import NewsFeed from '../../components/Feed/NewsFeed';
+import EnhancedNewsFeed from '../../components/Feed/EnhancedNewsFeed';
+import NewsFeed from '../../components/Feed/NewsFeed'; // Fallback
 import WeatherWidget from '../../components/Weather/WeatherWidget';
 import LiveUpdates from '../../components/Live/LiveUpdates';
 import TrendingTopics from '../../components/Trending/TrendingTopics';
@@ -166,7 +168,10 @@ const HomePage = ({ onPostClick }) => {
           {/* Stories Section */}
           {!activeSection && (
             <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-              <StorySection />
+              <EnhancedStorySection 
+                onCreateStory={() => console.log('Create story clicked')}
+                onViewStory={(story) => console.log('View story:', story)}
+              />
             </div>
           )}
 
@@ -193,9 +198,10 @@ const HomePage = ({ onPostClick }) => {
 
           {/* News Feed */}
           <div className="bg-gray-50 dark:bg-gray-950">
-            <NewsFeed 
+            <EnhancedNewsFeed 
               activeCategory={activeCategory} 
-              onPostClick={onPostClick} 
+              onPostClick={onPostClick}
+              feedType="all"
             />
           </div>
         </div>

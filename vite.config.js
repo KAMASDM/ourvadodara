@@ -9,18 +9,30 @@ export default defineConfig({
       include: "**/*.{jsx,tsx}"
     }),
     VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'favicon.png', 'logo.png', 'icons/*.png'],
-      useCredentials: true,
+      registerType: 'prompt',
       workbox: {
-        cleanupOutdatedCaches: true,
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}']
       },
-      devOptions: {
-        enabled: true
-      },
-      // Use our existing manifest.json instead of generating one
-      manifest: false
+      manifest: {
+        name: 'Our Vadodara - Local News Hub',
+        short_name: 'Our Vadodara',
+        description: 'Your local news hub for Vadodara city',
+        theme_color: '#f97316',
+        background_color: '#ffffff',
+        display: 'standalone',
+        icons: [
+          {
+            src: '/icons/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: '/icons/icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          }
+        ]
+      }
     })
   ],
   server: {

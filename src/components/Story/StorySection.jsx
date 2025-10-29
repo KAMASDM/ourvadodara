@@ -12,12 +12,6 @@ const StorySection = () => {
   const { currentLanguage } = useLanguage();
 
   const stories = [
-    {
-      id: 'add-story',
-      type: 'add',
-      title: t('breaking'),
-      image: null,
-    },
     ...breakingNews.map(news => ({
       id: news.id,
       type: 'news',

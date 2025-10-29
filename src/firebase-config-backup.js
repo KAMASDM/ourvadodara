@@ -6,30 +6,41 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { 
+  getAuth, 
+  GoogleAuthProvider
+} from "firebase/auth";
 import { getDatabase } from "firebase/database";
 import { getStorage } from "firebase/storage";
-import { getMessaging } from "firebase/messaging";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 // Your web app's Firebase configuration
-// Configuration loaded from environment variables with fallbacks for development
+// Configuration loaded from environment variables
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAST6xgUMMWq7ZsZJDUpcHogup0HQ1H_o0",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "ourvadodara-a4002.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "ourvadodara-a4002",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "ourvadodara-a4002.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "949799357093",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:949799357093:web:c9808319e4d66c3b1e1b4c",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-K30RVMY2SE",
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://ourvadodara-a4002-default-rtdb.firebaseio.com"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL
 };
 
-// Log configuration status
-console.log('Firebase configuration loaded:', {
-  projectId: firebaseConfig.projectId,
-  authDomain: firebaseConfig.authDomain,
-  usingEnvVars: !!import.meta.env.VITE_FIREBASE_API_KEY
-});
+// Validate that all required environment variables are loaded
+const requiredEnvVars = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_DATABASE_URL'
+];
+
+const missingEnvVars = requiredEnvVars.filter(envVar => !import.meta.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  console.error('Missing required Firebase environment variables:', missingEnvVars);
+  throw new Error(`Missing Firebase environment variables: ${missingEnvVars.join(', ')}`);
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -71,7 +82,8 @@ export {
   PhoneAuthProvider,
   updateProfile,
   sendEmailVerification,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  GoogleAuthProvider
 } from "firebase/auth";
 
 // Export Firebase Database functions

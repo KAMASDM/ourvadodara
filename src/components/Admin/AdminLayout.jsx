@@ -34,13 +34,16 @@ import EventManagement from './EventManagement';
 import PollManagement from './PollManagement';
 import CommentModeration from './CommentModeration';
 import RealTimeContent from './RealTimeContent';
-
+import MediaPostCreator from './MediaPostCreator';
+import AuthenticationManager from './AuthenticationManager';
 
 const AdminLayout = () => {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showMediaCreator, setShowMediaCreator] = useState(false);
 
   // Check screen size
   useEffect(() => {
@@ -68,8 +71,10 @@ const AdminLayout = () => {
   const desktopNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'create-post', label: 'Create Post', icon: Plus },
+    { id: 'create-media', label: 'Create Media Post', icon: Monitor },
     { id: 'content-management', label: 'Content Management', icon: FileText },
     { id: 'users', label: 'User Management', icon: Users },
+    { id: 'auth-management', label: 'Authentication', icon: Globe },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     { id: 'comments', label: 'Comments', icon: MessageSquare },
     { id: 'comment-moderation', label: 'Comment Moderation', icon: CheckSquare },
@@ -98,12 +103,19 @@ const AdminLayout = () => {
         return <Dashboard />;
       case 'create-post':
         return isMobile ? <MobileContentWarning /> : <CreatePost />;
+      case 'create-media':
+        if (isMobile) return <MobileContentWarning />;
+        setShowMediaCreator(true);
+        setActiveSection('dashboard');
+        return <Dashboard />;
       case 'content-management':
         return isMobile ? <MobileContentWarning /> : <ContentManagement />;
       case 'content-mobile':
         return <PostManager />;
       case 'users':
         return <UserManager />;
+      case 'auth-management':
+        return <AuthenticationManager />;
       case 'analytics':
         return <Analytics />;
       case 'comments':
@@ -252,6 +264,19 @@ const AdminLayout = () => {
           </main>
         </div>
       </div>
+
+      {/* Media Post Creator Modal */}
+      {showMediaCreator && (
+        <MediaPostCreator 
+          onClose={() => setShowMediaCreator(false)}
+          onSuccess={(result) => {
+            console.log('Media post created:', result);
+            setShowMediaCreator(false);
+            // Optionally switch to content management to see the new post
+            setActiveSection('content-management');
+          }}
+        />
+      )}
     </div>
   );
 };

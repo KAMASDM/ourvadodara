@@ -3,11 +3,11 @@
 // =============================================
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../context/Auth/AuthContext';
+import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
 import { useTheme } from '../../context/Theme/ThemeContext';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { LANGUAGES } from '../../utils/constants';
-import { Sun, Moon, Globe, Bell, User, LogIn } from 'lucide-react';
+import { Sun, Moon, Globe, Bell, LogIn, LogOut } from 'lucide-react';
 import Logo from '../Shared/Logo'; // Import the new Logo component
 import PWAInstallButton from '../PWA/PWAInstallButton';
 
@@ -15,37 +15,10 @@ const Header = ({ onNotificationClick, onLoginClick }) => {
   const { t } = useTranslation();
   const { toggleTheme, isDark } = useTheme();
   const { currentLanguage, changeLanguage } = useLanguage();
-  const { user, logout } = useAuth();
-  const [showUserMenu, setShowUserMenu] = React.useState(false);
-  const userMenuRef = React.useRef(null);
-
-  // Close user menu when clicking outside
-  React.useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
-        setShowUserMenu(false);
-      }
-    };
-
-    if (showUserMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showUserMenu]);
-
-  const handleUserMenuClick = () => {
-    if (user) {
-      setShowUserMenu(!showUserMenu);
-    } else {
-      onLoginClick();
-    }
-  };
+  const { user, logout, isAnonymous } = useEnhancedAuth();
 
   return (
-    <header className="sticky top-0 z-50 bg-bg-light dark:bg-bg-dark border-b border-border-light dark:border-border-dark shadow-sm">
+    <header className="sticky top-0 z-50 bg-white dark:bg-bg-card-dark border-b border-border-light dark:border-border-dark shadow-md">
       <div className="max-w-md mx-auto px-4 py-2">
         <div className="flex items-center justify-between">
           {/* Logo */}
@@ -58,10 +31,10 @@ const Header = ({ onNotificationClick, onLoginClick }) => {
               <select
                 value={currentLanguage}
                 onChange={(e) => changeLanguage(e.target.value)}
-                className="appearance-none bg-transparent text-text-dark dark:text-text-light text-sm border border-border-light dark:border-border-dark rounded-lg px-2 py-1 pr-6 focus:outline-none focus:ring-1 focus:ring-primary-red"
+                className="appearance-none bg-transparent text-text-dark dark:text-text-light text-sm border border-border-light dark:border-border-dark rounded-lg px-2 py-1 pr-6 focus:outline-none focus:ring-1 focus:ring-accent"
               >
                 {LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code} className="bg-bg-light dark:bg-bg-dark">
+                  <option key={lang.code} value={lang.code} className="bg-white dark:bg-bg-card-dark">
                     {lang.nativeName}
                   </option>
                 ))}
@@ -72,16 +45,16 @@ const Header = ({ onNotificationClick, onLoginClick }) => {
             {/* Notifications */}
             <button
               onClick={onNotificationClick}
-              className="relative p-2 text-text-dark dark:text-text-light hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              className="relative p-2 text-text-dark dark:text-text-light hover:bg-surface-light dark:hover:bg-surface-dark rounded-lg transition-colors duration-200"
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-accent-red rounded-full border-2 border-bg-light dark:border-bg-dark"></span>
+              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-accent rounded-full border-2 border-white dark:border-bg-card-dark"></span>
             </button>
 
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className="p-2 text-text-dark dark:text-text-light hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              className="p-2 text-text-dark dark:text-text-light hover:bg-surface-light dark:hover:bg-surface-dark rounded-lg transition-colors duration-200"
             >
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
@@ -89,38 +62,30 @@ const Header = ({ onNotificationClick, onLoginClick }) => {
             {/* PWA Install Button */}
             <PWAInstallButton />
 
-            {/* User Menu */}
-            <div className="relative" ref={userMenuRef}>
+            {/* Login/Logout Buttons */}
+            {user ? (
               <button
-                onClick={handleUserMenuClick}
-                className="p-2 text-text-dark dark:text-text-light hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                onClick={async () => {
+                  try {
+                    await logout();
+                  } catch (error) {
+                    console.error('Logout failed:', error);
+                  }
+                }}
+                className="p-2 text-text-dark dark:text-text-light hover:bg-surface-light dark:hover:bg-surface-dark rounded-lg transition-colors duration-200"
+                title={t('logout', 'Logout')}
               >
-                {user ? <User className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
+                <LogOut className="w-5 h-5" />
               </button>
-              
-              {/* User Dropdown Menu */}
-              {user && showUserMenu && (
-                <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-50">
-                  <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{user.displayName || 'User'}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await logout();
-                        setShowUserMenu(false);
-                      } catch (error) {
-                        console.error('Logout failed:', error);
-                      }
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    {t('logout', 'Logout')}
-                  </button>
-                </div>
-              )}
-            </div>
+            ) : (
+              <button
+                onClick={onLoginClick}
+                className="p-2 text-text-dark dark:text-text-light hover:bg-surface-light dark:hover:bg-surface-dark rounded-lg transition-colors duration-200"
+                title={t('login', 'Login')}
+              >
+                <LogIn className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
       </div>

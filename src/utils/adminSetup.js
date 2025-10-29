@@ -1,8 +1,8 @@
 // =============================================
 // src/utils/adminSetup.js
-// Admin User Management Utilities
+// Enhanced Admin User Management Utilities
 // =============================================
-import { ref, set, get } from '../firebase-config';
+import { ref, set, get, update } from 'firebase/database';
 import { db } from '../firebase-config';
 
 // Create initial admin user in the database
@@ -123,6 +123,155 @@ export const upgradeToAdmin = async (userUid, email) => {
   } catch (error) {
     console.error('Error upgrading user to admin:', error);
     throw error;
+  }
+};
+
+// Update user profile
+export const updateUserProfile = async (userUid, updates) => {
+  try {
+    const userRef = ref(db, `users/${userUid}`);
+    const updateData = {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+    
+    await update(userRef, updateData);
+    console.log('User profile updated successfully');
+    return true;
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    throw error;
+  }
+};
+
+// Set user role and permissions
+export const setUserRole = async (userUid, role, customPermissions = null) => {
+  try {
+    const rolePermissions = {
+      admin: {
+        canCreatePosts: true,
+        canEditPosts: true,
+        canDeletePosts: true,
+        canManageUsers: true,
+        canViewAnalytics: true,
+        canManageComments: true,
+        canManageEvents: true,
+        canSendNotifications: true
+      },
+      editor: {
+        canCreatePosts: true,
+        canEditPosts: true,
+        canDeletePosts: false,
+        canManageUsers: false,
+        canViewAnalytics: true,
+        canManageComments: true,
+        canManageEvents: true,
+        canSendNotifications: false
+      },
+      moderator: {
+        canCreatePosts: false,
+        canEditPosts: false,
+        canDeletePosts: false,
+        canManageUsers: false,
+        canViewAnalytics: false,
+        canManageComments: true,
+        canManageEvents: false,
+        canSendNotifications: false
+      },
+      user: {}
+    };
+
+    const permissions = customPermissions || rolePermissions[role] || {};
+    
+    await updateUserProfile(userUid, {
+      role,
+      permissions
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('Error setting user role:', error);
+    throw error;
+  }
+};
+
+// Get all users for admin management
+export const getAllUsers = async () => {
+  try {
+    const usersRef = ref(db, 'users');
+    const snapshot = await get(usersRef);
+    
+    if (snapshot.exists()) {
+      const users = snapshot.val();
+      return Object.entries(users).map(([uid, userData]) => ({
+        uid,
+        ...userData
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error('Error getting all users:', error);
+    return [];
+  }
+};
+
+// Delete user profile
+export const deleteUserProfile = async (userUid) => {
+  try {
+    const userRef = ref(db, `users/${userUid}`);
+    await set(userRef, null);
+    console.log('User profile deleted successfully');
+    return true;
+  } catch (error) {
+    console.error('Error deleting user profile:', error);
+    throw error;
+  }
+};
+
+// Link anonymous account data
+export const linkAnonymousAccountData = async (anonymousUid, newUserUid, userData) => {
+  try {
+    // Transfer any anonymous user data to the new authenticated account
+    const anonymousRef = ref(db, `users/${anonymousUid}`);
+    const anonymousSnapshot = await get(anonymousRef);
+    
+    let mergedData = { ...userData };
+    
+    if (anonymousSnapshot.exists()) {
+      const anonymousData = anonymousSnapshot.val();
+      // Merge bookmarks, preferences, etc.
+      mergedData = {
+        ...userData,
+        bookmarks: anonymousData.bookmarks || [],
+        preferences: anonymousData.preferences || {},
+        readingHistory: anonymousData.readingHistory || []
+      };
+      
+      // Delete the anonymous account data
+      await set(anonymousRef, null);
+    }
+    
+    // Create/update the new user profile
+    await createUserProfile(newUserUid, mergedData);
+    
+    return true;
+  } catch (error) {
+    console.error('Error linking anonymous account data:', error);
+    throw error;
+  }
+};
+
+// Track user authentication events
+export const trackAuthEvent = async (userUid, eventType, metadata = {}) => {
+  try {
+    const eventRef = ref(db, `authEvents/${userUid}/${Date.now()}`);
+    await set(eventRef, {
+      event: eventType,
+      timestamp: new Date().toISOString(),
+      metadata
+    });
+  } catch (error) {
+    console.error('Error tracking auth event:', error);
   }
 };
 

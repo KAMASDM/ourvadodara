@@ -3,6 +3,7 @@
 // =============================================
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/Auth/AuthContext.jsx';
+import { EnhancedAuthProvider, useEnhancedAuth } from './context/Auth/SimpleEnhancedAuth.jsx';
 import { ThemeProvider } from './context/Theme/ThemeContext.jsx';
 import { LanguageProvider } from './context/Language/LanguageContext.jsx';
 import { ToastProvider } from './components/Common/Toast.jsx';
@@ -21,8 +22,14 @@ import NewsDetailPage from './pages/NewsDetail/NewsDetailPage.jsx';
 import SavedPosts from './components/Bookmarks/SavedPosts.jsx';
 import NotificationSettings from './components/Settings/NotificationSettings.jsx';
 import Login from './components/Auth/Login.jsx';
+import EnhancedLogin from './components/Auth/EnhancedLogin.jsx';
+import GuestModePrompt from './components/Auth/GuestModePrompt.jsx';
+import FirebaseSetupGuide from './components/Auth/FirebaseSetupGuide.jsx';
+import ReelsPage from './pages/Reels/ReelsPage.jsx';
+import EventsCalendar from './components/Events/EventsCalendar.jsx';
 import FirebaseSetup from './components/Admin/FirebaseSetup.jsx';
 import AdminUpgrade from './components/Admin/AdminUpgrade.jsx';
+import EventQRScanner from './components/Admin/EventQRScanner.jsx';
 import BreakingNewsManager from './components/Breaking/BreakingNewsManager.jsx';
 import BreakingNewsView from './components/Breaking/BreakingNewsView.jsx';
 import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
@@ -36,14 +43,24 @@ function AppContent() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
-  const { user } = useAuth();
+  const [showGuestPrompt, setShowGuestPrompt] = useState(false);
+  const [showFirebaseSetup, setShowFirebaseSetup] = useState(false);
+  
+  // Use the enhanced auth context
+  const { user } = useEnhancedAuth();
 
   // Check for Firebase setup URL parameter and admin route
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const path = window.location.pathname;
     
-    if (path === '/admin' || path.includes('/admin')) {
+    // Check for QR scanner routes: /eventname/scanqr or /events/eventid/scanqr
+    const scannerMatch = path.match(/^\/(.+)\/scanqr$/) || path.match(/^\/events\/(.+)\/scanqr$/);
+    if (scannerMatch) {
+      const eventIdentifier = scannerMatch[1];
+      setCurrentView({ type: 'qr-scanner', data: { eventId: eventIdentifier } });
+      setActiveTab('qr-scanner');
+    } else if (path === '/admin' || path.includes('/admin')) {
       setCurrentView({ type: 'admin', data: null });
       setActiveTab('admin');
     } else if (urlParams.get('setup') === 'firebase') {
@@ -63,9 +80,24 @@ function AppContent() {
     // Track app start
     analytics.track('app_start');
     
+    // Listen for guest prompt event
+    const handleShowGuestPrompt = () => {
+      setShowGuestPrompt(true);
+    };
+    
+    // Listen for Firebase setup needed event
+    const handleShowFirebaseSetup = () => {
+      setShowFirebaseSetup(true);
+    };
+    
+    document.addEventListener('showGuestPrompt', handleShowGuestPrompt);
+    document.addEventListener('showFirebaseSetup', handleShowFirebaseSetup);
+    
     return () => {
       analytics.track('app_end', analytics.getSessionStats());
       performanceMonitor.cleanup();
+      document.removeEventListener('showGuestPrompt', handleShowGuestPrompt);
+      document.removeEventListener('showFirebaseSetup', handleShowFirebaseSetup);
     };
   }, []);
 
@@ -80,7 +112,9 @@ function AppContent() {
     'admin', 
     'breaking',
     'firebase-setup', 
-    'admin-upgrade'
+    'admin-upgrade',
+    'qr-scanner',
+    'events'
   ].includes(currentView.type);
 
   // Dynamically set the main container's class based on the current view
@@ -129,10 +163,20 @@ function AppContent() {
             onBack={handleBackToHome}
           />
         );
+      case 'qr-scanner':
+        return (
+          <EventQRScanner 
+            eventId={currentView.data.eventId}
+            onBack={() => {
+              setCurrentView({ type: 'home', data: null });
+              setActiveTab('home');
+            }}
+          />
+        );
       case 'home':
         return <HomePage onPostClick={handlePostClick} />;
-      case 'search':
-        return <SearchPage onPostClick={handlePostClick} />;
+      case 'events':
+        return <EventsCalendar />;
       case 'profile':
         return <ProfilePage />;
       case 'admin':
@@ -151,13 +195,15 @@ function AppContent() {
         return <SavedPosts onPostClick={handlePostClick} />;
       case 'notifications-settings':
         return <NotificationSettings />;
+      case 'reels':
+        return <ReelsPage onBack={handleBackToHome} />;
       default:
         return <HomePage onPostClick={handlePostClick} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-surface-light dark:bg-surface-dark">
       {/* Splash Screen */}
       {showSplash && (
         <SplashScreen onComplete={handleSplashComplete} />
@@ -196,8 +242,18 @@ function AppContent() {
           />
           
           {showLogin && (
-            <Login onClose={() => setShowLogin(false)} />
+            <EnhancedLogin onClose={() => setShowLogin(false)} />
           )}
+          
+          <GuestModePrompt
+            isOpen={showGuestPrompt}
+            onClose={() => setShowGuestPrompt(false)}
+          />
+          
+          <FirebaseSetupGuide
+            isOpen={showFirebaseSetup}
+            onClose={() => setShowFirebaseSetup(false)}
+          />
         </>
       )}
     </div>
@@ -208,13 +264,15 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <ThemeProvider>
-          <LanguageProvider>
-            <ToastProvider>
-              <AppContent />
-            </ToastProvider>
-          </LanguageProvider>
-        </ThemeProvider>
+        <EnhancedAuthProvider>
+          <ThemeProvider>
+            <LanguageProvider>
+              <ToastProvider>
+                <AppContent />
+              </ToastProvider>
+            </LanguageProvider>
+          </ThemeProvider>
+        </EnhancedAuthProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

@@ -140,19 +140,19 @@ const PostCard = ({ post, onPostClick }) => {
   const needsReadMore = contentText.length > 150;
 
   return (
-    <article className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+    <article className="bg-white dark:bg-bg-card-dark border-b border-border-light dark:border-border-dark shadow-sm hover:shadow-md transition-shadow duration-200">
       {/* Header */}
       <div className="flex items-center justify-between p-4 pb-2">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full overflow-hidden bg-white shadow-sm border border-gray-200">
+          <div className="w-8 h-8 rounded-full bg-white dark:bg-white shadow-sm border border-border-light dark:border-border-dark p-1 flex items-center justify-center">
             <img 
               src={logoImage} 
               alt="Our Vadodara" 
-              className="w-full h-full object-contain p-1"
+              className="w-full h-full object-contain"
             />
           </div>
           <div>
-            <p className="font-semibold text-gray-900 dark:text-white text-sm">
+            <p className="font-semibold text-text-dark dark:text-text-light text-sm">
               {post.author}
             </p>
             <p className="text-gray-500 dark:text-gray-400 text-xs">
@@ -162,7 +162,7 @@ const PostCard = ({ post, onPostClick }) => {
         </div>
         <button 
           onClick={(e) => e.stopPropagation()}
-          className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+          className="p-1 text-gray-500 dark:text-gray-400 hover:bg-surface-light dark:hover:bg-surface-dark rounded-full transition-colors duration-200"
         >
           <MoreHorizontal className="w-5 h-5" />
         </button>
@@ -173,7 +173,7 @@ const PostCard = ({ post, onPostClick }) => {
         {/* Breaking News Badge */}
         {post.isBreaking && (
           <div className="px-4 pb-2">
-            <span className="bg-red-500 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">
+            <span className="bg-accent text-white px-2 py-1 rounded text-xs font-bold animate-pulse shadow-lg">
               🚨 BREAKING
             </span>
           </div>
@@ -181,7 +181,7 @@ const PostCard = ({ post, onPostClick }) => {
 
         {/* Content */}
         <div className="px-4 pb-2">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <h2 className="text-lg font-semibold text-text-dark dark:text-text-light mb-2">
             {titleText}
           </h2>
           <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">

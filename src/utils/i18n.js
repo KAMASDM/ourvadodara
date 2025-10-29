@@ -40,6 +40,35 @@ const resources = {
       edit: 'Edit',
       delete: 'Delete',
       
+      // Enhanced Authentication
+      auth: {
+        signIn: 'Sign In',
+        signUp: 'Sign Up',
+        phone: 'Phone',
+        signInTitle: 'Welcome Back',
+        signUpTitle: 'Create Account',
+        phoneSignIn: 'Phone Login',
+        resetPasswordTitle: 'Reset Password',
+        displayName: 'Display Name',
+        email: 'Email',
+        password: 'Password',
+        confirmPassword: 'Confirm Password',
+        phoneNumber: 'Phone Number',
+        otpCode: 'OTP Code',
+        enterDisplayName: 'Enter your name',
+        enterEmail: 'Enter your email',
+        enterPassword: 'Enter your password',
+        sendOTP: 'Send OTP',
+        verifyOTP: 'Verify OTP',
+        otpSentTo: 'OTP sent to',
+        orContinueWith: 'Or continue with',
+        continueWithGoogle: 'Continue with Google',
+        continueAsGuest: 'Continue as Guest',
+        forgotPassword: 'Forgot Password?',
+        backToSignIn: 'Back to Sign In',
+        resetPassword: 'Reset Password'
+      },
+      
       // Time
       justNow: 'Just now',
       minutesAgo: '{{count}} minutes ago',
