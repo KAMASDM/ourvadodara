@@ -20,22 +20,22 @@ import {
   Calendar,
   Globe,
   CheckSquare,
-  Zap
+  Zap,
+  MapPin
 } from 'lucide-react';
 import Dashboard from './Dashboard';
-import PostManager from './PostManager';
 import UserManager from './UserManager';
 import Analytics from './Analytics';
-import CreatePost from './CreatePost';
 import AdminSettings from './AdminSettings';
 import ContentManagement from './ContentManagement';
-import CommentManagement from './CommentManagement';
 import EventManagement from './EventManagement';
 import PollManagement from './PollManagement';
 import CommentModeration from './CommentModeration';
 import RealTimeContent from './RealTimeContent';
 import MediaPostCreator from './MediaPostCreator';
 import AuthenticationManager from './AuthenticationManager';
+import CreatePost from './CreatePost';
+import CityManagement from './CityManagement';
 
 const AdminLayout = () => {
   const { user } = useAuth();
@@ -64,7 +64,7 @@ const AdminLayout = () => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'users', label: 'Users', icon: Users },
-    { id: 'content-mobile', label: 'Content', icon: FileText },
+    { id: 'content-management', label: 'Content', icon: FileText },
   ];
 
   // Desktop navigation items (full admin features)
@@ -72,12 +72,12 @@ const AdminLayout = () => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'create-post', label: 'Create Post', icon: Plus },
     { id: 'create-media', label: 'Create Media Post', icon: Monitor },
-    { id: 'content-management', label: 'Content Management', icon: FileText },
+    { id: 'content-management', label: 'Content Manager', icon: FileText },
     { id: 'users', label: 'User Management', icon: Users },
+    { id: 'city-management', label: 'City Management', icon: MapPin },
     { id: 'auth-management', label: 'Authentication', icon: Globe },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
-    { id: 'comments', label: 'Comments', icon: MessageSquare },
-    { id: 'comment-moderation', label: 'Comment Moderation', icon: CheckSquare },
+    { id: 'comment-moderation', label: 'Moderation', icon: CheckSquare },
     { id: 'events', label: 'Events', icon: Calendar },
     { id: 'polls', label: 'Polls', icon: BarChart3 },
     { id: 'realtime-content', label: 'Breaking News & Live', icon: Zap },
@@ -110,16 +110,14 @@ const AdminLayout = () => {
         return <Dashboard />;
       case 'content-management':
         return isMobile ? <MobileContentWarning /> : <ContentManagement />;
-      case 'content-mobile':
-        return <PostManager />;
       case 'users':
         return <UserManager />;
+      case 'city-management':
+        return isMobile ? <MobileContentWarning /> : <CityManagement />;
       case 'auth-management':
         return <AuthenticationManager />;
       case 'analytics':
         return <Analytics />;
-      case 'comments':
-        return isMobile ? <MobileContentWarning /> : <CommentManagement />;
       case 'comment-moderation':
         return isMobile ? <MobileContentWarning /> : <CommentModeration />;
       case 'events':
@@ -136,18 +134,18 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-50 z-50 overflow-hidden">
+    <div className="fixed inset-0 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900 z-50 overflow-hidden">
       {/* Mobile Header */}
       {isMobile && (
-        <div className="bg-white shadow-sm border-b">
+        <div className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800">
           <div className="flex items-center justify-between p-4">
             <div className="flex items-center space-x-3">
-              <Smartphone className="h-6 w-6 text-blue-600" />
-              <h1 className="text-lg font-semibold text-gray-900">Admin Mobile</h1>
+              <Smartphone className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Admin Mobile</h1>
             </div>
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+              className="p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
@@ -159,27 +157,27 @@ const AdminLayout = () => {
         {/* Sidebar */}
         <div className={`
           ${isMobile 
-            ? `fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${
+            ? `fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-900 shadow-lg transform transition-transform duration-300 ease-in-out ${
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full'
               }` 
-            : 'w-64 bg-white shadow-sm flex-shrink-0 h-full'
+            : 'w-64 bg-white dark:bg-gray-900 shadow-sm border-r border-gray-200 dark:border-gray-800 flex-shrink-0 h-full'
           }
         `}>
           {/* Desktop Header */}
           {!isMobile && (
-            <div className="p-6 border-b">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-700">
               <div className="flex items-center space-x-3">
-                <Monitor className="h-8 w-8 text-blue-600" />
+                <Monitor className="h-8 w-8 text-white" />
                 <div>
-                  <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
-                  <p className="text-sm text-gray-500">Desktop Mode</p>
+                  <h1 className="text-xl font-bold text-white">Admin Panel</h1>
+                  <p className="text-sm text-blue-100">Desktop Mode</p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Navigation */}
-          <nav className="p-4">
+          <nav className="p-4 overflow-y-auto h-full">
             <div className="space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -191,10 +189,10 @@ const AdminLayout = () => {
                       if (isMobile) setSidebarOpen(false);
                     }}
                     className={`
-                      w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors
+                      w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200
                       ${activeSection === item.id
-                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/50 dark:shadow-blue-400/30'
+                        : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
                       }
                     `}
                   >
@@ -205,49 +203,32 @@ const AdminLayout = () => {
               })}
             </div>
           </nav>
-
-          {/* User Info */}
-          <div className="absolute bottom-0 w-full p-4 border-t">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">
-                  {user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'A'}
-                </span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {user?.displayName || 'Admin'}
-                </p>
-                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Mobile Overlay */}
         {isMobile && sidebarOpen && (
           <div
-            className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75"
+            className="fixed inset-0 z-40 bg-gray-900 bg-opacity-75 backdrop-blur-sm"
             onClick={() => setSidebarOpen(false)}
           />
         )}
 
         {/* Main Content */}
-        <div className="flex-1 min-w-0 w-full h-full flex flex-col">
+        <div className="flex-1 min-w-0 w-full h-full flex flex-col bg-gray-50 dark:bg-gray-950">
           {/* Desktop Header */}
           {!isMobile && (
-            <div className="bg-white shadow-sm border-b w-full flex-shrink-0">
-              <div className="px-6 py-4">
+            <div className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 w-full flex-shrink-0">
+              <div className="px-6 py-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 capitalize">
+                    <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent capitalize">
                       {activeSection.replace('-', ' ')}
                     </h2>
-                    <p className="text-gray-600">
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">
                       {getPageDescription(activeSection)}
                     </p>
                   </div>
-                  <div className="flex items-center space-x-2 text-sm text-gray-500">
+                  <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
                     <Monitor className="h-4 w-4" />
                     <span>Desktop Mode</span>
                   </div>
@@ -283,14 +264,14 @@ const AdminLayout = () => {
 
 // Mobile Content Warning Component
 const MobileContentWarning = () => (
-  <div className="text-center p-8 bg-white rounded-lg shadow-sm">
-    <Monitor className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-    <h3 className="text-lg font-semibold text-gray-900 mb-2">Desktop Required</h3>
-    <p className="text-gray-600 mb-4">
+  <div className="text-center p-8 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-800">
+    <Monitor className="h-16 w-16 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
+    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Desktop Required</h3>
+    <p className="text-gray-600 dark:text-gray-400 mb-4">
       Content creation and management features are optimized for desktop use.
     </p>
-    <p className="text-sm text-gray-500">
-      Please use a desktop or tablet to access these features.
+    <p className="text-sm text-gray-500 dark:text-gray-500">
+      Please use a desktop or tablet (landscape mode) to access these features.
     </p>
   </div>
 );
@@ -299,12 +280,17 @@ const MobileContentWarning = () => (
 const getPageDescription = (section) => {
   const descriptions = {
     'dashboard': 'Overview of your admin panel and key metrics',
-    'create-post': 'Create and publish new content',
-    'content-management': 'Manage all your published content',
+    'create-post': 'Create and publish new articles with multi-language support',
+    'create-media': 'Create stories, reels, and media-rich content',
+    'content-management': 'Manage all your published content across cities',
     'users': 'Manage user accounts and permissions',
+    'city-management': 'Add and manage cities with logos',
+    'auth-management': 'Manage authentication and security settings',
     'analytics': 'Detailed analytics and performance metrics',
-    'comments': 'Moderate and manage user comments',
+    'comment-moderation': 'Moderate and manage user comments',
     'events': 'Create and manage events and announcements',
+    'polls': 'Create and manage interactive polls',
+    'realtime-content': 'Manage breaking news and live updates',
     'settings': 'Configure admin panel settings'
   };
   return descriptions[section] || 'Admin panel section';

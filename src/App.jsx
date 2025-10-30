@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './context/Auth/AuthContext.jsx';
 import { EnhancedAuthProvider, useEnhancedAuth } from './context/Auth/SimpleEnhancedAuth.jsx';
 import { ThemeProvider } from './context/Theme/ThemeContext.jsx';
 import { LanguageProvider } from './context/Language/LanguageContext.jsx';
+import { CityProvider } from './context/CityContext.jsx';
 import { ToastProvider } from './components/Common/Toast.jsx';
 import ErrorBoundary from './components/Common/ErrorBoundary.jsx';
 import OfflineIndicator from './components/Common/OfflineIndicator.jsx';
@@ -32,6 +33,8 @@ import AdminUpgrade from './components/Admin/AdminUpgrade.jsx';
 import EventQRScanner from './components/Admin/EventQRScanner.jsx';
 import BreakingNewsManager from './components/Breaking/BreakingNewsManager.jsx';
 import BreakingNewsView from './components/Breaking/BreakingNewsView.jsx';
+import BloodSOSBanner from './components/SOS/BloodSOSBanner.jsx';
+import { BloodSOSProvider, useBloodSOS } from './context/SOS/BloodSOSContext.jsx';
 import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
 import { analytics } from './utils/analytics.js';
 import { performanceMonitor } from './utils/performance.js';
@@ -45,6 +48,7 @@ function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
   const [showGuestPrompt, setShowGuestPrompt] = useState(false);
   const [showFirebaseSetup, setShowFirebaseSetup] = useState(false);
+  const { hasActiveSOS } = useBloodSOS();
   
   // Use the enhanced auth context
   const { user } = useEnhancedAuth();
@@ -133,6 +137,10 @@ function AppContent() {
     setActiveTab('home');
   };
 
+  const handleShowReels = (reelId = null) => {
+    setCurrentView({ type: 'reels', data: { reelId } });
+  };
+
   const handleSplashComplete = () => {
     setShowSplash(false);
   };
@@ -174,7 +182,7 @@ function AppContent() {
           />
         );
       case 'home':
-        return <HomePage onPostClick={handlePostClick} />;
+        return <HomePage onPostClick={handlePostClick} onShowReels={handleShowReels} />;
       case 'events':
         return <EventsCalendar />;
       case 'profile':
@@ -196,9 +204,9 @@ function AppContent() {
       case 'notifications-settings':
         return <NotificationSettings />;
       case 'reels':
-        return <ReelsPage onBack={handleBackToHome} />;
+        return <ReelsPage onBack={handleBackToHome} initialReelId={currentView.data?.reelId} />;
       default:
-        return <HomePage onPostClick={handlePostClick} />;
+  return <HomePage onPostClick={handlePostClick} onShowReels={handleShowReels} />;
     }
   };
 
@@ -219,6 +227,10 @@ function AppContent() {
               onLoginClick={() => setShowLogin(true)}
             />
           )}
+
+          {currentView.type !== 'news-detail' && (
+            <BloodSOSBanner />
+          )}
           
           {/* Apply the dynamic container class to the main element */}
           <main className={mainContainerClass}>
@@ -229,6 +241,7 @@ function AppContent() {
             <Navigation 
               activeTab={activeTab} 
               setActiveTab={handleTabChange}
+              hasActiveSOS={hasActiveSOS}
             />
           )}
 
@@ -267,9 +280,13 @@ function App() {
         <EnhancedAuthProvider>
           <ThemeProvider>
             <LanguageProvider>
-              <ToastProvider>
-                <AppContent />
-              </ToastProvider>
+              <CityProvider>
+                <BloodSOSProvider>
+                  <ToastProvider>
+                    <AppContent />
+                  </ToastProvider>
+                </BloodSOSProvider>
+              </CityProvider>
             </LanguageProvider>
           </ThemeProvider>
         </EnhancedAuthProvider>

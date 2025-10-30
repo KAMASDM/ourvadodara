@@ -2,7 +2,7 @@
 // src/components/Feed/EnhancedNewsFeed.jsx
 // Enhanced News Feed with Full Media Support
 // =============================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useAuth } from '../../context/Auth/AuthContext';
@@ -16,8 +16,7 @@ import {
   MoreVertical,
   Eye,
   Clock,
-  MapPin,
-  Verified
+  MapPin
 } from 'lucide-react';
 import MediaRenderer from '../Media/MediaRenderer';
 import LoadingSpinner from '../Common/LoadingSpinner';
@@ -47,18 +46,20 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
     let allPosts = [];
 
     // Standard posts
-    if (postsData) {
-      const posts = Object.values(postsData).map(post => ({
+    if (postsData && Object.keys(postsData).length > 0) {
+      const posts = Object.entries(postsData).map(([id, post]) => ({
+        id,
         ...post,
         type: post.type || POST_TYPES.STANDARD,
         source: 'posts'
-      }));
+      })).filter(post => (post.status || 'published') !== 'draft');
       allPosts = [...allPosts, ...posts];
     }
 
     // Stories (only non-expired ones for feed)
-    if (storiesData && feedType !== 'reels') {
-      const stories = Object.values(storiesData)
+    if (storiesData && Object.keys(storiesData).length > 0 && feedType !== 'reels') {
+      const stories = Object.entries(storiesData)
+        .map(([id, story]) => ({ id, ...story }))
         .filter(story => new Date(story.expiresAt) > new Date() && story.isActive)
         .map(story => ({
           ...story,
@@ -69,8 +70,9 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
     }
 
     // Reels
-    if (reelsData) {
-      const reels = Object.values(reelsData)
+    if (reelsData && Object.keys(reelsData).length > 0) {
+      const reels = Object.entries(reelsData)
+        .map(([id, reel]) => ({ id, ...reel }))
         .filter(reel => reel.isPublished)
         .map(reel => ({
           ...reel,
@@ -81,8 +83,9 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
     }
 
     // Carousels
-    if (carouselsData) {
-      const carousels = Object.values(carouselsData)
+    if (carouselsData && Object.keys(carouselsData).length > 0) {
+      const carousels = Object.entries(carouselsData)
+        .map(([id, carousel]) => ({ id, ...carousel }))
         .filter(carousel => carousel.isPublished)
         .map(carousel => ({
           ...carousel,
@@ -92,8 +95,9 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
       allPosts = [...allPosts, ...carousels];
     }
 
-    // Fallback to sample data if no real data
-    if (allPosts.length === 0) {
+    // Only show sample data if we're still loading or explicitly have no data at all
+    if (allPosts.length === 0 && !postsLoading && !storiesLoading && !reelsLoading && !carouselsLoading) {
+      console.log('No real posts found, showing sample data');
       allPosts = sampleNews.map(post => ({
         ...post,
         type: POST_TYPES.STANDARD,
@@ -261,7 +265,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
         {filteredPosts.map((post, index) => (
           <ReelCard 
-            key={post.id ? `reel-${post.id}` : `reel-post-${index}-${Date.now()}`} 
+            key={post.id || `reel-post-${index}`} 
             post={post} 
             onLike={() => handleLike(post.id)}
             onSave={() => handleSave(post.id)}
@@ -277,10 +281,10 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
 
   // Standard feed layout
   return (
-    <div className="space-y-0">
+    <div className="flex flex-col gap-6 px-3 pb-8 sm:px-4">
       {filteredPosts.map((post, index) => (
         <PostCard 
-          key={post.id ? `${post.source || 'unknown'}-${post.id}` : `post-${index}-${Date.now()}`}
+          key={post.id || `post-${index}`}
           post={post} 
           onPostClick={onPostClick}
           onLike={() => handleLike(post.id)}
@@ -315,100 +319,132 @@ const PostCard = ({
   const title = post.title?.[currentLanguage] || post.title?.en || 'Untitled';
   const content = post.content?.[currentLanguage] || post.content?.en || '';
   const excerpt = post.excerpt?.[currentLanguage] || post.excerpt?.en || '';
+  const mediaItems = Array.isArray(post.mediaContent?.items)
+    ? post.mediaContent.items
+    : Object.values(post.mediaContent?.items || {});
+  const hasMedia = mediaItems.length > 0;
+  const isCarouselPost = mediaItems.length > 1;
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [carouselTotal, setCarouselTotal] = useState(mediaItems.length);
+  const viewCount = post.analytics?.views ?? post.views ?? 0;
+  const likeCount = post.analytics?.likes ?? post.likes ?? 0;
+  const commentCount = post.analytics?.comments ?? post.comments ?? 0;
+  const shareCount = post.analytics?.shares ?? post.shares ?? 0;
+  const showStats = viewCount !== null || likeCount > 0 || commentCount > 0 || shareCount > 0;
+
+  useEffect(() => {
+    setCarouselIndex(0);
+    setCarouselTotal(mediaItems.length);
+  }, [post.id]);
+
+  const handleCarouselChange = useCallback((index, total) => {
+    const nextIndex = Number.isFinite(index) ? index : 0;
+    const nextTotal = Number.isFinite(total) ? total : mediaItems.length;
+
+    setCarouselIndex(prev => (prev === nextIndex ? prev : nextIndex));
+    setCarouselTotal(prevTotal => (prevTotal === nextTotal ? prevTotal : nextTotal));
+  }, [mediaItems.length]);
   
   const displayContent = isExpanded ? content : (excerpt || content?.substring(0, 150) + '...');
   const shouldShowReadMore = content.length > 150;
+  const isClickable = post.source === 'posts';
+  const titleClasses = `text-xl font-semibold text-gray-900 dark:text-white tracking-tight transition-colors ${
+    isClickable ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : 'cursor-default'
+  }`;
+  const authorName = 'Our Vadodara';
+  const authorAvatar = logoImage;
 
   return (
-    <article className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+    <article className="group relative overflow-hidden rounded-3xl border border-gray-200/60 dark:border-gray-700/60 bg-gradient-to-b from-white/95 via-white to-gray-50 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-sm shadow-gray-200/50 dark:shadow-black/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
+      <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.18),transparent_55%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.3),transparent_55%)]"></div>
+
       {/* Post Header */}
-      <div className="p-4 pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-white dark:bg-white p-1 shadow-sm flex items-center justify-center">
-              <img
-                src={post.author?.avatar || logoImage}
-                alt={post.author?.name}
-                className="w-full h-full rounded-full object-contain"
-              />
+      <div className="relative px-5 pt-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-500/0 dark:from-blue-500/20 dark:to-transparent flex items-center justify-center shadow-inner">
+                <img
+                  src={authorAvatar}
+                  alt={authorName}
+                  className="w-10 h-10 rounded-full border border-white/80 dark:border-gray-800 shadow-md object-contain bg-white p-1"
+                />
+              </div>
+              <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border border-white dark:border-gray-900 bg-emerald-500 shadow-sm"></span>
             </div>
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
-                  {post.author?.name || 'Our Vadodara Team'}
+            <div className="flex-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base">
+                  {authorName}
                 </h3>
-                {post.author?.verified && (
-                  <Verified className="w-4 h-4 text-blue-500" />
-                )}
                 {post.type !== POST_TYPES.STANDARD && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    post.type === POST_TYPES.STORY ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
-                    post.type === POST_TYPES.REEL ? 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200' :
-                    post.type === POST_TYPES.CAROUSEL ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                    'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                  <span className={`text-[11px] tracking-wide uppercase px-2 py-0.5 rounded-full font-semibold ${
+                    post.type === POST_TYPES.STORY ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-200' :
+                    post.type === POST_TYPES.REEL ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-200' :
+                    post.type === POST_TYPES.CAROUSEL ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200' :
+                    'bg-gray-100 text-gray-700 dark:bg-gray-800/70 dark:text-gray-200'
                   }`}>
                     {post.type.toUpperCase()}
                   </span>
                 )}
               </div>
-              <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
-                <Clock className="w-3 h-3" />
-                <span>{formatTimeAgo(post.publishedAt || post.createdAt)}</span>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {formatTimeAgo(post.publishedAt || post.createdAt)}
+                </span>
                 {post.location && (
-                  <>
+                  <span className="inline-flex items-center gap-1">
                     <MapPin className="w-3 h-3" />
-                    <span>{post.location}</span>
-                  </>
+                    {post.location}
+                  </span>
                 )}
               </div>
             </div>
           </div>
-          
-          <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
-            <MoreVertical className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+
+          <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-transparent bg-gray-100/80 text-gray-500 transition-colors hover:border-gray-200 hover:text-gray-700 dark:bg-gray-800/70 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:text-gray-200">
+            <MoreVertical className="w-4 h-4" />
           </button>
         </div>
       </div>
 
       {/* Post Content */}
-      <div className="px-4 pb-2">
-        {/* Title */}
+      <div className="relative px-5 pt-4">
         {title && (
           <h2 
-            className="text-lg font-bold text-gray-900 dark:text-white mb-2 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-            onClick={() => onPostClick(post.id)}
+            className={titleClasses}
+            onClick={isClickable ? () => onPostClick(post.id) : undefined}
           >
             {title}
           </h2>
         )}
 
-        {/* Breaking/Featured badges */}
-        <div className="flex items-center space-x-2 mb-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           {post.isBreaking && (
-            <span className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded animate-pulse">
+            <span className="bg-red-600 text-white text-[11px] font-bold px-2 py-1 rounded-full shadow-sm animate-pulse">
               BREAKING
             </span>
           )}
           {post.isFeatured && (
-            <span className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
+            <span className="bg-blue-600/90 text-white text-[11px] font-semibold px-2 py-1 rounded-full shadow-sm">
               FEATURED
             </span>
           )}
           {post.isUrgent && (
-            <span className="bg-orange-600 text-white text-xs font-bold px-2 py-1 rounded">
+            <span className="bg-orange-500 text-white text-[11px] font-semibold px-2 py-1 rounded-full shadow-sm">
               URGENT
             </span>
           )}
         </div>
 
-        {/* Content */}
         {displayContent && (
-          <div className="text-gray-700 dark:text-gray-300 mb-3">
-            <p className="leading-relaxed">{displayContent}</p>
+          <div className="mt-3 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+            <p>{displayContent}</p>
             {shouldShowReadMore && (
               <button
                 onClick={onToggleExpanded}
-                className="text-blue-600 dark:text-blue-400 text-sm font-medium mt-1 hover:underline"
+                className="mt-2 inline-flex items-center text-blue-600 dark:text-blue-400 text-sm font-semibold hover:underline"
               >
                 {isExpanded ? 'Show less' : 'Read more'}
               </button>
@@ -418,96 +454,126 @@ const PostCard = ({
       </div>
 
       {/* Media Content */}
-      {post.mediaContent && post.mediaContent.items && post.mediaContent.items.length > 0 && (
-        <div className="mb-4">
-          <MediaRenderer
-            post={post}
-            className="w-full"
-            showControls={post.type === POST_TYPES.REEL}
-            onInteraction={onMediaInteraction}
-          />
+      {hasMedia && (
+        <div className="relative mt-5 px-5">
+          <div className="overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
+            <MediaRenderer
+              post={post}
+              className="w-full"
+              showControls={post.type === POST_TYPES.REEL}
+              onInteraction={onMediaInteraction}
+              showCarouselDots={!isCarouselPost}
+              onCarouselChange={handleCarouselChange}
+              externalCarouselIndex={carouselIndex}
+            />
+          </div>
+
+          {isCarouselPost && carouselTotal > 1 && (
+            <div className="mt-3 flex justify-center space-x-2">
+              {Array.from({ length: carouselTotal }).map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                      setCarouselIndex(prev => (prev === index ? prev : index));
+                  }}
+                  type="button"
+                  className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                      index === carouselIndex
+                      ? 'bg-black dark:bg-white scale-125 shadow-md shadow-black/40 dark:shadow-white/40'
+                      : 'bg-black/20 hover:bg-black/40 dark:bg-white/40 dark:hover:bg-white/60'
+                  }`}
+                  aria-label={`Go to image ${index + 1}`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Category & Tags */}
-      {(post.category || (post.tags && post.tags.length > 0)) && (
-        <div className="px-4 pb-2">
-          <div className="flex flex-wrap gap-2">
+      {/* Category, Tags & Stats */}
+      {(post.category || (post.tags && post.tags.length > 0) || showStats) && (
+        <div className="relative mt-5 px-5">
+          <div className="flex flex-wrap items-center gap-2">
             {post.category && (
-              <span className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs px-2 py-1 rounded-full">
+              <span className="rounded-full bg-gray-100 text-gray-700 px-3 py-1 text-xs font-medium dark:bg-gray-800/70 dark:text-gray-200">
                 {post.category}
               </span>
             )}
             {post.tags && post.tags.slice(0, 3).map((tag, index) => (
-              <span key={index} className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs px-2 py-1 rounded-full">
+              <span key={index} className="rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-xs font-medium dark:bg-blue-500/20 dark:text-blue-200">
                 #{tag}
               </span>
             ))}
           </div>
+
+          {showStats && (
+            <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400">
+              {viewCount !== null && (
+                <span className="inline-flex items-center gap-1">
+                  <Eye className="w-4 h-4" />
+                  {formatNumber(Math.max(0, viewCount))} views
+                </span>
+              )}
+              {likeCount > 0 && (
+                <span>{formatNumber(likeCount)} likes</span>
+              )}
+              {commentCount > 0 && (
+                <span>{formatNumber(commentCount)} comments</span>
+              )}
+              {shareCount > 0 && (
+                <span>{formatNumber(shareCount)} shares</span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Post Stats */}
-      <div className="px-4 pb-2">
-        <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-          {post.analytics?.views && (
-            <div className="flex items-center space-x-1">
-              <Eye className="w-4 h-4" />
-              <span>{formatNumber(post.analytics.views)}</span>
-            </div>
-          )}
-          {post.analytics?.likes && (
-            <span>{formatNumber(post.analytics.likes)} likes</span>
-          )}
-          {post.analytics?.comments && (
-            <span>{formatNumber(post.analytics.comments)} comments</span>
-          )}
-          {post.analytics?.shares && (
-            <span>{formatNumber(post.analytics.shares)} shares</span>
-          )}
-        </div>
-      </div>
-
       {/* Action Buttons */}
-      <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-6">
+      <div className="relative mt-6 border-t border-gray-100 dark:border-gray-800 bg-white/70 dark:bg-gray-900/60 backdrop-blur-sm">
+        <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex items-center gap-4 text-sm">
             <button
               onClick={onLike}
-              className={`flex items-center space-x-2 transition-colors ${
+              className={`flex items-center gap-2 rounded-full px-3 py-2 transition-colors ${
                 isLiked 
-                  ? 'text-red-500' 
-                  : 'text-gray-500 dark:text-gray-400 hover:text-red-500'
+                  ? 'bg-red-500/10 text-red-500 dark:bg-red-500/20' 
+                  : 'text-gray-600 dark:text-gray-300 hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-red-500/20'
               }`}
             >
               <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-              <span className="text-sm font-medium">Like</span>
+              <span className="font-medium">Like</span>
             </button>
-            
+
             <button
-              onClick={() => onPostClick(post.id)}
-              className="flex items-center space-x-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 transition-colors"
+              onClick={isClickable ? () => onPostClick(post.id) : undefined}
+              className={`flex items-center gap-2 rounded-full px-3 py-2 transition-colors ${
+                isClickable
+                  ? 'text-gray-600 dark:text-gray-300 hover:text-blue-500 hover:bg-blue-500/10 dark:hover:bg-blue-500/20'
+                  : 'text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60'
+              }`}
+              disabled={!isClickable}
             >
               <MessageCircle className="w-5 h-5" />
-              <span className="text-sm font-medium">Comment</span>
+              <span className="font-medium">Comment</span>
             </button>
-            
+
             <button
               onClick={onShare}
-              className="flex items-center space-x-2 text-gray-500 dark:text-gray-400 hover:text-green-500 transition-colors"
+              className="flex items-center gap-2 rounded-full px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-emerald-500 hover:bg-emerald-500/10 dark:hover:bg-emerald-500/20 transition-colors"
             >
               <Share2 className="w-5 h-5" />
-              <span className="text-sm font-medium">Share</span>
+              <span className="font-medium">Share</span>
             </button>
           </div>
-          
+
           <button
             onClick={onSave}
-            className={`p-2 rounded-full transition-colors ${
+            className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
               isSaved 
-                ? 'text-blue-500' 
-                : 'text-gray-500 dark:text-gray-400 hover:text-blue-500'
+                ? 'bg-blue-500/15 text-blue-500 dark:bg-blue-500/20' 
+                : 'text-gray-600 dark:text-gray-300 hover:text-blue-500 hover:bg-blue-500/10 dark:hover:bg-blue-500/20'
             }`}
+            aria-label="Save post"
           >
             <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
           </button>
@@ -520,6 +586,8 @@ const PostCard = ({
 // Reel Card Component (for reel grid view)
 const ReelCard = ({ post, onLike, onSave, onShare, isLiked, isSaved, currentLanguage }) => {
   const title = post.title?.[currentLanguage] || post.title?.en || 'Untitled';
+  const authorName = 'Our Vadodara';
+  const viewCount = post.analytics?.views ?? post.views ?? 0;
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-lg overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
@@ -541,18 +609,18 @@ const ReelCard = ({ post, onLike, onSave, onShare, isLiked, isSaved, currentLang
             <div className="flex items-center space-x-2">
               <div className="w-5 h-5 rounded-full bg-white p-0.5 flex items-center justify-center">
                 <img
-                  src={post.author?.avatar || logoImage}
-                  alt={post.author?.name}
-                  className="w-full h-full rounded-full object-contain"
+                  src={logoImage}
+                  alt={authorName}
+                  className="w-full h-full rounded-full object-contain bg-white"
                 />
               </div>
-              <span>{post.author?.name}</span>
+              <span>{authorName}</span>
             </div>
             
-            {post.analytics?.views && (
+            {viewCount !== null && (
               <div className="flex items-center space-x-1">
                 <Eye className="w-3 h-3" />
-                <span>{formatNumber(post.analytics.views)}</span>
+                <span>{formatNumber(Math.max(0, viewCount))}</span>
               </div>
             )}
           </div>

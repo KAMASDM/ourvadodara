@@ -12,24 +12,24 @@ import { getStorage } from "firebase/storage";
 import { getMessaging } from "firebase/messaging";
 
 // Your web app's Firebase configuration
-// Configuration loaded from environment variables with fallbacks for development
+// Configuration loaded from environment variables
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAST6xgUMMWq7ZsZJDUpcHogup0HQ1H_o0",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "ourvadodara-a4002.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "ourvadodara-a4002",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "ourvadodara-a4002.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "949799357093",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:949799357093:web:c9808319e4d66c3b1e1b4c",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-K30RVMY2SE",
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://ourvadodara-a4002-default-rtdb.firebaseio.com"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL
 };
 
-// Log configuration status
-console.log('Firebase configuration loaded:', {
-  projectId: firebaseConfig.projectId,
-  authDomain: firebaseConfig.authDomain,
-  usingEnvVars: !!import.meta.env.VITE_FIREBASE_API_KEY
-});
+// Validate required Firebase configuration
+if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId || !firebaseConfig.databaseURL) {
+  console.error("CRITICAL ERROR: Firebase environment variables are not set.");
+  alert("Firebase configuration is missing. The app cannot start. Please check your .env file.");
+  throw new Error("Firebase configuration is missing.");
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -45,7 +45,7 @@ let messaging = null;
 try {
   messaging = getMessaging(app);
 } catch (error) {
-  console.warn('Firebase Messaging not available:', error);
+  // Messaging not available in this environment
 }
 
 export const fcmMessaging = messaging;

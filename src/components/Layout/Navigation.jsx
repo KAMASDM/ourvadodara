@@ -3,11 +3,13 @@
 // =============================================
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Home, Calendar, User, AlertTriangle } from 'lucide-react';
+import { Home, Calendar, User, AlertTriangle, LogIn } from 'lucide-react';
+import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 
-const Navigation = ({ activeTab, setActiveTab }) => {
+const Navigation = ({ activeTab, setActiveTab, hasActiveSOS = false }) => {
   const { t } = useTranslation();
+  const { user } = useEnhancedAuth();
 
   const leftNavItems = [
     { id: 'home', icon: Home, label: t('home') },
@@ -16,15 +18,17 @@ const Navigation = ({ activeTab, setActiveTab }) => {
 
   const rightNavItems = [
     { id: 'breaking', icon: AlertTriangle, label: 'Breaking' },
-    { id: 'profile', icon: User, label: t('profile') },
+    user
+      ? { id: 'profile', icon: User, label: t('profile', 'Profile') }
+      : { id: 'profile', icon: LogIn, label: t('login', 'Login') }
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-bg-card-dark border-t border-border-light dark:border-border-dark z-50 shadow-lg">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl bg-white/90 dark:bg-gray-950/85 border-t border-white/70 dark:border-gray-800/70 shadow-[0_-10px_30px_-20px_rgba(15,23,42,0.6)]">
       <div className="max-w-md mx-auto">
-        <div className="flex justify-between items-center py-2 px-4">
+        <div className="flex items-center justify-between px-6 py-3">
           {/* Left Navigation Items */}
-          <div className="flex space-x-4">
+          <div className="flex gap-4">
             {leftNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -33,14 +37,14 @@ const Navigation = ({ activeTab, setActiveTab }) => {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex flex-col items-center space-y-1 px-3 py-2 rounded-lg transition-colors duration-200 ${
+                  className={`flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-all duration-200 ${
                     isActive
-                      ? 'text-accent bg-accent/10 dark:bg-accent/20'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-text-dark dark:hover:text-text-light hover:bg-surface-light dark:hover:bg-surface-dark'
+                      ? 'text-accent bg-accent/15 dark:bg-accent/20 shadow-inner'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-text-dark dark:hover:text-text-light hover:bg-gray-100/80 dark:hover:bg-gray-800/80'
                   }`}
                 >
-                  <Icon className="w-5 h-5" />
-                  <span className="text-xs font-medium">{item.label}</span>
+                  <Icon className={`h-5 w-5 ${isActive ? 'animate-pulse' : ''}`} />
+                  <span className="text-[11px] font-medium uppercase tracking-wide">{item.label}</span>
                 </button>
               );
             })}
@@ -50,20 +54,26 @@ const Navigation = ({ activeTab, setActiveTab }) => {
           <div className="flex-shrink-0">
             <button
               onClick={() => setActiveTab('home')}
-              className="p-2 rounded-full hover:bg-surface-light dark:hover:bg-surface-dark transition-colors duration-200"
+              className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-accent/90 to-orange-500 text-white shadow-lg shadow-orange-500/40 transition-transform duration-200 hover:-translate-y-1"
             >
-              <div className="w-14 h-14 bg-white dark:bg-white rounded-full p-1.5 shadow-lg">
-                <img 
-                  src={logoImage} 
-                  alt="Our Vadodara" 
-                  className="w-full h-full object-contain"
+              <div className="absolute inset-1 rounded-full bg-white dark:bg-white p-1.5">
+                <img
+                  src={logoImage}
+                  alt="Our Vadodara"
+                  className="h-full w-full rounded-full object-contain"
                 />
               </div>
+              {hasActiveSOS && (
+                <>
+                  <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 animate-ping" aria-hidden="true"></span>
+                  <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-600"></span>
+                </>
+              )}
             </button>
           </div>
 
           {/* Right Navigation Items */}
-          <div className="flex space-x-2">
+          <div className="flex gap-3">
             {rightNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -72,14 +82,14 @@ const Navigation = ({ activeTab, setActiveTab }) => {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex flex-col items-center space-y-1 px-2 py-2 rounded-lg transition-colors duration-200 ${
+                  className={`flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-all duration-200 ${
                     isActive
-                      ? 'text-accent bg-accent/10 dark:bg-accent/20'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-text-dark dark:hover:text-text-light hover:bg-surface-light dark:hover:bg-surface-dark'
+                      ? 'text-accent bg-accent/15 dark:bg-accent/20 shadow-inner'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-text-dark dark:hover:text-text-light hover:bg-gray-100/80 dark:hover:bg-gray-800/80'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 ${item.id === 'breaking' ? 'animate-pulse text-accent' : ''}`} />
-                  <span className="text-xs font-medium">{item.label}</span>
+                  <Icon className={`h-5 w-5 ${item.id === 'breaking' ? 'animate-pulse text-accent' : ''}`} />
+                  <span className="text-[11px] font-medium uppercase tracking-wide">{item.label}</span>
                 </button>
               );
             })}

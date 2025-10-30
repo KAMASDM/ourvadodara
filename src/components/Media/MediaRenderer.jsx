@@ -2,7 +2,7 @@
 // src/components/Media/MediaRenderer.jsx
 // Universal Media Renderer for All Post Types
 // =============================================
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import { 
   Play, 
@@ -20,13 +20,17 @@ import {
   Eye
 } from 'lucide-react';
 import { MEDIA_TYPES, POST_TYPES } from '../../utils/mediaSchema';
+import InstagramCarousel from './InstagramCarousel';
 
 const MediaRenderer = ({ 
   post, 
   className = '', 
   autoplay = false, 
   showControls = true,
-  onInteraction = null 
+  onInteraction = null,
+  showCarouselDots = true,
+  onCarouselChange = null,
+  externalCarouselIndex = null
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -35,9 +39,149 @@ const MediaRenderer = ({
   const [showProgress, setShowProgress] = useState(false);
   const videoRef = useRef(null);
   const progressRef = useRef(null);
+  const carouselChangeRef = useRef(onCarouselChange);
+  const lastCarouselSnapshot = useRef({ index: null, total: null });
 
-  const { type, mediaContent } = post;
-  const { items = [], settings = {} } = mediaContent || {};
+  const { type, mediaContent, media } = post;
+  const brandName = 'Our Vadodara';
+  const brandAvatar = logoImage;
+  const { items: rawItems = [], settings = {} } = mediaContent || {};
+
+  const normalizeAspectRatio = (value, fallback = '1/1') => {
+    const target = value || fallback;
+    if (typeof target === 'number') return String(target);
+    if (typeof target !== 'string') return fallback;
+
+    if (target.includes(':')) {
+      const [width, height] = target.split(':').map(part => part.trim());
+      if (width && height) {
+        return `${width}/${height}`;
+      }
+    }
+
+    return target;
+  };
+
+  const items = useMemo(() => (
+    Array.isArray(rawItems)
+      ? rawItems
+      : Object.values(rawItems || {})
+  ), [rawItems]);
+
+  const legacyMedia = useMemo(() => (
+    Array.isArray(media)
+      ? media
+      : Object.values(media || {})
+  ), [media]);
+
+  const sortMediaItems = useCallback((list) => list
+    .filter(Boolean)
+    .map((item, index) => ({
+      item,
+      order: item?.order ?? item?.sortOrder ?? item?.position ?? index
+    }))
+    .sort((a, b) => a.order - b.order)
+    .map(entry => entry.item), []);
+
+  const resolveMediaUrl = useCallback((item) => {
+    if (!item) return '';
+    if (typeof item === 'string') return item;
+
+    const {
+      url,
+      downloadURL,
+      downloadUrl,
+      fileUrl,
+      fileURL,
+      imageUrl,
+      mediaUrl,
+      src,
+      previewUrl,
+      secureUrl,
+      path
+    } = item;
+
+    const candidate = url || downloadURL || downloadUrl || fileUrl || fileURL || imageUrl || mediaUrl || src || previewUrl || secureUrl;
+    if (candidate) {
+      return candidate;
+    }
+
+    if (path && /^https?:\/\//.test(path)) {
+      return path;
+    }
+
+    return '';
+  }, []);
+
+  useEffect(() => {
+    carouselChangeRef.current = onCarouselChange;
+  }, [onCarouselChange]);
+
+  // Handle legacy posts with media array but no mediaContent
+  const effectiveItems = useMemo(() => {
+    const source = items.length > 0 ? items : legacyMedia;
+    return sortMediaItems(source);
+  }, [items, legacyMedia, sortMediaItems]);
+
+  const validSlides = useMemo(() => (
+    effectiveItems.filter(item => resolveMediaUrl(item))
+  ), [effectiveItems, resolveMediaUrl]);
+  const validSlidesCount = validSlides.length;
+  const hasMultipleItems = effectiveItems.length > 1;
+
+  useEffect(() => {
+    if (currentIndex > effectiveItems.length - 1) {
+      setCurrentIndex(0);
+    }
+  }, [effectiveItems.length, currentIndex]);
+
+  useEffect(() => {
+    const totalSlides = validSlidesCount;
+
+    if (totalSlides === 0) {
+      if (currentIndex !== 0) {
+        setCurrentIndex(0);
+      }
+      const snapshot = lastCarouselSnapshot.current;
+      if (snapshot.index !== 0 || snapshot.total !== 0) {
+        lastCarouselSnapshot.current = { index: 0, total: 0 };
+        carouselChangeRef.current?.(0, 0);
+      }
+      return;
+    }
+
+    const safeIndex = Math.max(0, Math.min(currentIndex, totalSlides - 1));
+    if (safeIndex !== currentIndex) {
+      setCurrentIndex(safeIndex);
+      return;
+    }
+
+    const snapshot = lastCarouselSnapshot.current;
+    if (snapshot.index !== safeIndex || snapshot.total !== totalSlides) {
+      lastCarouselSnapshot.current = { index: safeIndex, total: totalSlides };
+      carouselChangeRef.current?.(safeIndex, totalSlides);
+    }
+  }, [currentIndex, validSlidesCount]);
+
+  useEffect(() => {
+    if (typeof externalCarouselIndex !== 'number' || validSlidesCount <= 1) {
+      return;
+    }
+
+    const clampedIndex = Math.max(0, Math.min(externalCarouselIndex, validSlidesCount - 1));
+    if (clampedIndex !== currentIndex) {
+      setCurrentIndex(clampedIndex);
+    }
+  }, [externalCarouselIndex, validSlidesCount, currentIndex]);
+
+  // If no media items, return placeholder
+  if (!effectiveItems || effectiveItems.length === 0) {
+    return (
+      <div className={`bg-gray-200 dark:bg-gray-700 aspect-video flex items-center justify-center rounded-lg ${className}`}>
+        <span className="text-gray-500 dark:text-gray-400">No media available</span>
+      </div>
+    );
+  }
 
   // Handle video playback
   useEffect(() => {
@@ -124,7 +268,9 @@ const MediaRenderer = ({
   };
 
   const nextSlide = () => {
-    if (currentIndex < items.length - 1) {
+    const total = effectiveItems.length;
+    if (total === 0) return;
+    if (currentIndex < total - 1) {
       setCurrentIndex(prev => prev + 1);
     } else if (settings.infinite) {
       setCurrentIndex(0);
@@ -132,10 +278,12 @@ const MediaRenderer = ({
   };
 
   const prevSlide = () => {
+    const total = effectiveItems.length;
+    if (total === 0) return;
     if (currentIndex > 0) {
       setCurrentIndex(prev => prev - 1);
     } else if (settings.infinite) {
-      setCurrentIndex(items.length - 1);
+      setCurrentIndex(total - 1);
     }
   };
 
@@ -144,10 +292,10 @@ const MediaRenderer = ({
   };
 
   // Handle legacy image field as fallback
-  if ((!items || items.length === 0) && post.image) {
+  if ((!effectiveItems || effectiveItems.length === 0) && post.image) {
     return (
       <div className={`relative rounded-lg overflow-hidden ${className}`}>
-        <div className="relative w-full" style={{ aspectRatio: settings.aspectRatio || '16/9' }}>
+  <div className="relative w-full" style={{ aspectRatio: normalizeAspectRatio(settings.aspectRatio, '16/9') }}>
           <img
             src={post.image}
             alt={post.title?.en || post.title || 'News image'}
@@ -158,11 +306,16 @@ const MediaRenderer = ({
     );
   }
 
-  if (!items || items.length === 0) {
+  if (!effectiveItems || effectiveItems.length === 0) {
     return null; // Don't render anything if no media
   }
 
-  const currentItem = items[currentIndex] || items[0];
+  const currentItem = effectiveItems[currentIndex] || effectiveItems[0];
+  const currentItemSource = resolveMediaUrl(currentItem);
+  const inferredMime = typeof currentItem === 'object' ? currentItem?.mimeType || currentItem?.metadata?.format : '';
+  const isVideo = (typeof currentItem === 'object' && currentItem.type === 'video')
+    || (inferredMime && inferredMime.startsWith('video/'))
+    || /\.(mp4|webm|mov|m4v)(\?|$)/i.test(currentItemSource || '');
 
   // Story Renderer
   if (type === POST_TYPES.STORY) {
@@ -315,17 +468,12 @@ const MediaRenderer = ({
           <div className="flex items-center space-x-2 mb-2">
             <div className="w-8 h-8 rounded-full bg-white p-1 flex items-center justify-center">
               <img
-                src={post.author?.avatar || logoImage}
-                alt={post.author?.name}
+                src={brandAvatar}
+                alt={brandName}
                 className="w-full h-full rounded-full object-contain"
               />
             </div>
-            <span className="font-semibold">{post.author?.name}</span>
-            {post.author?.verified && (
-              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                <span className="text-xs text-white">✓</span>
-              </div>
-            )}
+            <span className="font-semibold">{brandName}</span>
           </div>
           
           {post.title?.en && (
@@ -399,79 +547,79 @@ const MediaRenderer = ({
     );
   }
 
-  // Carousel Renderer
-  if (type === POST_TYPES.CAROUSEL || mediaContent.type === MEDIA_TYPES.CAROUSEL) {
-    return (
-      <div className={`relative rounded-lg overflow-hidden ${className}`}>
-        {/* Current Media */}
-        <div className="relative w-full" style={{ aspectRatio: settings.aspectRatio || '16/9' }}>
-          {currentItem.type === 'image' ? (
-            <img
-              src={currentItem.url}
-              alt={currentItem.caption?.en || ''}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <video
-              ref={videoRef}
-              src={currentItem.url}
-              className="w-full h-full object-cover"
-              controls={showControls}
-              muted={isMuted}
-              poster={currentItem.thumbnailUrl}
-            />
-          )}
+  // Carousel Renderer - handle multiple images as carousel
+  const isCarousel = type === POST_TYPES.CAROUSEL || 
+                     mediaContent?.type === MEDIA_TYPES.CAROUSEL || 
+                     mediaContent?.type === 'carousel' ||
+                     hasMultipleItems;
+  
+  if (isCarousel && effectiveItems.length > 1) {
+    const carouselItems = effectiveItems
+      .map((item, index) => {
+        const source = resolveMediaUrl(item);
+        if (!source) {
+          return null;
+        }
 
-          {/* Navigation Arrows */}
-          {items.length > 1 && (
-            <>
-              <button
-                onClick={prevSlide}
-                className="absolute left-2 top-1/2 transform -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full shadow-lg transition-all"
-                disabled={currentIndex === 0 && !settings.infinite}
-              >
-                <ChevronLeft className="w-5 h-5 text-gray-700" />
-              </button>
-              
-              <button
-                onClick={nextSlide}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full shadow-lg transition-all"
-                disabled={currentIndex === items.length - 1 && !settings.infinite}
-              >
-                <ChevronRight className="w-5 h-5 text-gray-700" />
-              </button>
-            </>
-          )}
+        if (typeof item === 'string') {
+          return {
+            url: source,
+            alt: `Slide ${index + 1}`,
+            caption: null,
+            raw: item
+          };
+        }
 
-          {/* Media Counter */}
-          {items.length > 1 && (
-            <div className="absolute top-4 right-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
-              {currentIndex + 1} / {items.length}
-            </div>
-          )}
+        const fallbackAlt = item.alt || item.altText?.en || item.caption?.en || `Slide ${index + 1}`;
+        const localizedCaption = typeof item.caption === 'object'
+          ? item.caption?.en || item.caption?.default || fallbackAlt
+          : item.caption || fallbackAlt;
+
+        return {
+          url: source,
+          alt: fallbackAlt,
+          caption: localizedCaption,
+          raw: item
+        };
+      })
+      .filter(Boolean);
+
+    if (carouselItems.length === 0) {
+      return (
+        <div className={`bg-gray-200 dark:bg-gray-700 aspect-video flex items-center justify-center rounded-lg ${className}`}>
+          <span className="text-gray-500 dark:text-gray-400">No media available</span>
         </div>
+      );
+    }
 
-        {/* Dots Indicator */}
-        {items.length > 1 && settings.showDots && (
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-            {items.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentIndex(index)}
-                className={`w-3 h-3 rounded-full transition-colors ${
-                  index === currentIndex 
-                    ? 'bg-white' 
-                    : 'bg-white bg-opacity-50 hover:bg-opacity-75'
-                }`}
-              />
-            ))}
-          </div>
-        )}
+    const totalSlides = carouselItems.length;
+    const activeCarouselItem = carouselItems[Math.min(currentIndex, totalSlides - 1)];
 
-        {/* Caption */}
-        {currentItem.caption?.en && settings.showCaptions && (
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-4">
-            <p className="text-white text-sm">{currentItem.caption.en}</p>
+    return (
+      <div className={className}>
+        <InstagramCarousel 
+          className="w-full"
+          images={carouselItems}
+          aspectRatio={normalizeAspectRatio(settings.aspectRatio, '1/1')}
+          showDots={showCarouselDots && settings.showDots !== false}
+          enableSwipe={true}
+          externalCurrentIndex={currentIndex}
+          viewCount={post.analytics?.views ?? post.views ?? null}
+          onImageChange={(index) => {
+            setCurrentIndex(index);
+            if (onInteraction) {
+              onInteraction('carousel_change', { index });
+            }
+            onCarouselChange?.(index, totalSlides);
+          }}
+        />
+        
+        {/* Caption overlay for current image */}
+        {activeCarouselItem?.caption && settings.showCaptions && (
+          <div className="mt-2 px-2">
+            <p className="text-gray-700 dark:text-gray-300 text-sm">
+              {activeCarouselItem.caption}
+            </p>
           </div>
         )}
       </div>
@@ -481,23 +629,27 @@ const MediaRenderer = ({
   // Single Image/Video Renderer
   return (
     <div className={`relative rounded-lg overflow-hidden ${className}`}>
-      <div className="relative w-full" style={{ aspectRatio: settings.aspectRatio || '16/9' }}>
-        {currentItem.type === 'image' ? (
+      <div className="relative w-full" style={{ aspectRatio: normalizeAspectRatio(settings.aspectRatio, '16/9') }}>
+        {!isVideo ? (
           <img
-            src={currentItem.url}
+            src={currentItemSource || logoImage}
             alt={currentItem.caption?.en || ''}
             className="w-full h-full object-cover"
           />
-        ) : (
+        ) : currentItemSource ? (
           <video
             ref={videoRef}
-            src={currentItem.url}
+            src={currentItemSource}
             className="w-full h-full object-cover"
             controls={showControls}
             muted={isMuted}
             poster={currentItem.thumbnailUrl}
             loop={settings.loop}
           />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gray-200 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            Media unavailable
+          </div>
         )}
 
         {/* Caption */}

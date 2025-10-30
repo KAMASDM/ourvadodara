@@ -21,7 +21,7 @@ import {
 import MediaRenderer from '../../components/Media/MediaRenderer';
 import { POST_TYPES } from '../../utils/mediaSchema';
 
-const ReelsPage = ({ onBack }) => {
+const ReelsPage = ({ onBack, initialReelId = null }) => {
   const { user } = useAuth();
   const { data: reelsData, isLoading } = useRealtimeData('reels');
   
@@ -38,12 +38,24 @@ const ReelsPage = ({ onBack }) => {
 
   // Process reels data
   const reels = reelsData 
-    ? Object.values(reelsData)
+    ? Object.entries(reelsData)
+        .map(([id, reel]) => ({ id, ...reel }))
         .filter(reel => reel.isPublished && reel.type === POST_TYPES.REEL)
-        .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+        .sort((a, b) => new Date(b.publishedAt || b.createdAt || 0) - new Date(a.publishedAt || a.createdAt || 0))
     : [];
 
   const currentReel = reels[currentReelIndex];
+
+  useEffect(() => {
+    if (!initialReelId || reels.length === 0) {
+      return;
+    }
+
+    const initialIndex = reels.findIndex(reel => reel.id === initialReelId);
+    if (initialIndex >= 0) {
+      setCurrentReelIndex(initialIndex);
+    }
+  }, [initialReelId, reels]);
 
   // Handle keyboard navigation
   useEffect(() => {

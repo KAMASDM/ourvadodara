@@ -31,21 +31,29 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests and chrome-extension requests
-  if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
+  const { request } = event;
+
+  // Skip anything that is not a simple GET or comes from browser extensions
+  if (request.method !== 'GET' || request.url.startsWith('chrome-extension://')) {
+    return;
+  }
+
+  // Allow cross-origin requests (e.g. Firebase Storage) to fall back to the network
+  const isSameOrigin = request.url.startsWith(self.location.origin);
+  if (!isSameOrigin) {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request)
+    caches.match(request)
       .then((response) => {
         if (response) {
           return response;
         }
-        return fetch(event.request).catch((error) => {
-          console.log('Fetch failed for:', event.request.url, error);
+        return fetch(request).catch((error) => {
+          console.log('Fetch failed for:', request.url, error);
           // Return a basic offline response for navigation requests
-          if (event.request.destination === 'document') {
+          if (request.destination === 'document') {
             return caches.match('/');
           }
           throw error;

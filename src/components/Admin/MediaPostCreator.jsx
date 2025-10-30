@@ -1,9 +1,13 @@
 // =============================================
 // src/components/Admin/MediaPostCreator.jsx
 // Enhanced Post Creation with Full Media Support
+// Multi-City Support Added
+// Auto-Translation: Gujarati → Hindi & English
 // =============================================
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import axios from 'axios';
 import { useAuth } from '../../context/Auth/AuthContext';
+import { useCity } from '../../context/CityContext';
 import { 
   MEDIA_TYPES, 
   POST_TYPES, 
@@ -38,11 +42,25 @@ import {
   RotateCcw,
   Trash2,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  MapPin,
+  Languages,
+  RefreshCw
 } from 'lucide-react';
 
 const MediaPostCreator = ({ onClose, onSuccess }) => {
   const { user } = useAuth();
+  const { cities } = useCity(); // Use dynamic cities from Firebase
+  
+  // Multi-city selection state
+  const [selectedCities, setSelectedCities] = useState([]);
+  
+  // Initialize selectedCities when cities load
+  useEffect(() => {
+    if (cities && cities.length > 0 && selectedCities.length === 0) {
+      setSelectedCities([cities[0].id]);
+    }
+  }, [cities]);
   
   // Core state
   const [postType, setPostType] = useState(POST_TYPES.STANDARD);
@@ -92,12 +110,185 @@ const MediaPostCreator = ({ onClose, onSuccess }) => {
   const [mediaFiles, setMediaFiles] = useState([]);
   const [uploadProgress, setUploadProgress] = useState({});
   const [dragActive, setDragActive] = useState(false);
-  const [activeLanguage, setActiveLanguage] = useState('en');
+  const [activeLanguage, setActiveLanguage] = useState('gu'); // Default to Gujarati
+  const [translating, setTranslating] = useState(false);
+  
+  // Language labels
+  const languageLabels = {
+    en: 'English',
+    hi: 'Hindi (हिंदी)',
+    gu: 'Gujarati (ગુજરાતી)'
+  };
   
   // File input refs
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const multipleFilesRef = useRef(null);
+
+  // Translation function using MyMemory Translation API (free)
+  // Translates FROM Gujarati TO Hindi/English
+  const translateText = async (text, targetLang) => {
+    if (!text.trim()) return '';
+    
+    try {
+      const langMap = {
+        hi: 'hi',
+        en: 'en'
+      };
+      
+      console.log(`Translating "${text}" from Gujarati to ${targetLang}`);
+      
+      const response = await axios.get(
+        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=gu|${langMap[targetLang]}`,
+        {
+          timeout: 10000,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      const data = response.data;
+      console.log('Translation response:', data);
+      
+      if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
+        return data.responseData.translatedText;
+      } else {
+        console.warn('Translation API returned invalid response');
+        throw new Error('Invalid translation response');
+      }
+    } catch (error) {
+      console.error('Translation error:', error);
+      console.warn(`Translation failed, using original Gujarati text as fallback for ${targetLang}`);
+      return text;
+    }
+  };
+
+  // Auto-translate title
+  const handleTranslateTitle = async () => {
+    const gujaratiTitle = formData.title.gu.trim();
+    if (!gujaratiTitle || gujaratiTitle.length < 3) {
+      alert('કૃપા કરીને પહેલા ગુજરાતી શીર્ષક દાખલ કરો (ઓછામાં ઓછા 3 અક્ષરો).\nPlease enter a Gujarati title first (minimum 3 characters).');
+      return;
+    }
+
+    try {
+      setTranslating(true);
+      console.log('Auto-translating title from Gujarati:', gujaratiTitle);
+      const [hiTranslation, enTranslation] = await Promise.all([
+        translateText(gujaratiTitle, 'hi'),
+        translateText(gujaratiTitle, 'en')
+      ]);
+      
+      setFormData(prev => ({
+        ...prev,
+        title: { 
+          ...prev.title, 
+          hi: hiTranslation, 
+          en: enTranslation 
+        }
+      }));
+      console.log('Title translations completed:', { hi: hiTranslation, en: enTranslation });
+      alert('✅ Title auto-translated!\nશીર્ષક સ્વતઃ અનુવાદિત!');
+    } catch (error) {
+      console.error('Auto-translation failed:', error);
+      alert('Translation failed. Please try again.\nઅનુવાદ નિષ્ફળ. ફરી પ્રયાસ કરો.');
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  // Auto-translate content
+  const handleTranslateContent = async () => {
+    const gujaratiContent = formData.content.gu.trim();
+    if (!gujaratiContent || gujaratiContent.length < 10) {
+      alert('કૃપા કરીને પહેલા ગુજરાતી સામગ્રી દાખલ કરો (ઓછામાં ઓછા 10 અક્ષરો).\nPlease enter Gujarati content first (minimum 10 characters).');
+      return;
+    }
+
+    try {
+      setTranslating(true);
+      console.log('Auto-translating content from Gujarati:', gujaratiContent.substring(0, 50) + '...');
+      const [hiTranslation, enTranslation] = await Promise.all([
+        translateText(gujaratiContent, 'hi'),
+        translateText(gujaratiContent, 'en')
+      ]);
+      
+      setFormData(prev => ({
+        ...prev,
+        content: { 
+          ...prev.content, 
+          hi: hiTranslation, 
+          en: enTranslation 
+        }
+      }));
+      console.log('Content translations completed');
+      alert('✅ Content auto-translated!\nસામગ્રી સ્વતઃ અનુવાદિત!');
+    } catch (error) {
+      console.error('Auto-translation failed:', error);
+      alert('Translation failed. Please try again.\nઅનુવાદ નિષ્ફળ. ફરી પ્રયાસ કરો.');
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  // Auto-translate all
+  const handleTranslateAll = async () => {
+    const gujaratiTitle = formData.title.gu.trim();
+    const gujaratiContent = formData.content.gu.trim();
+    
+    if (!gujaratiTitle && !gujaratiContent) {
+      alert('કૃપા કરીને પહેલા ગુજરાતી સામગ્રી દાખલ કરો.\nPlease enter some Gujarati content first.');
+      return;
+    }
+
+    try {
+      setTranslating(true);
+      console.log('Auto-translating all Gujarati content to Hindi & English...');
+      
+      const translationPromises = [];
+      
+      if (gujaratiTitle && gujaratiTitle.length > 3) {
+        translationPromises.push(
+          Promise.all([
+            translateText(gujaratiTitle, 'hi'),
+            translateText(gujaratiTitle, 'en')
+          ]).then(([hi, en]) => ({ type: 'title', hi, en }))
+        );
+      }
+      
+      if (gujaratiContent && gujaratiContent.length > 10) {
+        translationPromises.push(
+          Promise.all([
+            translateText(gujaratiContent, 'hi'),
+            translateText(gujaratiContent, 'en')
+          ]).then(([hi, en]) => ({ type: 'content', hi, en }))
+        );
+      }
+
+      const results = await Promise.all(translationPromises);
+      
+      setFormData(prev => {
+        const newData = { ...prev };
+        results.forEach(result => {
+          newData[result.type] = {
+            ...prev[result.type],
+            hi: result.hi,
+            en: result.en
+          };
+        });
+        return newData;
+      });
+      
+      console.log('All translations completed:', results);
+      alert('✅ All content auto-translated!\nબધી સામગ્રી સ્વતઃ અનુવાદિત!');
+    } catch (error) {
+      console.error('Batch translation failed:', error);
+      alert('Translation failed. Please try again.\nઅનુવાદ નિષ્ફળ. ફરી પ્રયાસ કરો.');
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   // Post type configurations
   const postTypeConfig = {
@@ -278,6 +469,12 @@ const MediaPostCreator = ({ onClose, onSuccess }) => {
 
   // Save post
   const handleSave = async () => {
+    // Validate city selection
+    if (selectedCities.length === 0) {
+      alert('Please select at least one city');
+      return;
+    }
+    
     setLoading(true);
     
     try {
@@ -309,33 +506,44 @@ const MediaPostCreator = ({ onClose, onSuccess }) => {
           uid: user.uid,
           name: user.displayName || user.email,
           role: user.role || 'admin'
-        }
+        },
+        cities: selectedCities // Add selected cities to post data
       };
       
-      // Create post based on type
-      let result;
-      switch (postType) {
-        case POST_TYPES.STORY:
-          result = await createStory(postData, user.uid);
-          break;
-        case POST_TYPES.REEL:
-          result = await createReel(postData, user.uid);
-          break;
-        case POST_TYPES.CAROUSEL:
-          result = await createCarousel(postData, user.uid);
-          break;
-        default:
-          // Standard post - you'll need to implement this in your existing schema
-          result = { success: true, id: 'temp_id' };
-          break;
+      // Create post for each selected city
+      const results = [];
+      for (const cityId of selectedCities) {
+        let result;
+        const cityPostData = { ...postData, cityId };
+        
+        switch (postType) {
+          case POST_TYPES.STORY:
+            result = await createStory(cityPostData, user.uid, cityId);
+            break;
+          case POST_TYPES.REEL:
+            result = await createReel(cityPostData, user.uid, cityId);
+            break;
+          case POST_TYPES.CAROUSEL:
+            result = await createCarousel(cityPostData, user.uid, cityId);
+            break;
+          default:
+            // Standard post - you'll need to implement this in your existing schema
+            result = { success: true, id: 'temp_id', cityId };
+            break;
+        }
+        
+        results.push({ cityId, ...result });
       }
       
-      if (result.success) {
-        onSuccess?.(result);
-        alert(`${postTypeConfig[postType].title} created successfully!`);
+      const successfulPublishes = results.filter(r => r.success);
+      const cityNames = cities.filter(c => successfulPublishes.some(r => r.cityId === c.id)).map(c => c.name).join(', ');
+      
+      if (successfulPublishes.length > 0) {
+        onSuccess?.(results);
+        alert(`${postTypeConfig[postType].title} created successfully for: ${cityNames}!`);
         onClose?.();
       } else {
-        throw new Error(result.error);
+        throw new Error('Failed to publish to any cities');
       }
       
     } catch (error) {
@@ -449,6 +657,36 @@ const MediaPostCreator = ({ onClose, onSuccess }) => {
           {/* Left Panel - Form */}
           <div className="flex-1 overflow-y-auto">
             <div className="p-6">
+            
+            {/* City Multi-Selector */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <MapPin className="inline w-4 h-4 mr-1" />
+                Select Cities (Multi-select)
+              </label>
+              <div className="space-y-2 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                {cities.map(city => (
+                  <label key={city.id} className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedCities.includes(city.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedCities([...selectedCities, city.id]);
+                        } else {
+                          setSelectedCities(selectedCities.filter(id => id !== city.id));
+                        }
+                      }}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{city.name}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Selected: {selectedCities.length > 0 ? cities.filter(c => selectedCities.includes(c.id)).map(c => c.name).join(', ') : 'None'}
+              </p>
+            </div>
             
             {/* Post Type Description */}
             <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -654,17 +892,17 @@ const MediaPostCreator = ({ onClose, onSuccess }) => {
             {/* Language Tabs */}
             <div className="mb-6">
               <div className="flex space-x-2 mb-4">
-                {['en', 'hi', 'gu'].map(lang => (
+                {Object.entries(languageLabels).map(([lang, label]) => (
                   <button
                     key={lang}
                     onClick={() => setActiveLanguage(lang)}
-                    className={`px-3 py-1 text-sm rounded ${
+                    className={`px-3 py-2 text-sm rounded ${
                       activeLanguage === lang
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                   >
-                    {lang.toUpperCase()}
+                    {label}
                   </button>
                 ))}
               </div>
@@ -673,7 +911,8 @@ const MediaPostCreator = ({ onClose, onSuccess }) => {
             {/* Title Input */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Title ({activeLanguage.toUpperCase()})
+                Title ({languageLabels[activeLanguage]})
+                {activeLanguage === 'gu' && <span className="text-red-500 ml-1">* જરૂરી</span>}
               </label>
               <input
                 type="text"
@@ -682,7 +921,7 @@ const MediaPostCreator = ({ onClose, onSuccess }) => {
                   ...prev,
                   title: { ...prev.title, [activeLanguage]: e.target.value }
                 }))}
-                placeholder="Enter post title..."
+                placeholder={`Enter title in ${languageLabels[activeLanguage]}...`}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -690,7 +929,8 @@ const MediaPostCreator = ({ onClose, onSuccess }) => {
             {/* Content Input */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Content ({activeLanguage.toUpperCase()})
+                Content ({languageLabels[activeLanguage]})
+                {activeLanguage === 'gu' && <span className="text-red-500 ml-1">* જરૂરી</span>}
               </label>
               <textarea
                 value={formData.content[activeLanguage] || ''}
@@ -698,11 +938,65 @@ const MediaPostCreator = ({ onClose, onSuccess }) => {
                   ...prev,
                   content: { ...prev.content, [activeLanguage]: e.target.value }
                 }))}
-                placeholder="Write your content here..."
+                placeholder={`Write your content in ${languageLabels[activeLanguage]}...`}
                 rows={6}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
               />
             </div>
+
+            {/* Auto-Translation Controls - Show when on Gujarati tab */}
+            {activeLanguage === 'gu' && (
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="flex items-center mb-3">
+                  <Languages className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
+                  <p className="text-sm text-blue-700 dark:text-blue-300 font-gujarati">
+                    <strong>🌐 Auto-Translate:</strong> Write in Gujarati, click buttons below to translate to Hindi & English
+                    <br />
+                    <span className="text-xs">ગુજરાતીમાં લખો, હિન્દી અને અંગ્રેજીમાં અનુવાદ કરવા બટન ક્લિક કરો</span>
+                  </p>
+                </div>
+                
+                {/* Translation Buttons */}
+                <div className="border-t border-blue-200 dark:border-blue-800 pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Translation Buttons | અનુવાદ બટનો:</p>
+                    {translating && <div className="text-xs text-blue-500">🔄 Translating... | અનુવાદ થઈ રહ્યો છે...</div>}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={handleTranslateTitle}
+                      disabled={translating || !formData.title.gu.trim()}
+                      className="flex items-center justify-center space-x-1 px-3 py-2 text-xs bg-blue-100 dark:bg-blue-800 hover:bg-blue-200 dark:hover:bg-blue-700 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 text-blue-700 dark:text-blue-200 rounded-md transition-colors"
+                      title="Translate Gujarati title to Hindi & English"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${translating ? 'animate-spin' : ''}`} />
+                      <span>Title | શીર્ષક</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleTranslateContent}
+                      disabled={translating || !formData.content.gu.trim()}
+                      className="flex items-center justify-center space-x-1 px-3 py-2 text-xs bg-blue-100 dark:bg-blue-800 hover:bg-blue-200 dark:hover:bg-blue-700 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 text-blue-700 dark:text-blue-200 rounded-md transition-colors"
+                      title="Translate Gujarati content to Hindi & English"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${translating ? 'animate-spin' : ''}`} />
+                      <span>Content | સામગ્રી</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleTranslateAll}
+                      disabled={translating || (!formData.title.gu.trim() && !formData.content.gu.trim())}
+                      className="flex items-center justify-center space-x-1 px-3 py-2 text-xs bg-green-100 dark:bg-green-800 hover:bg-green-200 dark:hover:bg-green-700 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 text-green-700 dark:text-green-200 rounded-md transition-colors font-medium"
+                      title="Translate all Gujarati content at once"
+                    >
+                      <Languages className={`h-3 w-3 ${translating ? 'animate-spin' : ''}`} />
+                      <span>All | બધું</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Post Type Specific Settings */}
             {postType === POST_TYPES.STORY && (

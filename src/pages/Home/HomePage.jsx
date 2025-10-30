@@ -5,10 +5,9 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/Auth/AuthContext';
 import EnhancedStorySection from '../../components/Story/EnhancedStorySection';
-import StorySection from '../../components/Story/StorySection'; // Fallback
 import CategoryFilter from '../../components/Category/CategoryFilter';
 import EnhancedNewsFeed from '../../components/Feed/EnhancedNewsFeed';
-import NewsFeed from '../../components/Feed/NewsFeed'; // Fallback
+import ReelsRail from '../../components/Reels/ReelsRail.jsx';
 import WeatherWidget from '../../components/Weather/WeatherWidget';
 import LiveUpdates from '../../components/Live/LiveUpdates';
 import TrendingTopics from '../../components/Trending/TrendingTopics';
@@ -22,11 +21,10 @@ import {
   BarChart3, 
   Sparkles, 
   Radio, 
-  X,
   ChevronRight 
 } from 'lucide-react';
 
-const HomePage = ({ onPostClick }) => {
+const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [activeCategory, setActiveCategory] = useState('all');
@@ -87,127 +85,104 @@ const HomePage = ({ onPostClick }) => {
     : null;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20">
-      {/* Top Sections Bar */}
-      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
-        <div className="px-4 py-3">
-          <div className="flex items-center justify-between mb-3">
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white">
-              Our Vadodara
-            </h1>
-            {activeSection && (
-              <button
-                onClick={() => setActiveSection(null)}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-          
-          {/* Horizontal Scrollable Sections */}
-          <div className="flex space-x-3 overflow-x-auto scrollbar-hide pb-2 -mx-1 px-1">
-            {sections.map((section) => {
-              const Icon = section.icon;
-              const isActive = activeSection === section.id;
-              
-              return (
-                <button
-                  key={section.id}
-                  onClick={() => handleSectionClick(section.id)}
-                  className={`flex-shrink-0 flex items-center space-x-2 px-4 py-2.5 rounded-full transition-all duration-300 transform ${
-                    isActive
-                      ? `${section.color} text-white shadow-lg scale-105 ring-2 ring-white ring-opacity-50`
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 hover:scale-102'
-                  }`}
-                >
-                  <Icon className={`w-4 h-4 ${isActive ? 'animate-pulse' : ''}`} />
-                  <span className="text-sm font-medium whitespace-nowrap">
-                    {section.name}
-                  </span>
-                  {!isActive && <ChevronRight className="w-3 h-3 opacity-50" />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="relative">
-        {/* Active Section Content */}
-        {activeSection && ActiveSectionComponent && (
-          <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className={`p-2 rounded-full ${sections.find(s => s.id === activeSection)?.color}`}>
-                    {React.createElement(sections.find(s => s.id === activeSection)?.icon, {
-                      className: "w-5 h-5 text-white"
-                    })}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-24">
+      <div className="relative flex flex-col">
+        <div
+          className="sticky z-30 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.35)]"
+          style={{ top: '4.75rem' }}
+        >
+          {activeSection && ActiveSectionComponent && (
+            <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-1.5 rounded-full ${sections.find(s => s.id === activeSection)?.color}`}>
+                      {React.createElement(sections.find(s => s.id === activeSection)?.icon, {
+                        className: 'h-4 w-4 text-white'
+                      })}
+                    </div>
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+                      {sections.find(s => s.id === activeSection)?.name}
+                    </h2>
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                    {sections.find(s => s.id === activeSection)?.name}
-                  </h2>
+                  <button
+                    onClick={() => setActiveSection(null)}
+                    className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <span>Show News</span>
+                    <ChevronRight className="h-3 w-3" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setActiveSection(null)}
-                  className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center space-x-1 px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <span>Show News</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+                <div className="max-h-[45vh] overflow-y-auto pr-1">
+                  <ActiveSectionComponent onPostClick={onPostClick} />
+                </div>
               </div>
-              <ActiveSectionComponent onPostClick={onPostClick} />
+            </div>
+          )}
+          <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                  {activeSection ? 'Latest News' : 'Top Stories'}
+                </h2>
+                {activeSection && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Scroll for more updates</span>
+                )}
+              </div>
+
+              <div className="flex space-x-2 overflow-x-auto scrollbar-hide pb-3 -mx-1 px-1">
+                {sections.map((section) => {
+                  const Icon = section.icon;
+                  const isActive = activeSection === section.id;
+
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => handleSectionClick(section.id)}
+                      className={`flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                        isActive
+                          ? `${section.color} text-white shadow-lg shadow-black/10`
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <Icon className={`h-3.5 w-3.5 ${isActive ? 'animate-pulse' : ''}`} />
+                      <span className="whitespace-nowrap">{section.name}</span>
+                      {!isActive && <ChevronRight className="h-3 w-3 opacity-50" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <CategoryFilter
+                activeCategory={activeCategory}
+                setActiveCategory={setActiveCategory}
+              />
             </div>
           </div>
-        )}
+        </div>
 
-        {/* News Feed Section - Always visible but can be pushed down */}
-        <div className={`transition-all duration-300 ${activeSection ? 'mt-0' : ''}`}>
-          {/* Stories Section */}
+        <div className="flex-1 bg-gray-50 dark:bg-gray-950 pt-0 pb-6">
           {!activeSection && (
-            <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-              <EnhancedStorySection 
-                onCreateStory={() => console.log('Create story clicked')}
+            <div className="space-y-4 px-4 sm:px-5 mt-4 mb-6">
+              <EnhancedStorySection
                 onViewStory={(story) => console.log('View story:', story)}
+              />
+
+              <ReelsRail
+                onSelectReel={(reelId) => onShowReels(reelId)}
               />
             </div>
           )}
 
-          {/* Category Filter and News Feed */}
-          <div className="bg-white dark:bg-gray-900">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  {activeSection ? 'Latest News' : 'Top Stories'}
-                </h2>
-                {activeSection && (
-                  <span className="text-sm text-gray-800 dark:text-gray-400">
-                    Scroll down for more news
-                  </span>
-                )}
-              </div>
-              
-              <CategoryFilter 
-                activeCategory={activeCategory} 
-                setActiveCategory={setActiveCategory} 
-              />
-            </div>
-          </div>
-
-          {/* News Feed */}
-          <div className="bg-gray-50 dark:bg-gray-950">
-            <EnhancedNewsFeed 
-              activeCategory={activeCategory} 
+          <div className="mt-4">
+            <EnhancedNewsFeed
+              activeCategory={activeCategory}
               onPostClick={onPostClick}
               feedType="all"
             />
           </div>
         </div>
       </div>
-
-      {/* Custom scrollbar styles are handled by Tailwind CSS utilities */}
     </div>
   );
 };

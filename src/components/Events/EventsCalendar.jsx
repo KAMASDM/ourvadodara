@@ -3,24 +3,17 @@
 // Local events and calendar integration with better UI
 // =============================================
 import React, { useState, useEffect } from 'react';
-import { 
-  Calendar, 
-  MapPin, 
-  Clock, 
-  Users, 
-  Star, 
-  ChevronLeft, 
-  ChevronRight,
+import {
+  Calendar,
+  MapPin,
+  Clock,
+  Users,
+  Star,
   Filter,
-  Search,
-  Tag,
-  Heart,
   Share2,
-  ExternalLink,
   Ticket,
-  DollarSign,
-  Plus,
-  Bookmark
+  Bookmark,
+  X
 } from 'lucide-react';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../../firebase-config';
@@ -41,6 +34,7 @@ const EventsCalendar = ({ className = '' }) => {
   const [showRegistration, setShowRegistration] = useState(false);
   const [dateFilter, setDateFilter] = useState('all');
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Mock events data
   const mockEvents = [
@@ -157,6 +151,16 @@ const EventsCalendar = ({ className = '' }) => {
     { id: 'Music', name: 'Music', color: 'pink' }
   ];
 
+  const dateFilters = [
+    { id: 'all', name: 'All Dates' },
+    { id: 'today', name: 'Today' },
+    { id: 'tomorrow', name: 'Tomorrow' },
+    { id: 'week', name: 'This Week' },
+    { id: 'month', name: 'This Month' },
+    { id: 'past', name: 'Past Events' },
+    { id: 'custom', name: 'Custom Range' }
+  ];
+
   useEffect(() => {
     // Load events from Firebase
     const eventsRef = ref(db, 'events');
@@ -223,6 +227,30 @@ const EventsCalendar = ({ className = '' }) => {
     return categoryMatch && dateMatch;
   });
 
+  const activeCategoryName = categories.find(category => category.id === categoryFilter)?.name || '';
+  const activeDateLabel = dateFilters.find(filter => filter.id === dateFilter)?.name || '';
+  const hasCustomRange = Boolean(customDateRange.start && customDateRange.end);
+  const hasActiveFilters =
+    categoryFilter !== 'all' ||
+    dateFilter !== 'all' ||
+    (dateFilter === 'custom' && hasCustomRange);
+
+  const formatCustomRangeLabel = () => {
+    if (!hasCustomRange) {
+      return 'Custom Range';
+    }
+
+    const start = new Date(customDateRange.start).toLocaleDateString();
+    const end = new Date(customDateRange.end).toLocaleDateString();
+    return `${start} → ${end}`;
+  };
+
+  const clearFilters = () => {
+    setCategoryFilter('all');
+    setDateFilter('all');
+    setCustomDateRange({ start: '', end: '' });
+  };
+
   const handleSaveEvent = (eventId) => {
     setSavedEvents(prev => {
       const newSet = new Set(prev);
@@ -249,97 +277,168 @@ const EventsCalendar = ({ className = '' }) => {
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 -mx-4 ${className}`}>
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 px-4 py-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <Calendar className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {t('events.title', 'Local Events')}
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Discover amazing events in Vadodara
-                </p>
-              </div>
-            </div>
-            <button className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-              <Plus className="w-4 h-4" />
-              <span>{t('events.addEvent', 'Add Event')}</span>
-            </button>
-          </div>
-
-          {/* Category Filter */}
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filter by Category</h3>
-            <div className="flex flex-wrap gap-3">
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  onClick={() => setCategoryFilter(category.id)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    categoryFilter === category.id
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {category.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Date Filter */}
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filter by Date</h3>
-            <div className="flex flex-wrap gap-3 mb-3">
-              {[
-                { id: 'all', name: 'All Dates' },
-                { id: 'today', name: 'Today' },
-                { id: 'tomorrow', name: 'Tomorrow' },
-                { id: 'week', name: 'This Week' },
-                { id: 'month', name: 'This Month' },
-                { id: 'past', name: 'Past Events' },
-                { id: 'custom', name: 'Custom Range' }
-              ].map((date) => (
-                <button
-                  key={date.id}
-                  onClick={() => setDateFilter(date.id)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    dateFilter === date.id
-                      ? 'bg-green-600 text-white shadow-md'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {date.name}
-                </button>
-              ))}
-            </div>
-            
-            {/* Custom Date Range Inputs */}
-            {dateFilter === 'custom' && (
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center space-x-2">
-                  <label className="text-sm text-gray-600 dark:text-gray-400">From:</label>
-                  <input
-                    type="date"
-                    value={customDateRange.start}
-                    onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
-                  />
+    <div className={`min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 ${className}`}>
+      <div className="px-4 pt-8 pb-6 sm:pt-12">
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-gradient-to-br from-white/95 via-white to-gray-50 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-sm shadow-gray-200/50 dark:shadow-black/40 p-6 sm:p-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
+                  <Calendar className="w-6 h-6" />
                 </div>
-                <div className="flex items-center space-x-2">
-                  <label className="text-sm text-gray-600 dark:text-gray-400">To:</label>
-                  <input
-                    type="date"
-                    value={customDateRange.end}
-                    onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
-                  />
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                    {t('events.title', 'Local Events')}
+                  </h1>
+                  <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+                    Discover curated experiences across Vadodara every week.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-gradient-to-br from-white/95 via-white to-gray-50 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-sm shadow-gray-200/50 dark:shadow-black/40 p-6 sm:p-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
+                  <Filter className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Refine Events</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Choose categories and dates to tailor your feed.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-red-500 hover:bg-red-50/80 dark:hover:bg-red-500/10 transition-colors"
+                  >
+                    Clear filters
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen(prev => !prev)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 text-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-blue-700 transition-colors"
+                  aria-expanded={filtersOpen}
+                  aria-controls="events-filters-panel"
+                >
+                  <Filter className={`w-4 h-4 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+                  <span>{filtersOpen ? 'Hide filters' : 'Show filters'}</span>
+                </button>
+              </div>
+            </div>
+
+            {hasActiveFilters && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {categoryFilter !== 'all' && (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-400/20 dark:text-blue-200 px-3 py-1.5 text-xs font-medium">
+                    <span>{activeCategoryName}</span>
+                    <button
+                      type="button"
+                      onClick={() => setCategoryFilter('all')}
+                      className="p-0.5 rounded-full hover:bg-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                      aria-label="Clear category filter"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {dateFilter !== 'all' && (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/20 dark:text-emerald-200 px-3 py-1.5 text-xs font-medium">
+                    <span>{dateFilter === 'custom' ? formatCustomRangeLabel() : activeDateLabel}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDateFilter('all');
+                        setCustomDateRange({ start: '', end: '' });
+                      }}
+                      className="p-0.5 rounded-full hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                      aria-label="Clear date filter"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
+
+            {filtersOpen && (
+              <div id="events-filters-panel" className="mt-6 grid gap-6 lg:grid-cols-2">
+                <div className="rounded-2xl border border-gray-200/70 dark:border-gray-800/70 bg-white/85 dark:bg-gray-900/85 backdrop-blur p-6 shadow-inner shadow-gray-200/40 dark:shadow-black/20">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 uppercase tracking-wide">
+                    Filter by Category
+                  </h3>
+                  <div className="flex flex-wrap gap-3">
+                    {categories.map((category) => (
+                      <button
+                        key={category.id}
+                        onClick={() => setCategoryFilter(category.id)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                          categoryFilter === category.id
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {category.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-200/70 dark:border-gray-800/70 bg-white/85 dark:bg-gray-900/85 backdrop-blur p-6 shadow-inner shadow-gray-200/40 dark:shadow-black/20">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 uppercase tracking-wide">
+                    Filter by Date
+                  </h3>
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    {dateFilters.map((date) => (
+                      <button
+                        key={date.id}
+                        onClick={() => {
+                          setDateFilter(date.id);
+                          if (date.id !== 'custom') {
+                            setCustomDateRange({ start: '', end: '' });
+                          }
+                          if (date.id === 'custom') {
+                            setFiltersOpen(true);
+                          }
+                        }}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                          dateFilter === date.id
+                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {date.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {dateFilter === 'custom' && (
+                    <div className="flex flex-wrap gap-4">
+                      <div className="flex items-center space-x-2">
+                        <label className="text-sm text-gray-600 dark:text-gray-400">From:</label>
+                        <input
+                          type="date"
+                          value={customDateRange.start}
+                          onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm shadow-inner"
+                        />
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <label className="text-sm text-gray-600 dark:text-gray-400">To:</label>
+                        <input
+                          type="date"
+                          value={customDateRange.end}
+                          onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm shadow-inner"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -348,7 +447,7 @@ const EventsCalendar = ({ className = '' }) => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6 pb-24">
+      <div className="w-full mx-auto px-4 pb-24 md:max-w-7xl sm:px-6">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -373,7 +472,7 @@ const EventsCalendar = ({ className = '' }) => {
               return (
                 <div
                   key={event.id}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 dark:border-gray-700"
+                  className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-gradient-to-b from-white/95 via-white to-gray-50 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-sm shadow-gray-200/40 dark:shadow-black/30 hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 overflow-hidden"
                 >
                   <div className="relative">
                     {/* Event Image */}
@@ -566,7 +665,7 @@ const EventsCalendar = ({ className = '' }) => {
             }
           }}
         >
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
+          <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-gradient-to-b from-white/95 via-white to-gray-50 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-xl shadow-gray-200/40 dark:shadow-black/40 max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
             {/* Close Button */}
             <button
               onClick={() => {

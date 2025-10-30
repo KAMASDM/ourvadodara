@@ -17,7 +17,11 @@ export const useTheme = () => {
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
     const savedTheme = localStorage.getItem('theme');
-    return savedTheme || THEMES.LIGHT;
+    if (savedTheme) {
+      return savedTheme;
+    }
+    localStorage.setItem('theme', THEMES.DARK);
+    return THEMES.DARK;
   });
 
   const toggleTheme = () => {

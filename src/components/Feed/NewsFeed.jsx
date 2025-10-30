@@ -44,8 +44,11 @@ const NewsFeed = ({ activeCategory, onPostClick }) => {
   // Convert posts object to array and sort by date
   // Use Firebase data if available, otherwise use sample data
   const posts = postsObject && Object.keys(postsObject).length > 0
-    ? Object.values(postsObject).sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-    : sampleNews.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+    ? Object.entries(postsObject)
+        .map(([id, post]) => ({ id, ...post }))
+        .filter(post => (post.status || 'published') !== 'draft')
+        .sort((a, b) => new Date(b.publishedAt || b.createdAt) - new Date(a.publishedAt || a.createdAt))
+    : [...sampleNews].sort((a, b) => new Date(b.publishedAt || b.createdAt) - new Date(a.publishedAt || a.createdAt));
 
   const filteredNews = activeCategory === 'all'
     ? posts

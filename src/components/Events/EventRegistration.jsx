@@ -9,13 +9,7 @@ import {
   MapPin, 
   Clock, 
   Users, 
-  Ticket, 
-  Star,
-  DollarSign,
   Share2,
-  Heart,
-  User,
-  Mail,
   Phone,
   CreditCard,
   CheckCircle,
@@ -27,7 +21,6 @@ import {
   Plus,
   Minus,
   Gift,
-  Tag,
   Shield
 } from 'lucide-react';
 import { ref, onValue, push, update, get } from 'firebase/database';
@@ -390,9 +383,12 @@ const EventRegistration = ({ eventId, onClose }) => {
   const totalTickets = Object.values(registrationData.selectedTickets).reduce((sum, qty) => sum + qty, 0);
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-4xl mx-auto p-6 sm:p-8">
+      <div className="relative overflow-hidden rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-gradient-to-b from-white/95 via-white to-gray-50 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-sm shadow-gray-200/40 dark:shadow-black/30">
+        <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-blue-500/40 via-purple-500/40 to-emerald-500/40" />
+        <div className="relative px-6 py-6 sm:px-8 sm:py-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
         <div className="flex items-center">
           {onClose && (
             <button
@@ -403,18 +399,18 @@ const EventRegistration = ({ eventId, onClose }) => {
             </button>
           )}
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Event Registration</h1>
-            <p className="text-gray-600">{event.title}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Event Registration</h1>
+            <p className="text-gray-600 dark:text-gray-300">{event.title}</p>
           </div>
         </div>
         <div className="text-right">
-          <div className="text-sm text-gray-500">Step {step} of 5</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">Step {step} of 5</div>
           <div className="flex items-center space-x-2 mt-1">
             {[1, 2, 3, 4, 5].map((stepNum) => (
               <div
                 key={stepNum}
-                className={`w-3 h-3 rounded-full ${
-                  stepNum <= step ? 'bg-blue-600' : 'bg-gray-300'
+                className={`w-3 h-3 rounded-full transition-colors ${
+                  stepNum <= step ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-700'
                 }`}
               />
             ))}
@@ -425,7 +421,7 @@ const EventRegistration = ({ eventId, onClose }) => {
       {/* Step 1: Event Details */}
       {step === 1 && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-white/95 dark:bg-gray-900/95 overflow-hidden shadow-sm shadow-gray-200/40 dark:shadow-black/30">
             {event.images && event.images.length > 0 && (
               <img
                 src={event.images[0]}
@@ -434,56 +430,56 @@ const EventRegistration = ({ eventId, onClose }) => {
               />
             )}
             <div className="p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">{event.title}</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">{event.title}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="space-y-3">
-                  <div className="flex items-center text-gray-600">
+                  <div className="flex items-center text-gray-600 dark:text-gray-300">
                     <Calendar className="w-5 h-5 mr-3" />
                     <div>
-                      <div className="font-medium">{event.startDate}</div>
-                      <div className="text-sm">{event.startTime} - {event.endTime}</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">{event.startDate}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">{event.startTime} - {event.endTime}</div>
                     </div>
                   </div>
-                  <div className="flex items-center text-gray-600">
+                  <div className="flex items-center text-gray-600 dark:text-gray-300">
                     <MapPin className="w-5 h-5 mr-3" />
                     <div>
-                      <div className="font-medium">{event.venue.name}</div>
-                      <div className="text-sm">{event.venue.address}, {event.venue.city}</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">{event.venue.name}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">{event.venue.address}, {event.venue.city}</div>
                     </div>
                   </div>
-                  <div className="flex items-center text-gray-600">
+                  <div className="flex items-center text-gray-600 dark:text-gray-300">
                     <Users className="w-5 h-5 mr-3" />
                     <div>
-                      <div className="font-medium">Capacity: {event.maxCapacity}</div>
-                      <div className="text-sm">
+                      <div className="font-medium text-gray-900 dark:text-gray-100">Capacity: {event.maxCapacity}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
                         {Object.keys(event.registrations || {}).length} registered
                       </div>
                     </div>
                   </div>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Organizer</h3>
-                  <div className="space-y-1 text-gray-600">
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Organizer</h3>
+                  <div className="space-y-1 text-gray-600 dark:text-gray-300">
                     <div>{event.organizer.name}</div>
-                    <div className="text-sm">{event.organizer.email}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">{event.organizer.email}</div>
                     {event.organizer.phone && (
-                      <div className="text-sm">{event.organizer.phone}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">{event.organizer.phone}</div>
                     )}
                   </div>
                 </div>
               </div>
 
               <div className="mb-6">
-                <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
-                <p className="text-gray-600 whitespace-pre-wrap">{event.description}</p>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Description</h3>
+                <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{event.description}</p>
               </div>
 
               {event.amenities && event.amenities.length > 0 && (
                 <div className="mb-6">
-                  <h3 className="font-semibold text-gray-900 mb-2">Amenities</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Amenities</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {event.amenities.map((amenity, index) => (
-                      <div key={index} className="flex items-center text-sm text-gray-600">
+                      <div key={index} className="flex items-center text-sm text-gray-600 dark:text-gray-300">
                         <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
                         {amenity}
                       </div>
@@ -495,7 +491,7 @@ const EventRegistration = ({ eventId, onClose }) => {
               <div className="flex justify-end">
                 <button
                   onClick={() => setStep(2)}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-500/20"
                 >
                   Continue to Tickets
                 </button>
@@ -508,32 +504,32 @@ const EventRegistration = ({ eventId, onClose }) => {
       {/* Step 2: Ticket Selection */}
       {step === 2 && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Select Tickets</h2>
+          <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-white/95 dark:bg-gray-900/95 p-6 shadow-sm shadow-gray-200/40 dark:shadow-black/30">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Select Tickets</h2>
             
             {!event || !event.ticketTypes || event.ticketTypes.length === 0 ? (
               <div className="text-center py-8">
                 <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Tickets Available</h3>
-                <p className="text-gray-600">This event doesn't have ticket information configured yet.</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Tickets Available</h3>
+                <p className="text-gray-600 dark:text-gray-300">This event doesn't have ticket information configured yet.</p>
               </div>
             ) : (
               <div className="space-y-4 mb-6">
                 {event.ticketTypes.map((ticketType) => (
-                <div key={ticketType.id} className="border border-gray-200 rounded-lg p-4">
+                <div key={ticketType.id} className="border border-gray-200/70 dark:border-gray-800/70 rounded-2xl p-4 bg-white/80 dark:bg-gray-900/80">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{ticketType.name}</h3>
-                      <div className="text-2xl font-bold text-gray-900 mt-1">
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{ticketType.name}</h3>
+                      <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
                         {ticketType.price === 0 ? 'Free' : `₹${ticketType.price}`}
                       </div>
-                      <div className="text-sm text-gray-500 mt-1">
+                      <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         {ticketType.availableSeats} seats available
                       </div>
                       {ticketType.benefits && ticketType.benefits.length > 0 && (
                         <div className="mt-2">
                           {ticketType.benefits.map((benefit, index) => (
-                            <div key={index} className="text-sm text-gray-600 flex items-center">
+                            <div key={index} className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
                               <CheckCircle className="w-3 h-3 mr-1 text-green-500" />
                               {benefit}
                             </div>
@@ -546,7 +542,7 @@ const EventRegistration = ({ eventId, onClose }) => {
                       <button
                         onClick={() => updateTicketQuantity(ticketType.id, -1)}
                         disabled={!registrationData.selectedTickets[ticketType.id] || registrationData.selectedTickets[ticketType.id] === 0}
-                        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50"
+                        className="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
                       >
                         <Minus className="w-4 h-4" />
                       </button>
@@ -558,7 +554,7 @@ const EventRegistration = ({ eventId, onClose }) => {
                       <button
                         onClick={() => updateTicketQuantity(ticketType.id, 1)}
                         disabled={ticketType.availableSeats === 0}
-                        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50"
+                        className="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
                       >
                         <Plus className="w-4 h-4" />
                       </button>
@@ -571,18 +567,18 @@ const EventRegistration = ({ eventId, onClose }) => {
 
             {/* Promo Code */}
             <div className="border-t pt-6 mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Promo Code</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Promo Code</h3>
               <div className="flex items-center space-x-3">
                 <input
                   type="text"
                   value={registrationData.promoCode}
                   onChange={(e) => setRegistrationData(prev => ({ ...prev, promoCode: e.target.value }))}
                   placeholder="Enter promo code"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/80 dark:bg-gray-900/80 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 <button
                   onClick={applyPromoCode}
-                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200"
+                  className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
                 >
                   Apply
                 </button>
@@ -590,14 +586,14 @@ const EventRegistration = ({ eventId, onClose }) => {
             </div>
 
             {/* Order Summary */}
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Order Summary</h3>
+            <div className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-4 mb-6">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Order Summary</h3>
               <div className="space-y-2">
                 {Object.entries(registrationData.selectedTickets).map(([ticketTypeId, quantity]) => {
                   if (quantity === 0) return null;
                   const ticketType = event.ticketTypes.find(t => t.id.toString() === ticketTypeId);
                   return (
-                    <div key={ticketTypeId} className="flex justify-between text-sm">
+                    <div key={ticketTypeId} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                       <span>{ticketType.name} x {quantity}</span>
                       <span>₹{(ticketType.price * quantity).toLocaleString()}</span>
                     </div>
@@ -605,13 +601,13 @@ const EventRegistration = ({ eventId, onClose }) => {
                 })}
                 
                 {registrationData.discount > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
+                  <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400">
                     <span>Discount</span>
                     <span>-₹{registrationData.discount.toLocaleString()}</span>
                   </div>
                 )}
                 
-                <div className="border-t pt-2 flex justify-between font-semibold">
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-2 flex justify-between font-semibold text-gray-900 dark:text-gray-100">
                   <span>Total</span>
                   <span>₹{registrationData.finalAmount.toLocaleString()}</span>
                 </div>
@@ -619,9 +615,9 @@ const EventRegistration = ({ eventId, onClose }) => {
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg flex items-center">
                 <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                <span className="text-red-700">{error}</span>
+                <span className="text-red-700 dark:text-red-200">{error}</span>
               </div>
             )}
 
@@ -647,12 +643,12 @@ const EventRegistration = ({ eventId, onClose }) => {
       {/* Step 3: Attendee Information */}
       {step === 3 && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-white/95 dark:bg-gray-900/95 p-6 shadow-sm shadow-gray-200/40 dark:shadow-black/30">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Attendee Information</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Attendee Information</h2>
               <button
                 onClick={addAttendee}
-                className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 text-sm flex items-center"
+                className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 text-sm flex items-center shadow-lg shadow-blue-500/20"
               >
                 <Plus className="w-4 h-4 mr-1" />
                 Add Attendee
@@ -661,13 +657,13 @@ const EventRegistration = ({ eventId, onClose }) => {
 
             <div className="space-y-6">
               {registrationData.attendees.map((attendee, index) => (
-                <div key={attendee.id} className="border border-gray-200 rounded-lg p-4">
+                <div key={attendee.id} className="border border-gray-200/70 dark:border-gray-800/70 rounded-2xl p-4 bg-white/80 dark:bg-gray-900/80">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-gray-900">Attendee {index + 1}</h3>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">Attendee {index + 1}</h3>
                     {registrationData.attendees.length > 1 && (
                       <button
                         onClick={() => removeAttendee(attendee.id)}
-                        className="text-red-600 hover:text-red-800 text-sm"
+                        className="text-red-500 hover:text-red-600 text-sm"
                       >
                         Remove
                       </button>
@@ -676,52 +672,52 @@ const EventRegistration = ({ eventId, onClose }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Full Name *
                       </label>
                       <input
                         type="text"
                         value={attendee.name}
                         onChange={(e) => updateAttendee(attendee.id, 'name', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/80 dark:bg-gray-900/80 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Email Address *
                       </label>
                       <input
                         type="email"
                         value={attendee.email}
                         onChange={(e) => updateAttendee(attendee.id, 'email', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/80 dark:bg-gray-900/80 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Phone Number
                       </label>
                       <input
                         type="tel"
                         value={attendee.phone}
                         onChange={(e) => updateAttendee(attendee.id, 'phone', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/80 dark:bg-gray-900/80 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Age
                       </label>
                       <input
                         type="number"
                         value={attendee.age}
                         onChange={(e) => updateAttendee(attendee.id, 'age', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/80 dark:bg-gray-900/80 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         min="1"
                         max="120"
                       />
@@ -733,10 +729,10 @@ const EventRegistration = ({ eventId, onClose }) => {
 
             {/* Emergency Contact */}
             <div className="border-t pt-6 mt-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Emergency Contact</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Emergency Contact</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Contact Name
                   </label>
                   <input
@@ -746,12 +742,12 @@ const EventRegistration = ({ eventId, onClose }) => {
                       ...prev,
                       emergencyContact: { ...prev.emergencyContact, name: e.target.value }
                     }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/80 dark:bg-gray-900/80 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Contact Phone
                   </label>
                   <input
@@ -761,12 +757,12 @@ const EventRegistration = ({ eventId, onClose }) => {
                       ...prev,
                       emergencyContact: { ...prev.emergencyContact, phone: e.target.value }
                     }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/80 dark:bg-gray-900/80 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Relationship
                   </label>
                   <select
@@ -775,7 +771,7 @@ const EventRegistration = ({ eventId, onClose }) => {
                       ...prev,
                       emergencyContact: { ...prev.emergencyContact, relationship: e.target.value }
                     }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/80 dark:bg-gray-900/80 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Select relationship</option>
                     <option value="parent">Parent</option>
@@ -791,13 +787,13 @@ const EventRegistration = ({ eventId, onClose }) => {
             <div className="flex justify-between mt-6">
               <button
                 onClick={() => setStep(2)}
-                className="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-200"
+                className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200 px-6 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
               >
                 Back
               </button>
               <button
                 onClick={() => setStep(4)}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-500/20"
               >
                 Continue to Payment
               </button>
@@ -809,19 +805,19 @@ const EventRegistration = ({ eventId, onClose }) => {
       {/* Step 4: Payment */}
       {step === 4 && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Payment Information</h2>
+          <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-white/95 dark:bg-gray-900/95 p-6 shadow-sm shadow-gray-200/40 dark:shadow-black/30">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Payment Information</h2>
 
             {registrationData.finalAmount === 0 ? (
               <div className="text-center py-8">
                 <Gift className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Free Event</h3>
-                <p className="text-gray-600">No payment required for this event.</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Free Event</h3>
+                <p className="text-gray-600 dark:text-gray-300">No payment required for this event.</p>
               </div>
             ) : (
               <div className="space-y-6">
                 <div>
-                  <h3 className="font-semibold text-gray-900 mb-4">Payment Method</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Payment Method</h3>
                   <div className="space-y-3">
                     <label className="flex items-center">
                       <input
@@ -831,8 +827,8 @@ const EventRegistration = ({ eventId, onClose }) => {
                         onChange={(e) => setRegistrationData(prev => ({ ...prev, paymentMethod: e.target.value }))}
                         className="mr-3"
                       />
-                      <CreditCard className="w-5 h-5 mr-2" />
-                      Credit/Debit Card
+                      <CreditCard className="w-5 h-5 mr-2 text-blue-600" />
+                      <span className="text-gray-700 dark:text-gray-300">Credit/Debit Card</span>
                     </label>
                     <label className="flex items-center">
                       <input
@@ -842,17 +838,17 @@ const EventRegistration = ({ eventId, onClose }) => {
                         onChange={(e) => setRegistrationData(prev => ({ ...prev, paymentMethod: e.target.value }))}
                         className="mr-3"
                       />
-                      <Phone className="w-5 h-5 mr-2" />
-                      UPI Payment
+                      <Phone className="w-5 h-5 mr-2 text-blue-600" />
+                      <span className="text-gray-700 dark:text-gray-300">UPI Payment</span>
                     </label>
                   </div>
                 </div>
 
                 {/* Payment form would go here in a real implementation */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-2xl p-4">
                   <div className="flex items-center">
                     <AlertTriangle className="w-5 h-5 text-yellow-600 mr-2" />
-                    <span className="text-yellow-800 text-sm">
+                    <span className="text-yellow-800 dark:text-yellow-100 text-sm">
                       Payment processing is simulated for this demo. In a real app, integrate with payment gateways like Razorpay or Stripe.
                     </span>
                   </div>
@@ -861,9 +857,9 @@ const EventRegistration = ({ eventId, onClose }) => {
             )}
 
             {/* Order Summary */}
-            <div className="bg-gray-50 rounded-lg p-4 mt-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Final Order Summary</h3>
-              <div className="space-y-2 text-sm">
+            <div className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-4 mt-6">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Final Order Summary</h3>
+              <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
                 {Object.entries(registrationData.selectedTickets).map(([ticketTypeId, quantity]) => {
                   if (quantity === 0) return null;
                   const ticketType = event.ticketTypes.find(t => t.id.toString() === ticketTypeId);
@@ -876,13 +872,13 @@ const EventRegistration = ({ eventId, onClose }) => {
                 })}
                 
                 {registrationData.discount > 0 && (
-                  <div className="flex justify-between text-green-600">
+                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
                     <span>Discount Applied</span>
                     <span>-₹{registrationData.discount.toLocaleString()}</span>
                   </div>
                 )}
                 
-                <div className="border-t pt-2 flex justify-between font-semibold text-base">
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-2 flex justify-between font-semibold text-base text-gray-900 dark:text-gray-100">
                   <span>Total Amount</span>
                   <span>₹{registrationData.finalAmount.toLocaleString()}</span>
                 </div>
@@ -899,30 +895,30 @@ const EventRegistration = ({ eventId, onClose }) => {
                   className="mt-1 mr-3"
                   required
                 />
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-gray-600 dark:text-gray-300">
                   I agree to the <button className="text-blue-600 hover:underline">terms and conditions</button> and understand the <button className="text-blue-600 hover:underline">refund policy</button> for this event.
                 </span>
               </label>
             </div>
 
             {error && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
+              <div className="mt-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg flex items-center">
                 <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                <span className="text-red-700">{error}</span>
+                <span className="text-red-700 dark:text-red-200">{error}</span>
               </div>
             )}
 
             <div className="flex justify-between mt-6">
               <button
                 onClick={() => setStep(3)}
-                className="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-200"
+                className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200 px-6 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
               >
                 Back
               </button>
               <button
                 onClick={submitRegistration}
                 disabled={registering || !registrationData.agreeTerms}
-                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center"
+                className="bg-emerald-600 text-white px-6 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center shadow-lg shadow-emerald-500/20"
               >
                 {registering ? (
                   <>
@@ -944,29 +940,29 @@ const EventRegistration = ({ eventId, onClose }) => {
       {/* Step 5: Confirmation */}
       {step === 5 && success && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Registration Successful!</h2>
-            <p className="text-gray-600 mb-6">
+          <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-white/95 dark:bg-gray-900/95 p-6 text-center shadow-sm shadow-gray-200/40 dark:shadow-black/30">
+            <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Registration Successful!</h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
               Your registration for "{event.title}" has been confirmed.
             </p>
 
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <div className="text-sm space-y-2">
-                <div><strong>Registration ID:</strong> {registrationId}</div>
-                <div><strong>Event Date:</strong> {event.startDate} {event.startTime}</div>
-                <div><strong>Venue:</strong> {event.venue.name}</div>
-                <div><strong>Total Amount:</strong> ₹{registrationData.finalAmount.toLocaleString()}</div>
+            <div className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-4 mb-6">
+              <div className="text-sm space-y-2 text-gray-700 dark:text-gray-300">
+                <div><strong className="text-gray-900 dark:text-gray-100">Registration ID:</strong> {registrationId}</div>
+                <div><strong className="text-gray-900 dark:text-gray-100">Event Date:</strong> {event.startDate} {event.startTime}</div>
+                <div><strong className="text-gray-900 dark:text-gray-100">Venue:</strong> {event.venue.name}</div>
+                <div><strong className="text-gray-900 dark:text-gray-100">Total Amount:</strong> ₹{registrationData.finalAmount.toLocaleString()}</div>
               </div>
             </div>
 
             {qrCodeUrl && (
               <div className="mb-6">
-                <h3 className="font-semibold text-gray-900 mb-3">Your Event QR Code</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Your Event QR Code</h3>
                 <div className="flex justify-center mb-3">
-                  <img src={qrCodeUrl} alt="Event QR Code" className="w-48 h-48 border border-gray-200 rounded-lg" />
+                  <img src={qrCodeUrl} alt="Event QR Code" className="w-48 h-48 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white p-3" />
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
                   Present this QR code at the event entrance for quick check-in
                 </p>
               </div>
@@ -975,7 +971,7 @@ const EventRegistration = ({ eventId, onClose }) => {
             <div className="flex items-center justify-center space-x-4">
               <button
                 onClick={downloadTicket}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center"
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center shadow-lg shadow-blue-500/20"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Download Ticket
@@ -996,20 +992,22 @@ const EventRegistration = ({ eventId, onClose }) => {
                     navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
                   }
                 }}
-                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center"
+                className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center"
               >
                 <Share2 className="w-4 h-4 mr-2" />
                 Share
               </button>
             </div>
 
-            <div className="mt-6 text-sm text-gray-500">
+            <div className="mt-6 text-sm text-gray-500 dark:text-gray-400">
               <p>A confirmation email has been sent to your registered email address.</p>
               <p className="mt-1">For any queries, contact the event organizer at {event.organizer.email}</p>
             </div>
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 };
