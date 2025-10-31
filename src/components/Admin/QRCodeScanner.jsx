@@ -20,7 +20,8 @@ import {
   Search,
   Filter,
   LogIn,
-  LogOut
+  LogOut,
+  BarChart3
 } from 'lucide-react';
 import { ref, onValue, update, push, get } from 'firebase/database';
 import { db } from '../../firebase-config';

@@ -133,7 +133,6 @@ export const pollSchema = {
 };
 
 export const createPoll = async (pollData, createdBy) => {
-  const db = getDatabase();
   const pollsRef = ref(db, DATABASE_PATHS.POLLS);
   
   const pollId = push(pollsRef).key;

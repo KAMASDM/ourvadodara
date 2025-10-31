@@ -3,6 +3,8 @@
 // Firebase Cloud Messaging Service Worker
 // =============================================
 
+/* global firebase */
+
 // Import Firebase scripts for service worker
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');

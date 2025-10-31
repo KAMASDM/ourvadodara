@@ -35,17 +35,21 @@ const CommentModeration = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
+        let postsDataMap = {};
+        let postsListCache = [];
         // Load posts for filter dropdown
         const postsRef = ref(db, DATABASE_PATHS.POSTS);
         const postsSnapshot = await get(postsRef);
         if (postsSnapshot.exists()) {
-          const postsData = postsSnapshot.val();
-          const postsList = Object.keys(postsData).map(key => ({
+          postsDataMap = postsSnapshot.val();
+          postsListCache = Object.keys(postsDataMap).map(key => ({
             id: key,
-            title: postsData[key].title?.en || postsData[key].title || 'Untitled',
-            ...postsData[key]
+            title: postsDataMap[key].title?.en || postsDataMap[key].title || 'Untitled',
+            ...postsDataMap[key]
           }));
-          setPosts(postsList);
+          setPosts(postsListCache);
+        } else {
+          setPosts([]);
         }
 
         // Load comments with real-time updates
@@ -61,8 +65,8 @@ const CommentModeration = () => {
             // Enhance comments with post information
             const enhancedComments = await Promise.all(
               commentsList.map(async (comment) => {
-                const post = postsList.find(p => p.id === comment.postId) || 
-                            postsData?.[comment.postId];
+                const post = postsListCache.find(p => p.id === comment.postId) || 
+                            postsDataMap?.[comment.postId];
                 return {
                   ...comment,
                   postTitle: post?.title?.en || post?.title || 'Unknown Post',

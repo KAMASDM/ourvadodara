@@ -21,7 +21,8 @@ import {
   Globe,
   CheckSquare,
   Zap,
-  MapPin
+  MapPin,
+  Film
 } from 'lucide-react';
 import Dashboard from './Dashboard';
 import UserManager from './UserManager';
@@ -36,6 +37,7 @@ import MediaPostCreator from './MediaPostCreator';
 import AuthenticationManager from './AuthenticationManager';
 import CreatePost from './CreatePost';
 import CityManagement from './CityManagement';
+import MediaContentManagement from './MediaContentManagement';
 
 const AdminLayout = () => {
   const { user } = useAuth();
@@ -72,6 +74,7 @@ const AdminLayout = () => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'create-post', label: 'Create Post', icon: Plus },
     { id: 'create-media', label: 'Create Media Post', icon: Monitor },
+    { id: 'media-management', label: 'Media Manager', icon: Film },
     { id: 'content-management', label: 'Content Manager', icon: FileText },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'city-management', label: 'City Management', icon: MapPin },
@@ -108,6 +111,8 @@ const AdminLayout = () => {
         setShowMediaCreator(true);
         setActiveSection('dashboard');
         return <Dashboard />;
+      case 'media-management':
+        return isMobile ? <MobileContentWarning /> : <MediaContentManagement />;
       case 'content-management':
         return isMobile ? <MobileContentWarning /> : <ContentManagement />;
       case 'users':
@@ -254,7 +259,7 @@ const AdminLayout = () => {
             console.log('Media post created:', result);
             setShowMediaCreator(false);
             // Optionally switch to content management to see the new post
-            setActiveSection('content-management');
+            setActiveSection('media-management');
           }}
         />
       )}
@@ -283,6 +288,7 @@ const getPageDescription = (section) => {
     'create-post': 'Create and publish new articles with multi-language support',
     'create-media': 'Create stories, reels, and media-rich content',
     'content-management': 'Manage all your published content across cities',
+  'media-management': 'Manage stories, reels, and carousel media posts',
     'users': 'Manage user accounts and permissions',
     'city-management': 'Add and manage cities with logos',
     'auth-management': 'Manage authentication and security settings',

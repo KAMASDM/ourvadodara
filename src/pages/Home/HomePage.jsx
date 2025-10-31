@@ -3,7 +3,6 @@
 // =============================================
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../context/Auth/AuthContext';
 import EnhancedStorySection from '../../components/Story/EnhancedStorySection';
 import CategoryFilter from '../../components/Category/CategoryFilter';
 import EnhancedNewsFeed from '../../components/Feed/EnhancedNewsFeed';
@@ -26,50 +25,52 @@ import {
 
 const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
   const { t } = useTranslation();
-  const { user } = useAuth();
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeSection, setActiveSection] = useState(null); // null means show news
+  const sectionHeading = activeSection
+    ? t('latest_news', 'Latest News')
+    : t('top_stories', 'Top Stories');
 
   // Define available sections
   const sections = [
     {
       id: 'weather',
-      name: 'Weather',
+      name: t('weather', 'Weather'),
       icon: Cloud,
       color: 'bg-blue-500',
       component: WeatherWidget
     },
     {
       id: 'trending',
-      name: 'Trending',
+      name: t('trending', 'Trending'),
       icon: TrendingUp,
       color: 'bg-red-500',
       component: TrendingTopics
     },
     {
       id: 'events',
-      name: 'Events',
+      name: t('events', 'Events'),
       icon: Calendar,
       color: 'bg-green-500',
       component: EventsCalendar
     },
     {
       id: 'polls',
-      name: 'Polls',
+      name: t('polls', 'Polls'),
       icon: BarChart3,
       color: 'bg-purple-500',
       component: PollWidget
     },
     {
       id: 'recommendations',
-      name: 'AI Picks',
+      name: t('ai_picks', 'AI Picks'),
       icon: Sparkles,
       color: 'bg-yellow-500',
       component: AIPicksReal
     },
     {
       id: 'live',
-      name: 'Live Updates',
+      name: t('live_updates', 'Live Updates'),
       icon: Radio,
       color: 'bg-orange-500',
       component: LiveUpdates
@@ -93,8 +94,8 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
         >
           {activeSection && ActiveSectionComponent && (
             <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
+              <div className="px-3 sm:px-4 py-3">
+                <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center gap-2">
                     <div className={`p-1.5 rounded-full ${sections.find(s => s.id === activeSection)?.color}`}>
                       {React.createElement(sections.find(s => s.id === activeSection)?.icon, {
@@ -107,9 +108,9 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                   </div>
                   <button
                     onClick={() => setActiveSection(null)}
-                    className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   >
-                    <span>Show News</span>
+                    <span>{t('show_news', 'Show News')}</span>
                     <ChevronRight className="h-3 w-3" />
                   </button>
                 </div>
@@ -120,17 +121,17 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
             </div>
           )}
           <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                  {activeSection ? 'Latest News' : 'Top Stories'}
+            <div className="px-3 sm:px-4 py-3">
+              <div className="flex items-center justify-between mb-2.5">
+                <h2 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
+                  {sectionHeading}
                 </h2>
                 {activeSection && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Scroll for more updates</span>
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400">{t('scroll_for_updates', 'Scroll for more updates')}</span>
                 )}
               </div>
 
-              <div className="flex space-x-2 overflow-x-auto scrollbar-hide pb-3 -mx-1 px-1">
+              <div className="flex space-x-1.5 overflow-x-auto scrollbar-hide pb-2 -mx-1 px-1">
                 {sections.map((section) => {
                   const Icon = section.icon;
                   const isActive = activeSection === section.id;
@@ -139,7 +140,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                     <button
                       key={section.id}
                       onClick={() => handleSectionClick(section.id)}
-                      className={`flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                      className={`flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-all duration-200 ${
                         isActive
                           ? `${section.color} text-white shadow-lg shadow-black/10`
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -163,7 +164,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
 
         <div className="flex-1 bg-gray-50 dark:bg-gray-950 pt-0 pb-6">
           {!activeSection && (
-            <div className="space-y-4 px-4 sm:px-5 mt-4 mb-6">
+            <div className="space-y-4 px-3 sm:px-4 mt-4 mb-6">
               <EnhancedStorySection
                 onViewStory={(story) => console.log('View story:', story)}
               />
@@ -174,7 +175,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
             </div>
           )}
 
-          <div className="mt-4">
+          <div className="mt-4 px-3 sm:px-4">
             <EnhancedNewsFeed
               activeCategory={activeCategory}
               onPostClick={onPostClick}
