@@ -1,7 +1,7 @@
 // =============================================
 // Updated src/App.jsx (Final version with navigation and layout fix)
 // =============================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from './context/Auth/AuthContext.jsx';
 import { EnhancedAuthProvider, useEnhancedAuth } from './context/Auth/SimpleEnhancedAuth.jsx';
 import { ThemeProvider } from './context/Theme/ThemeContext.jsx';
@@ -54,27 +54,70 @@ function AppContent() {
   const { user } = useEnhancedAuth();
 
   // Check for Firebase setup URL parameter and admin route
-  useEffect(() => {
+  const handlePathNavigation = useCallback(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const path = window.location.pathname;
-    
+
+    const postMatch = path.match(/^\/post\/([^/]+)$/);
+    if (postMatch) {
+      const newsId = decodeURIComponent(postMatch[1]);
+      window.history.replaceState({ view: 'news-detail', newsId }, '', `/post/${newsId}`);
+      setCurrentView({ type: 'news-detail', data: { newsId } });
+      setActiveTab('home');
+      return;
+    }
+
     // Check for QR scanner routes: /eventname/scanqr or /events/eventid/scanqr
     const scannerMatch = path.match(/^\/(.+)\/scanqr$/) || path.match(/^\/events\/(.+)\/scanqr$/);
     if (scannerMatch) {
       const eventIdentifier = scannerMatch[1];
       setCurrentView({ type: 'qr-scanner', data: { eventId: eventIdentifier } });
       setActiveTab('qr-scanner');
-    } else if (path === '/admin' || path.includes('/admin')) {
+      return;
+    }
+
+    if (path === '/admin' || path.includes('/admin')) {
       setCurrentView({ type: 'admin', data: null });
       setActiveTab('admin');
-    } else if (urlParams.get('setup') === 'firebase') {
+      return;
+    }
+
+    if (path === '/events') {
+      setCurrentView({ type: 'events', data: null });
+      setActiveTab('events');
+      return;
+    }
+
+    if (path === '/breaking') {
+      setCurrentView({ type: 'breaking', data: null });
+      setActiveTab('breaking');
+      return;
+    }
+
+    if (urlParams.get('setup') === 'firebase') {
       setCurrentView({ type: 'firebase-setup', data: null });
       setActiveTab('firebase-setup');
-    } else if (urlParams.get('admin') === 'upgrade') {
+      return;
+    }
+
+    if (urlParams.get('admin') === 'upgrade') {
       setCurrentView({ type: 'admin-upgrade', data: null });
       setActiveTab('admin-upgrade');
+      return;
     }
+
+    setCurrentView((previous) => (previous.type === 'home' ? previous : { type: 'home', data: null }));
+    setActiveTab((previous) => (previous === 'home' ? previous : 'home'));
   }, []);
+
+  useEffect(() => {
+    handlePathNavigation();
+  }, [handlePathNavigation]);
+
+  useEffect(() => {
+    window.addEventListener('popstate', handlePathNavigation);
+    return () => window.removeEventListener('popstate', handlePathNavigation);
+  }, [handlePathNavigation]);
 
   useEffect(() => {
     // Initialize PWA features
@@ -114,25 +157,25 @@ function AppContent() {
   // Define which views should take up the full screen width
   const isFullWidthView = [
     'admin', 
-    'breaking',
     'firebase-setup', 
     'admin-upgrade',
-    'qr-scanner',
-    'events'
+    'qr-scanner'
   ].includes(currentView.type);
 
   // Dynamically set the main container's class based on the current view
   const mainContainerClass = isFullWidthView
-    ? 'w-full' // Use full width for admin pages
-    : 'max-w-md mx-auto'; // Use mobile-sized container for regular pages
+    ? 'w-full'
+    : 'max-w-2xl mx-auto px-3 sm:px-4';
   // --- LAYOUT FIX END ---
 
   const handlePostClick = (postId) => {
+    window.history.pushState({ view: 'news-detail', newsId: postId }, '', `/post/${postId}`);
     setCurrentView({ type: 'news-detail', data: { newsId: postId } });
     analytics.track('post_viewed', { postId });
   };
 
   const handleBackToHome = () => {
+    window.history.pushState({}, '', '/');
     setCurrentView({ type: 'home', data: null });
     setActiveTab('home');
   };
