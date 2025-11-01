@@ -212,21 +212,25 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
   };
 
   const handleShare = async (post) => {
+    const shareUrl = `${window.location.origin}/post/${post.id}`;
+
     if (navigator.share) {
       try {
         await navigator.share({
           title: post.title[currentLanguage] || post.title.en,
           text: post.excerpt?.[currentLanguage] || post.content?.[currentLanguage],
-          url: window.location.origin + `/news/${post.id}`
+          url: shareUrl
         });
       } catch (error) {
         console.log('Sharing cancelled');
       }
     } else {
-      // Fallback to copy link
-      const url = window.location.origin + `/news/${post.id}`;
-      navigator.clipboard.writeText(url);
-      alert('Link copied to clipboard!');
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        alert('Link copied to clipboard!');
+      } catch (error) {
+        console.error('Failed to copy share link:', error);
+      }
     }
   };
 
