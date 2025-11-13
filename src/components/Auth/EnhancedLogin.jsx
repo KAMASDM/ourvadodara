@@ -5,6 +5,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
+import { sendEmailVerification } from 'firebase/auth';
+import EmailVerificationModal from './EmailVerificationModal';
 import { 
   Mail, 
   Lock, 
@@ -46,6 +48,8 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [success, setSuccess] = useState('');
   const [phoneStep, setPhoneStep] = useState('number'); // number, otp
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const [verificationUser, setVerificationUser] = useState(null);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -134,22 +138,22 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
           onClose?.();
         }, 1500);
       } else if (mode === 'signup') {
-        await signUpWithEmail(formData.email, formData.password, formData.displayName);
+        const userCredential = await signUpWithEmail(formData.email, formData.password, formData.displayName);
         
-        // Store auth method in user profile
-        const { updateUserProfile } = await import('../../utils/adminSetup');
-        const { firebaseAuth } = await import('../../firebase-config');
-        if (firebaseAuth.currentUser) {
-          await updateUserProfile(firebaseAuth.currentUser.uid, {
+        // Send verification email
+        if (userCredential?.user && !userCredential.user.emailVerified) {
+          await sendEmailVerification(userCredential.user);
+          setVerificationUser(userCredential.user);
+          setShowEmailVerification(true);
+          
+          // Store auth method in user profile
+          const { updateUserProfile } = await import('../../utils/adminSetup');
+          await updateUserProfile(userCredential.user.uid, {
             authMethod: 'email',
-            authEmail: formData.email
+            authEmail: formData.email,
+            emailVerified: false
           });
         }
-        
-        setSuccess('✅ Account created! Please check your email for verification.');
-        setTimeout(() => {
-          onClose?.();
-        }, 2000);
       }
     } catch (error) {
       console.error('Email auth error:', error);
@@ -232,6 +236,31 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleEmailVerified = async () => {
+    // Update user profile to mark email as verified
+    if (verificationUser) {
+      const { updateUserProfile } = await import('../../utils/adminSetup');
+      await updateUserProfile(verificationUser.uid, {
+        emailVerified: true
+      });
+    }
+    
+    // Sign out and redirect to login
+    const { firebaseAuth } = await import('../../firebase-config');
+    await firebaseAuth.signOut();
+    setShowEmailVerification(false);
+    setMode('signin');
+    setSuccess('✅ Email verified! Please sign in.');
+  };
+
+  const handleCloseVerification = async () => {
+    // Sign out the user since they haven't verified
+    const { firebaseAuth } = await import('../../firebase-config');
+    await firebaseAuth.signOut();
+    setShowEmailVerification(false);
+    setMode('signin');
   };
 
   const handlePasswordReset = async (e) => {
@@ -593,6 +622,15 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
           </div>
         </div>
       </div>
+      
+      {/* Email Verification Modal */}
+      {showEmailVerification && verificationUser && (
+        <EmailVerificationModal
+          user={verificationUser}
+          onClose={handleCloseVerification}
+          onVerified={handleEmailVerified}
+        />
+      )}
     </div>
   );
 };

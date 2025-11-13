@@ -335,7 +335,7 @@ export const EnhancedAuthProvider = ({ children }) => {
       }
       
       console.log('Email sign-up successful:', result.user.uid);
-      return { user: result.user, success: true };
+      return result; // Return the full credential
     } catch (error) {
       console.error('Email sign-up error:', error);
       setAuthError(error.message);

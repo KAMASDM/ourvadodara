@@ -7,7 +7,9 @@ import { useAuth } from '../../context/Auth/AuthContext';
 import { useTheme } from '../../context/Theme/ThemeContext';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { getUserProfile, updateUserProfile } from '../../utils/adminSetup';
+import { firebaseAuth } from '../../firebase-config';
 import BloodSOSButton from '../../components/SOS/BloodSOSButton.jsx';
+import ContactVerificationModal from '../../components/Profile/ContactVerificationModal';
 import {
   User,
   Settings,
@@ -32,7 +34,8 @@ import {
   Droplet,
   Check,
   X,
-  AlertCircle
+  AlertCircle,
+  Shield
 } from 'lucide-react';
 
 const cloneProfile = (data) => JSON.parse(JSON.stringify(data));
@@ -84,6 +87,9 @@ const ProfilePage = () => {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState(null);
   const [showIncompleteAlert, setShowIncompleteAlert] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationType, setVerificationType] = useState(null); // 'phone' or 'email'
+  const [verificationValue, setVerificationValue] = useState('');
 
   const userStats = {
     postsLiked: 156,
@@ -204,11 +210,39 @@ const ProfilePage = () => {
       errors.push('Either Phone Number or Email is required');
     }
     
+    // Check if user is trying to add/change phone (for email/google users)
+    if ((user.authMethod === 'email' || user.authMethod === 'google') && 
+        hasPhone && 
+        draftData.contact.primaryPhone !== profileData.contact.primaryPhone &&
+        !user.phoneVerified) {
+      // Need to verify phone
+      setVerificationType('phone');
+      setVerificationValue(draftData.contact.primaryPhone);
+      setShowVerificationModal(true);
+      return;
+    }
+    
+    // Check if user is trying to add/change email (for phone users)
+    if (user.authMethod === 'phone' && 
+        hasEmail && 
+        draftData.contact.email !== profileData.contact.email &&
+        !user.emailVerified) {
+      // Need to verify email
+      setVerificationType('email');
+      setVerificationValue(draftData.contact.email);
+      setShowVerificationModal(true);
+      return;
+    }
+    
     if (errors.length > 0) {
       setProfileError(errors.join(', '));
       return;
     }
 
+    await saveProfileData();
+  };
+
+  const saveProfileData = async () => {
     setSavingProfile(true);
     setProfileError(null);
 
@@ -218,7 +252,9 @@ const ProfilePage = () => {
       await updateUserProfile(user.uid, {
         profile: payload,
         displayName: payload.personal.fullName || user.displayName || user.email || 'Member',
-        email: payload.contact.email || user.email || ''
+        email: payload.contact.email || user.email || '',
+        phoneVerified: user.phoneVerified || false,
+        emailVerified: user.emailVerified || false
       });
 
       setProfileData(cloneProfile(payload));
@@ -234,6 +270,35 @@ const ProfilePage = () => {
       setProfileError('Unable to save profile changes. Please try again.');
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleVerificationComplete = async (verifiedValue) => {
+    // Update the user profile with verified contact
+    try {
+      if (verificationType === 'phone') {
+        await updateUserProfile(user.uid, {
+          phoneVerified: true,
+          verifiedPhone: verifiedValue
+        });
+        // Update local state
+        user.phoneVerified = true;
+      } else if (verificationType === 'email') {
+        await updateUserProfile(user.uid, {
+          emailVerified: true,
+          verifiedEmail: verifiedValue
+        });
+        // Update local state
+        user.emailVerified = true;
+      }
+      
+      setShowVerificationModal(false);
+      
+      // Now save the profile
+      await saveProfileData();
+    } catch (error) {
+      console.error('Error updating verification status:', error);
+      setProfileError('Verification succeeded but failed to update profile. Please try again.');
     }
   };
 
@@ -271,10 +336,12 @@ const ProfilePage = () => {
     const formattedValue = formatDisplayValue(field, value);
     const FieldIcon = field.icon || null;
     
-    // Check if field is readonly (based on auth method)
-    const isReadonly = field.readonly || 
-      (field.name === 'primaryPhone' && user?.authMethod === 'phone' && user?.authPhone) ||
-      (field.name === 'email' && (user?.authMethod === 'email' || user?.authMethod === 'google') && user?.authEmail);
+    // Check if field is verified
+    const isPhoneVerified = field.name === 'primaryPhone' && (user?.phoneVerified || (user?.authMethod === 'phone' && user?.authPhone));
+    const isEmailVerified = field.name === 'email' && (user?.emailVerified || ((user?.authMethod === 'email' || user?.authMethod === 'google') && user?.authEmail));
+    
+    // Check if field is readonly (verified fields are readonly)
+    const isReadonly = field.readonly || isPhoneVerified || isEmailVerified;
     
     // Check if field is required
     const isRequired = field.required || 
@@ -290,7 +357,15 @@ const ProfilePage = () => {
             {FieldIcon && <FieldIcon className="h-3.5 w-3.5 text-primary-500" />}
             <span>{field.label}</span>
             {isRequired && <span className="text-red-500">*</span>}
-            {isReadonly && <span className="text-xs normal-case text-blue-500">(Auto-filled from login)</span>}
+            {(isPhoneVerified || isEmailVerified) && (
+              <span className="flex items-center gap-1 text-xs normal-case text-green-600 dark:text-green-400">
+                <Shield className="h-3 w-3" />
+                Verified
+              </span>
+            )}
+            {isReadonly && !isPhoneVerified && !isEmailVerified && (
+              <span className="text-xs normal-case text-blue-500">(Auto-filled from login)</span>
+            )}
           </span>
         </label>
         {isEditing ? (
@@ -681,6 +756,17 @@ const ProfilePage = () => {
       </div>
 
       <BloodSOSButton />
+      
+      {/* Contact Verification Modal */}
+      {showVerificationModal && verificationType && verificationValue && (
+        <ContactVerificationModal
+          type={verificationType}
+          value={verificationValue}
+          user={firebaseAuth.currentUser}
+          onClose={() => setShowVerificationModal(false)}
+          onVerified={handleVerificationComplete}
+        />
+      )}
     </div>
   );
 };

@@ -163,6 +163,33 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentReelIndex]);
 
+  const goToNext = () => {
+    if (currentReelIndex < reels.length - 1) {
+      setCurrentReelIndex(prev => prev + 1);
+    }
+  };
+
+  const goToPrevious = () => {
+    if (currentReelIndex > 0) {
+      setCurrentReelIndex(prev => prev - 1);
+    }
+  };
+
+  const handleSwipe = () => {
+    const swipeDistance = touchStartY.current - touchEndY.current;
+    const minSwipeDistance = 50;
+
+    if (Math.abs(swipeDistance) > minSwipeDistance) {
+      if (swipeDistance > 0) {
+        // Swipe up - next reel
+        goToNext();
+      } else {
+        // Swipe down - previous reel
+        goToPrevious();
+      }
+    }
+  };
+
   // Touch gestures for mobile
   useEffect(() => {
     const handleTouchStart = (e) => {
@@ -190,34 +217,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         container.removeEventListener('touchend', handleTouchEnd);
       };
     }
-  }, []);
-
-  const handleSwipe = () => {
-    const swipeDistance = touchStartY.current - touchEndY.current;
-    const minSwipeDistance = 50;
-
-    if (Math.abs(swipeDistance) > minSwipeDistance) {
-      if (swipeDistance > 0) {
-        // Swipe up - next reel
-        goToNext();
-      } else {
-        // Swipe down - previous reel
-        goToPrevious();
-      }
-    }
-  };
-
-  const goToNext = () => {
-    if (currentReelIndex < reels.length - 1) {
-      setCurrentReelIndex(prev => prev + 1);
-    }
-  };
-
-  const goToPrevious = () => {
-    if (currentReelIndex > 0) {
-      setCurrentReelIndex(prev => prev - 1);
-    }
-  };
+  }, [currentReelIndex, reels.length]);
 
   const togglePlay = () => {
     setIsPlaying(prev => !prev);
