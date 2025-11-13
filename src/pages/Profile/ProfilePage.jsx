@@ -31,7 +31,8 @@ import {
   CalendarDays,
   Droplet,
   Check,
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
 
 const cloneProfile = (data) => JSON.parse(JSON.stringify(data));
@@ -73,7 +74,7 @@ const INITIAL_PROFILE_DATA = {
 
 const ProfilePage = () => {
   const { t } = useTranslation();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshProfileCompletion, profileCompletion } = useAuth();
   const { toggleTheme, isDark } = useTheme();
   const { currentLanguage, changeLanguage } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
@@ -82,6 +83,7 @@ const ProfilePage = () => {
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState(null);
+  const [showIncompleteAlert, setShowIncompleteAlert] = useState(false);
 
   const userStats = {
     postsLiked: 156,
@@ -131,9 +133,22 @@ const ProfilePage = () => {
 
         baseProfile.personal.fullName = baseProfile.personal.fullName || remoteProfile?.displayName || user.displayName || user.email || '';
         baseProfile.contact.email = baseProfile.contact.email || remoteProfile?.email || user.email || '';
+        
+        // Pre-fill contact info based on auth method
+        if (user.authMethod === 'phone' && user.authPhone) {
+          baseProfile.contact.primaryPhone = user.authPhone;
+        }
+        if ((user.authMethod === 'email' || user.authMethod === 'google') && user.authEmail) {
+          baseProfile.contact.email = user.authEmail;
+        }
 
         setProfileData(baseProfile);
         setDraftData(cloneProfile(baseProfile));
+        
+        // Show alert if profile is incomplete
+        if (!user.profileComplete) {
+          setShowIncompleteAlert(true);
+        }
       } catch (error) {
         console.error('Error loading profile data:', error);
         if (isMounted) {
@@ -151,7 +166,7 @@ const ProfilePage = () => {
     return () => {
       isMounted = false;
     };
-  }, [user?.uid]);
+  }, [user?.uid, user?.authMethod, user?.authPhone, user?.authEmail, user?.profileComplete]);
 
   const handleStartEditing = () => {
     if (loadingProfile || savingProfile) return;
@@ -169,6 +184,30 @@ const ProfilePage = () => {
 
   const handleSaveProfile = async () => {
     if (!user?.uid || savingProfile) return;
+    
+    // Validate mandatory fields
+    const errors = [];
+    if (!draftData.personal.fullName || draftData.personal.fullName.trim() === '') {
+      errors.push('Full Name is required');
+    }
+    if (!draftData.personal.dob || draftData.personal.dob.trim() === '') {
+      errors.push('Date of Birth is required');
+    }
+    if (!draftData.personal.gender || draftData.personal.gender.trim() === '') {
+      errors.push('Gender is required');
+    }
+    
+    // At least one contact method required
+    const hasPhone = draftData.contact.primaryPhone && draftData.contact.primaryPhone.trim() !== '';
+    const hasEmail = draftData.contact.email && draftData.contact.email.trim() !== '';
+    if (!hasPhone && !hasEmail) {
+      errors.push('Either Phone Number or Email is required');
+    }
+    
+    if (errors.length > 0) {
+      setProfileError(errors.join(', '));
+      return;
+    }
 
     setSavingProfile(true);
     setProfileError(null);
@@ -184,6 +223,12 @@ const ProfilePage = () => {
 
       setProfileData(cloneProfile(payload));
       setIsEditing(false);
+      setShowIncompleteAlert(false);
+      
+      // Refresh profile completion status
+      if (refreshProfileCompletion) {
+        await refreshProfileCompletion();
+      }
     } catch (error) {
       console.error('Error saving profile data:', error);
       setProfileError('Unable to save profile changes. Please try again.');
@@ -225,6 +270,15 @@ const ProfilePage = () => {
     const value = dataSource[sectionId][field.name] || '';
     const formattedValue = formatDisplayValue(field, value);
     const FieldIcon = field.icon || null;
+    
+    // Check if field is readonly (based on auth method)
+    const isReadonly = field.readonly || 
+      (field.name === 'primaryPhone' && user?.authMethod === 'phone' && user?.authPhone) ||
+      (field.name === 'email' && (user?.authMethod === 'email' || user?.authMethod === 'google') && user?.authEmail);
+    
+    // Check if field is required
+    const isRequired = field.required || 
+      (sectionId === 'personal' && ['fullName', 'dob', 'gender'].includes(field.name));
 
     return (
       <div
@@ -235,6 +289,8 @@ const ProfilePage = () => {
           <span className="flex items-center gap-2">
             {FieldIcon && <FieldIcon className="h-3.5 w-3.5 text-primary-500" />}
             <span>{field.label}</span>
+            {isRequired && <span className="text-red-500">*</span>}
+            {isReadonly && <span className="text-xs normal-case text-blue-500">(Auto-filled from login)</span>}
           </span>
         </label>
         {isEditing ? (
@@ -243,16 +299,18 @@ const ProfilePage = () => {
               value={value}
               rows={field.rows || 3}
               onChange={(event) => handleFieldChange(sectionId, field.name, event.target.value)}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950/60 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+              className={`w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950/60 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/40 ${isReadonly ? 'opacity-60 cursor-not-allowed' : ''}`}
               placeholder={field.placeholder}
-              disabled={savingProfile}
+              disabled={savingProfile || isReadonly}
+              required={isRequired}
             />
           ) : field.type === 'select' ? (
             <select
               value={value}
               onChange={(event) => handleFieldChange(sectionId, field.name, event.target.value)}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950/60 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/40"
-              disabled={savingProfile}
+              className={`w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950/60 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/40 ${isReadonly ? 'opacity-60 cursor-not-allowed' : ''}`}
+              disabled={savingProfile || isReadonly}
+              required={isRequired}
             >
               <option value="">{field.placeholder || 'Select an option'}</option>
               {field.options?.map((option) => (
@@ -266,9 +324,10 @@ const ProfilePage = () => {
               type={field.type || 'text'}
               value={value}
               onChange={(event) => handleFieldChange(sectionId, field.name, event.target.value)}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950/60 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+              className={`w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950/60 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/40 ${isReadonly ? 'opacity-60 cursor-not-allowed' : ''}`}
               placeholder={field.placeholder}
-              disabled={savingProfile}
+              disabled={savingProfile || isReadonly}
+              required={isRequired}
             />
           )
         ) : (
@@ -381,6 +440,42 @@ const ProfilePage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-24">
+      {/* Incomplete Profile Alert */}
+      {showIncompleteAlert && !user?.profileComplete && profileCompletion && !profileCompletion.isComplete && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-800">
+          <div className="px-4 py-3">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-8 h-8 bg-yellow-100 dark:bg-yellow-900/40 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-yellow-900 dark:text-yellow-100">
+                  Complete Your Profile to Access All Features
+                </h3>
+                <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                  Please fill in the following required fields: {profileCompletion.missingFields.join(', ')}
+                </p>
+                <button
+                  onClick={() => {
+                    setShowIncompleteAlert(false);
+                    if (!isEditing) handleStartEditing();
+                  }}
+                  className="mt-2 text-xs font-medium text-yellow-800 dark:text-yellow-200 hover:text-yellow-900 dark:hover:text-yellow-100 underline"
+                >
+                  Complete Profile Now →
+                </button>
+              </div>
+              <button
+                onClick={() => setShowIncompleteAlert(false)}
+                className="flex-shrink-0 text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Profile Header */}
       <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
         <div className="px-4 py-6">

@@ -51,7 +51,18 @@ function AppContent() {
   const { hasActiveSOS } = useBloodSOS();
   
   // Use the enhanced auth context
-  const { user } = useEnhancedAuth();
+  const { user, profileCompletion } = useEnhancedAuth();
+  
+  // Check profile completion after login
+  useEffect(() => {
+    if (user && !user.isAnonymous && !user.profileComplete && profileCompletion && !profileCompletion.isComplete) {
+      // Redirect to profile page if incomplete
+      if (currentView.type !== 'profile') {
+        setCurrentView({ type: 'profile', data: null });
+        setActiveTab('profile');
+      }
+    }
+  }, [user, profileCompletion]);
 
   // Check for Firebase setup URL parameter and admin route
   const handlePathNavigation = useCallback(() => {
@@ -137,14 +148,22 @@ function AppContent() {
       setShowFirebaseSetup(true);
     };
     
+    // Listen for navigate to profile event
+    const handleNavigateToProfile = () => {
+      setCurrentView({ type: 'profile', data: null });
+      setActiveTab('profile');
+    };
+    
     document.addEventListener('showGuestPrompt', handleShowGuestPrompt);
     document.addEventListener('showFirebaseSetup', handleShowFirebaseSetup);
+    document.addEventListener('navigateToProfile', handleNavigateToProfile);
     
     return () => {
       analytics.track('app_end', analytics.getSessionStats());
       performanceMonitor.cleanup();
       document.removeEventListener('showGuestPrompt', handleShowGuestPrompt);
       document.removeEventListener('showFirebaseSetup', handleShowFirebaseSetup);
+      document.removeEventListener('navigateToProfile', handleNavigateToProfile);
     };
   }, []);
 
@@ -203,6 +222,15 @@ function AppContent() {
     
     setActiveTab(tab);
     setCurrentView({ type: tab, data: null });
+  };
+  
+  const handleProfileClick = () => {
+    if (!user) {
+      setShowLogin(true);
+      return;
+    }
+    setActiveTab('profile');
+    setCurrentView({ type: 'profile', data: null });
   };
 
   const renderContent = () => {
@@ -268,6 +296,7 @@ function AppContent() {
             <Header 
               onNotificationClick={() => setShowNotifications(true)}
               onLoginClick={() => setShowLogin(true)}
+              onProfileClick={handleProfileClick}
             />
           )}
 

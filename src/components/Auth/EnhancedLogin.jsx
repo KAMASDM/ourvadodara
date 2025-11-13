@@ -118,10 +118,38 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
 
       if (mode === 'signin') {
         await signInWithEmail(formData.email, formData.password);
-        setSuccess('Successfully signed in!');
+        
+        // Store auth method in user profile
+        const { updateUserProfile } = await import('../../utils/adminSetup');
+        const { firebaseAuth } = await import('../../firebase-config');
+        if (firebaseAuth.currentUser) {
+          await updateUserProfile(firebaseAuth.currentUser.uid, {
+            authMethod: 'email',
+            authEmail: formData.email
+          });
+        }
+        
+        setSuccess('✅ Successfully signed in!');
+        setTimeout(() => {
+          onClose?.();
+        }, 1500);
       } else if (mode === 'signup') {
         await signUpWithEmail(formData.email, formData.password, formData.displayName);
-        setSuccess('Account created! Please check your email for verification.');
+        
+        // Store auth method in user profile
+        const { updateUserProfile } = await import('../../utils/adminSetup');
+        const { firebaseAuth } = await import('../../firebase-config');
+        if (firebaseAuth.currentUser) {
+          await updateUserProfile(firebaseAuth.currentUser.uid, {
+            authMethod: 'email',
+            authEmail: formData.email
+          });
+        }
+        
+        setSuccess('✅ Account created! Please check your email for verification.');
+        setTimeout(() => {
+          onClose?.();
+        }, 2000);
       }
     } catch (error) {
       console.error('Email auth error:', error);
@@ -134,7 +162,21 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
     setIsProcessing(true);
     try {
       await signInWithGoogle();
-      setSuccess('Successfully signed in with Google!');
+      
+      // Store auth method in user profile
+      const { updateUserProfile } = await import('../../utils/adminSetup');
+      const { firebaseAuth } = await import('../../firebase-config');
+      if (firebaseAuth.currentUser) {
+        await updateUserProfile(firebaseAuth.currentUser.uid, {
+          authMethod: 'google',
+          authEmail: firebaseAuth.currentUser.email
+        });
+      }
+      
+      setSuccess('✅ Successfully signed in with Google!');
+      setTimeout(() => {
+        onClose?.();
+      }, 1500);
     } catch (error) {
       console.error('Google auth error:', error);
     } finally {
@@ -152,13 +194,24 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
         // Send OTP using reCAPTCHA Enterprise
         await signInWithPhone(formData.phoneNumber);
         setPhoneStep('otp');
-        setSuccess('OTP sent to your phone!');
+        setSuccess('📱 OTP sent to your phone!');
       } else {
         // Verify OTP
         await verifyPhoneCode(formData.otp);
-        setSuccess('Successfully signed in with phone!');
+        
+        // Store auth method in user profile
+        const { updateUserProfile } = await import('../../utils/adminSetup');
+        const { firebaseAuth } = await import('../../firebase-config');
+        if (firebaseAuth.currentUser) {
+          await updateUserProfile(firebaseAuth.currentUser.uid, {
+            authMethod: 'phone',
+            authPhone: formData.phoneNumber
+          });
+        }
+        
+        setSuccess('✅ Successfully signed in with phone!');
         setTimeout(() => {
-          onClose();
+          onClose?.();
         }, 1500);
       }
     } catch (error) {

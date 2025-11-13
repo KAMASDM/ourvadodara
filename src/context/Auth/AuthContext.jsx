@@ -12,6 +12,7 @@ import {
 } from '../../firebase-config';
 import { updateProfile, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { getUserProfile, createAdminUser, createUserProfile } from '../../utils/adminSetup';
+import { checkProfileCompletion, getAuthMethod, getAuthContactInfo } from '../../utils/profileHelpers';
 
 const AuthContext = createContext();
 
@@ -26,6 +27,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profileCompletion, setProfileCompletion] = useState({ isComplete: true, missingFields: [] });
 
   useEffect(() => {
     // Listen to authentication state changes
@@ -35,41 +37,69 @@ export const AuthProvider = ({ children }) => {
         try {
           let userProfile = await getUserProfile(firebaseUser.uid);
           
+          // Determine auth method
+          const authMethod = getAuthMethod(firebaseUser);
+          const authContactInfo = getAuthContactInfo(firebaseUser, authMethod);
+          
           // If no profile exists, create a basic one
           if (!userProfile) {
             const { createUserProfile } = await import('../../utils/adminSetup');
             await createUserProfile(firebaseUser.uid, {
               email: firebaseUser.email,
-              displayName: firebaseUser.displayName
+              displayName: firebaseUser.displayName,
+              authMethod,
+              authPhone: authContactInfo.phone,
+              authEmail: authContactInfo.email
             });
             userProfile = await getUserProfile(firebaseUser.uid);
           }
           
+          // Check profile completion
+          const completionStatus = checkProfileCompletion(userProfile);
+          setProfileCompletion(completionStatus);
+          
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
+            phoneNumber: firebaseUser.phoneNumber,
             displayName: firebaseUser.displayName || userProfile?.displayName,
             photoURL: firebaseUser.photoURL,
             emailVerified: firebaseUser.emailVerified,
+            isAnonymous: firebaseUser.isAnonymous,
             role: userProfile?.role || 'user',
-            permissions: userProfile?.permissions || {}
+            permissions: userProfile?.permissions || {},
+            authMethod: userProfile?.authMethod || authMethod,
+            authPhone: userProfile?.authPhone || authContactInfo.phone,
+            authEmail: userProfile?.authEmail || authContactInfo.email,
+            profileComplete: completionStatus.isComplete
           });
         } catch (error) {
           console.error('Error loading user profile:', error);
           // Fallback to basic user data
+          const authMethod = getAuthMethod(firebaseUser);
+          const authContactInfo = getAuthContactInfo(firebaseUser, authMethod);
+          
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
+            phoneNumber: firebaseUser.phoneNumber,
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
             emailVerified: firebaseUser.emailVerified,
+            isAnonymous: firebaseUser.isAnonymous,
             role: 'user',
-            permissions: {}
+            permissions: {},
+            authMethod,
+            authPhone: authContactInfo.phone,
+            authEmail: authContactInfo.email,
+            profileComplete: false
           });
+          setProfileCompletion({ isComplete: false, missingFields: ['Profile information'] });
         }
       } else {
         // User is signed out
         setUser(null);
+        setProfileCompletion({ isComplete: true, missingFields: [] });
       }
       setLoading(false);
     });
@@ -170,6 +200,28 @@ export const AuthProvider = ({ children }) => {
 
   // Check if current user is admin
   const isAdmin = user?.role === 'admin';
+  
+  // Function to refresh profile completion status
+  const refreshProfileCompletion = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const userProfile = await getUserProfile(user.uid);
+      const completionStatus = checkProfileCompletion(userProfile);
+      setProfileCompletion(completionStatus);
+      
+      // Update user object with new completion status
+      setUser(prev => ({
+        ...prev,
+        profileComplete: completionStatus.isComplete
+      }));
+      
+      return completionStatus;
+    } catch (error) {
+      console.error('Error refreshing profile completion:', error);
+      return null;
+    }
+  };
 
   const value = {
     user,
@@ -179,7 +231,9 @@ export const AuthProvider = ({ children }) => {
     signInWithGoogle,
     logout,
     createAdmin,
-    isAdmin
+    isAdmin,
+    profileCompletion,
+    refreshProfileCompletion
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

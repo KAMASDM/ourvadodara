@@ -4,20 +4,22 @@
 // =============================================
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../context/Auth/AuthContext';
 import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useCity } from '../../context/CityContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { LANGUAGES } from '../../utils/constants';
-import { Globe, Bell, LogIn, MapPin } from 'lucide-react';
+import { Globe, Bell, LogIn, MapPin, AlertCircle } from 'lucide-react';
 import Logo from '../Shared/Logo';
 import PWAInstallButton from '../PWA/PWAInstallButton';
 
-const Header = ({ onNotificationClick, onLoginClick }) => {
+const Header = ({ onNotificationClick, onLoginClick, onProfileClick }) => {
   const { t } = useTranslation();
   const { currentLanguage, changeLanguage } = useLanguage();
   const { currentCity, setCurrentCity, cities } = useCity();
   const { user } = useEnhancedAuth();
+  const { profileCompletion } = useAuth();
 
   // Get unread notifications count
   const { data: notificationsObject } = useRealtimeData(
@@ -27,6 +29,8 @@ const Header = ({ onNotificationClick, onLoginClick }) => {
   const unreadCount = notificationsObject
     ? Object.values(notificationsObject).filter(n => !n.isRead).length
     : 0;
+    
+  const showIncompleteProfileBadge = user && !user.isAnonymous && !user.profileComplete && profileCompletion && !profileCompletion.isComplete;
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 dark:bg-gray-950/80 backdrop-blur-xl border-b border-white/60 dark:border-gray-800/70 shadow-[0_10px_30px_-15px_rgba(15,23,42,0.45)]">
@@ -90,7 +94,7 @@ const Header = ({ onNotificationClick, onLoginClick }) => {
 
             <PWAInstallButton />
 
-            {!user && (
+            {!user ? (
               <button
                 onClick={onLoginClick}
                 className="flex h-10 w-10 items-center justify-center rounded-xl border border-transparent bg-white/60 text-text-dark shadow-sm transition-colors duration-200 hover:border-white hover:text-accent dark:bg-gray-900/70 dark:text-text-light dark:hover:border-gray-700"
@@ -98,6 +102,20 @@ const Header = ({ onNotificationClick, onLoginClick }) => {
               >
                 <LogIn className="w-5 h-5" />
               </button>
+            ) : (
+              showIncompleteProfileBadge && (
+                <button
+                  onClick={onProfileClick}
+                  className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 shadow-sm transition-colors duration-200 hover:bg-yellow-100 dark:hover:bg-yellow-900/50"
+                  title="Complete your profile"
+                >
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                  </span>
+                </button>
+              )
             )}
           </div>
         </div>
