@@ -9,6 +9,7 @@ import { ref, update, increment, get, onValue } from 'firebase/database';
 import { db } from '../../firebase-config';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import ThreadedCommentSection from '../../components/Comments/ThreadedCommentSection';
+import { useProfileCompletionGuard, ProfileCompletionModal } from '../../components/Common/ProfileCompletionGuard';
 import { 
   ArrowLeft, 
   Heart, 
@@ -28,6 +29,7 @@ import { POST_TYPES } from '../../utils/mediaSchema';
 const ReelsPage = ({ onBack, initialReelId = null }) => {
   const { user } = useAuth();
   const { data: reelsData, isLoading } = useRealtimeData('reels');
+  const { checkProfileComplete, showModal, closeModal, profileCompletion } = useProfileCompletionGuard();
   
   const [currentReelIndex, setCurrentReelIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -221,6 +223,11 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       alert('Please sign in to like reels');
       return;
     }
+    
+    // Check if profile is complete
+    if (!checkProfileComplete()) {
+      return; // Modal will be shown automatically
+    }
 
     const isLiked = likedReels.has(reelId);
     
@@ -267,6 +274,11 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     if (!user) {
       alert('Please sign in to save reels');
       return;
+    }
+    
+    // Check if profile is complete
+    if (!checkProfileComplete()) {
+      return; // Modal will be shown automatically
     }
 
     const isSaved = savedReels.has(reelId);
@@ -335,6 +347,16 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   };
 
   const handleComment = () => {
+    if (!user) {
+      alert('Please sign in to comment');
+      return;
+    }
+    
+    // Check if profile is complete
+    if (!checkProfileComplete()) {
+      return; // Modal will be shown automatically
+    }
+    
     setShowComments(true);
   };
 
@@ -591,6 +613,13 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           onClose={() => setShowComments(false)}
         />
       )}
+      
+      {/* Profile Completion Modal */}
+      <ProfileCompletionModal
+        isOpen={showModal}
+        onClose={closeModal}
+        missingFields={profileCompletion?.missingFields || []}
+      />
     </div>
   );
 };
