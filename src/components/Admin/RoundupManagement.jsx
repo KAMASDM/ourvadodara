@@ -56,6 +56,13 @@ const RoundupManagement = () => {
       setError(null);
 
       try {
+        // Check if user is admin
+        if (!user || user.role !== 'admin') {
+          setError('Admin access required to manage roundups.');
+          setLoading(false);
+          return;
+        }
+
         // Load existing roundup for today
         const roundupRef = ref(db, `news-roundups/${todayId}`);
         const roundupSnapshot = await get(roundupRef);
@@ -102,14 +109,14 @@ const RoundupManagement = () => {
         }
       } catch (err) {
         console.error('Error loading roundup data:', err);
-        setError('Failed to load data. Please try again.');
+        setError(`Failed to load data: ${err.message}. Make sure you're logged in as admin.`);
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [todayId]);
+  }, [todayId, user]);
 
   const handleAutoGenerate = async () => {
     setGenerating(true);
