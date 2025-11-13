@@ -1,15 +1,26 @@
 // =============================================
 // src/components/Layout/Navigation.jsx
+// With Notification Badge Support
 // =============================================
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Home, Calendar, User, AlertTriangle, LogIn } from 'lucide-react';
 import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 
 const Navigation = ({ activeTab, setActiveTab, hasActiveSOS = false }) => {
   const { t } = useTranslation();
   const { user } = useEnhancedAuth();
+
+  // Get unread notifications count
+  const { data: notificationsObject } = useRealtimeData(
+    user ? `notifications/${user.uid}` : null
+  );
+
+  const unreadCount = notificationsObject
+    ? Object.values(notificationsObject).filter(n => !n.isRead).length
+    : 0;
 
   const leftNavItems = [
     { id: 'home', icon: Home, label: t('home') },
@@ -77,12 +88,13 @@ const Navigation = ({ activeTab, setActiveTab, hasActiveSOS = false }) => {
             {rightNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
+              const showBadge = item.id === 'profile' && user && unreadCount > 0;
               
               return (
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-all duration-200 ${
+                  className={`relative flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-all duration-200 ${
                     isActive
                       ? 'text-accent bg-accent/15 dark:bg-accent/20 shadow-inner'
                       : 'text-gray-600 dark:text-gray-400 hover:text-text-dark dark:hover:text-text-light hover:bg-gray-100/80 dark:hover:bg-gray-800/80'
@@ -90,6 +102,11 @@ const Navigation = ({ activeTab, setActiveTab, hasActiveSOS = false }) => {
                 >
                   <Icon className={`h-5 w-5 ${item.id === 'breaking' ? 'animate-pulse text-accent' : ''}`} />
                   <span className="text-[11px] font-medium uppercase tracking-wide">{item.label}</span>
+                  {showBadge && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-bold text-white">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
                 </button>
               );
             })}

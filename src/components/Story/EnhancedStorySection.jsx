@@ -10,6 +10,7 @@ import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import { Play, Clock, Heart, MessageCircle, Eye } from 'lucide-react';
 import MediaRenderer from '../Media/MediaRenderer';
 import { POST_TYPES } from '../../utils/mediaSchema';
+import { StoriesRailSkeleton } from '../Common/SkeletonLoader';
 
 const formatCompactNumber = (value = 0) => {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -183,6 +184,9 @@ const StoryViewer = ({ story, allStories, onClose, currentLanguage, onLike, onCo
   );
   const [progress, setProgress] = useState(0);
   const [touchStartX, setTouchStartX] = useState(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [pauseStartTime, setPauseStartTime] = useState(0);
+  const [accumulatedTime, setAccumulatedTime] = useState(0);
   const minSwipeDistance = 50;
   
   const currentStory = allStories[currentStoryIndex];
@@ -192,9 +196,9 @@ const StoryViewer = ({ story, allStories, onClose, currentLanguage, onLike, onCo
   const viewCount = currentStory?.analytics?.views ?? currentStory?.views ?? 0;
 
   useEffect(() => {
-    if (!currentStory || !isStoryType) return;
+    if (!currentStory || !isStoryType || isPaused) return;
 
-    const startTime = Date.now();
+    const startTime = Date.now() - accumulatedTime;
 
     const updateProgress = () => {
       const elapsed = Date.now() - startTime;
@@ -206,6 +210,7 @@ const StoryViewer = ({ story, allStories, onClose, currentLanguage, onLike, onCo
         if (currentStoryIndex < allStories.length - 1) {
           setCurrentStoryIndex(prev => prev + 1);
           setProgress(0);
+          setAccumulatedTime(0);
         } else {
           onClose();
         }
@@ -214,12 +219,29 @@ const StoryViewer = ({ story, allStories, onClose, currentLanguage, onLike, onCo
 
     const interval = setInterval(updateProgress, 100);
     return () => clearInterval(interval);
-  }, [currentStoryIndex, currentStoryId, currentStoryDuration, isStoryType, allStories.length, onClose]);
+  }, [currentStoryIndex, currentStoryId, currentStoryDuration, isStoryType, allStories.length, onClose, isPaused, accumulatedTime]);
+
+  const pauseTimer = () => {
+    if (!isPaused) {
+      setIsPaused(true);
+      setPauseStartTime(Date.now());
+      // Store accumulated time when pausing
+      setAccumulatedTime((progress / 100) * currentStoryDuration);
+    }
+  };
+
+  const resumeTimer = () => {
+    if (isPaused) {
+      setIsPaused(false);
+    }
+  };
 
   const nextStory = () => {
     if (currentStoryIndex < allStories.length - 1) {
       setCurrentStoryIndex(prev => prev + 1);
       setProgress(0);
+      setAccumulatedTime(0);
+      setIsPaused(false);
     } else {
       onClose();
     }
@@ -229,11 +251,14 @@ const StoryViewer = ({ story, allStories, onClose, currentLanguage, onLike, onCo
     if (currentStoryIndex > 0) {
       setCurrentStoryIndex(prev => prev - 1);
       setProgress(0);
+      setAccumulatedTime(0);
+      setIsPaused(false);
     }
   };
 
   const handleTouchStart = (event) => {
     setTouchStartX(event.touches[0].clientX);
+    pauseTimer();
   };
 
   const handleTouchMove = (event) => {
@@ -243,15 +268,26 @@ const StoryViewer = ({ story, allStories, onClose, currentLanguage, onLike, onCo
 
     if (delta > minSwipeDistance) {
       setTouchStartX(null);
+      resumeTimer();
       nextStory();
     } else if (delta < -minSwipeDistance) {
       setTouchStartX(null);
+      resumeTimer();
       prevStory();
     }
   };
 
   const handleTouchEnd = () => {
     setTouchStartX(null);
+    resumeTimer();
+  };
+
+  const handleMouseDown = () => {
+    pauseTimer();
+  };
+
+  const handleMouseUp = () => {
+    resumeTimer();
   };
 
   if (!currentStory) return null;
@@ -262,6 +298,9 @@ const StoryViewer = ({ story, allStories, onClose, currentLanguage, onLike, onCo
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
     >
       {/* Close button */}
       <button

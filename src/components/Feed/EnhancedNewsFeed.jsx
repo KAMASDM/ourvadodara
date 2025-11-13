@@ -1,12 +1,14 @@
 // =============================================
 // src/components/Feed/EnhancedNewsFeed.jsx
-// Enhanced News Feed with Full Media Support
+// Enhanced News Feed with Full Media Support + Infinite Scroll
 // =============================================
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
+import { useDoubleTap } from '../../hooks/useDoubleTap';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import { 
   Heart, 
@@ -16,11 +18,15 @@ import {
   MoreVertical,
   Eye,
   Clock,
-  MapPin
+  MapPin,
+  Loader2
 } from 'lucide-react';
 import MediaRenderer from '../Media/MediaRenderer';
 import LoadingSpinner from '../Common/LoadingSpinner';
 import EmptyState from '../Common/EmptyState';
+import HeartAnimation from '../Common/HeartAnimation';
+import ShareSheet from '../Common/ShareSheet';
+import { FeedSkeleton, ReelsGridSkeleton } from '../Common/SkeletonLoader';
 import { POST_TYPES } from '../../utils/mediaSchema';
 import { sampleNews } from '../../data/newsData';
 
@@ -38,6 +44,8 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
   const [likedPosts, setLikedPosts] = useState(new Set());
   const [savedPosts, setSavedPosts] = useState(new Set());
   const [expandedPosts, setExpandedPosts] = useState(new Set());
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  const [shareData, setShareData] = useState(null);
 
   const isLoading = postsLoading || storiesLoading || reelsLoading || carouselsLoading;
 
@@ -154,8 +162,8 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
     return allPosts;
   };
 
-  // Filter posts based on category and feed type
-  const getFilteredPosts = () => {
+  // Filter posts based on category and feed type using useMemo for performance
+  const filteredPosts = useMemo(() => {
     let posts = getAllPosts();
 
     // Filter by feed type
@@ -176,9 +184,13 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
       const dateB = new Date(b.publishedAt || b.createdAt);
       return dateB - dateA;
     });
-  };
+  }, [postsData, storiesData, reelsData, carouselsData, activeCategory, feedType]);
 
-  const filteredPosts = getFilteredPosts();
+  // Apply infinite scroll pagination
+  const { items: paginatedPosts, hasMore, isFetching, sentinelRef } = useInfiniteScroll(
+    filteredPosts,
+    { pageSize: 20, threshold: 500 }
+  );
 
   // Handle post interactions
   const handleLike = async (postId) => {
@@ -213,25 +225,15 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
 
   const handleShare = async (post) => {
     const shareUrl = `${window.location.origin}/post/${post.id}`;
+    const shareTitle = post.title[currentLanguage] || post.title.en;
+    const shareText = post.excerpt?.[currentLanguage] || post.content?.[currentLanguage];
 
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: post.title[currentLanguage] || post.title.en,
-          text: post.excerpt?.[currentLanguage] || post.content?.[currentLanguage],
-          url: shareUrl
-        });
-      } catch (error) {
-        console.log('Sharing cancelled');
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        alert('Link copied to clipboard!');
-      } catch (error) {
-        console.error('Failed to copy share link:', error);
-      }
-    }
+    setShareData({
+      title: shareTitle,
+      text: shareText,
+      url: shareUrl
+    });
+    setShareSheetOpen(true);
   };
 
   const toggleExpanded = (postId) => {
@@ -252,10 +254,10 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <LoadingSpinner />
-      </div>
+    return feedType === 'reels' ? (
+      <ReelsGridSkeleton count={6} />
+    ) : (
+      <FeedSkeleton count={5} />
     );
   }
 
@@ -267,7 +269,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
   if (feedType === 'reels') {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-        {filteredPosts.map((post, index) => (
+        {paginatedPosts.map((post, index) => (
           <ReelCard 
             key={post.id || `reel-post-${index}`} 
             post={post} 
@@ -279,6 +281,12 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
             currentLanguage={currentLanguage}
           />
         ))}
+        {/* Infinite scroll sentinel */}
+        {hasMore && (
+          <div ref={sentinelRef} className="col-span-full flex items-center justify-center py-8">
+            {isFetching && <Loader2 className="w-6 h-6 animate-spin text-blue-600" />}
+          </div>
+        )}
       </div>
     );
   }
@@ -286,7 +294,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
   // Standard feed layout
   return (
     <div className="flex flex-col gap-6 px-3 pb-8 sm:px-4">
-      {filteredPosts.map((post, index) => (
+      {paginatedPosts.map((post, index) => (
         <PostCard 
           key={post.id || `post-${index}`}
           post={post} 
@@ -302,6 +310,31 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
           currentLanguage={currentLanguage}
         />
       ))}
+      
+      {/* Infinite scroll sentinel */}
+      {hasMore && (
+        <div ref={sentinelRef} className="flex items-center justify-center py-8">
+          {isFetching && (
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading more posts...</p>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {!hasMore && paginatedPosts.length > 0 && (
+        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+          <p className="text-sm">You've reached the end! 🎉</p>
+        </div>
+      )}
+      
+      {/* Share Sheet */}
+      <ShareSheet
+        isOpen={shareSheetOpen}
+        onClose={() => setShareSheetOpen(false)}
+        shareData={shareData}
+      />
     </div>
   );
 };
@@ -330,11 +363,33 @@ const PostCard = ({
   const isCarouselPost = mediaItems.length > 1;
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [carouselTotal, setCarouselTotal] = useState(mediaItems.length);
+  const [showHeartAnimation, setShowHeartAnimation] = useState(false);
+  const [heartPosition, setHeartPosition] = useState({ x: 0, y: 0 });
   const viewCount = post.analytics?.views ?? post.views ?? 0;
   const likeCount = post.analytics?.likes ?? post.likes ?? 0;
   const commentCount = post.analytics?.comments ?? post.comments ?? 0;
   const shareCount = post.analytics?.shares ?? post.shares ?? 0;
   const showStats = viewCount !== null || likeCount > 0 || commentCount > 0 || shareCount > 0;
+
+  // Double-tap to like handler
+  const handleDoubleTap = useDoubleTap((event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX || (event.touches?.[0]?.clientX ?? rect.left + rect.width / 2);
+    const y = event.clientY || (event.touches?.[0]?.clientY ?? rect.top + rect.height / 2);
+    
+    setHeartPosition({ x, y });
+    setShowHeartAnimation(true);
+    
+    // Trigger like if not already liked
+    if (!isLiked) {
+      onLike();
+      
+      // Haptic feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }
+  });
 
   useEffect(() => {
     setCarouselIndex(0);
@@ -360,6 +415,13 @@ const PostCard = ({
 
   return (
     <article className="group relative overflow-hidden rounded-3xl border border-gray-200/60 dark:border-gray-700/60 bg-gradient-to-b from-white/95 via-white to-gray-50 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-sm shadow-gray-200/50 dark:shadow-black/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
+      {/* Heart animation overlay */}
+      <HeartAnimation
+        show={showHeartAnimation}
+        position={heartPosition}
+        onComplete={() => setShowHeartAnimation(false)}
+      />
+      
       <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.18),transparent_55%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.3),transparent_55%)]"></div>
 
       {/* Post Header */}
@@ -460,7 +522,11 @@ const PostCard = ({
       {/* Media Content */}
       {hasMedia && (
         <div className="relative mt-5 px-5">
-          <div className="overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
+          <div 
+            className="overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60 cursor-pointer select-none"
+            onClick={handleDoubleTap}
+            onTouchStart={handleDoubleTap}
+          >
             <MediaRenderer
               post={post}
               className="w-full"

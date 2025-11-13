@@ -1,8 +1,10 @@
 // =============================================
-// src/pages/Home/HomePage.jsx - Redesigned Layout
+// src/pages/Home/HomePage.jsx - Redesigned Layout with Pull-to-Refresh
 // =============================================
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
+import PullToRefreshIndicator from '../../components/Common/PullToRefreshIndicator';
 import EnhancedStorySection from '../../components/Story/EnhancedStorySection';
 import CategoryFilter from '../../components/Category/CategoryFilter';
 import EnhancedNewsFeed from '../../components/Feed/EnhancedNewsFeed';
@@ -30,6 +32,27 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeSection, setActiveSection] = useState(null); // null means show news
   const [isSectionSheetOpen, setSectionSheetOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Pull-to-refresh implementation
+  const handleRefresh = async () => {
+    // Trigger a refresh by updating the key
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshKey(prev => prev + 1);
+  };
+
+  const {
+    containerRef,
+    refreshing,
+    pullDistance,
+    progress,
+    rotation,
+    isThresholdReached
+  } = usePullToRefresh(handleRefresh, {
+    threshold: 80,
+    enabled: true
+  });
+
   const sectionHeading = activeSection
     ? t('latest_news', 'Latest News')
     : t('top_stories', 'Top Stories');
@@ -90,7 +113,16 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
     : null;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-24">
+    <div ref={containerRef} className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-24">
+      {/* Pull-to-refresh indicator */}
+      <PullToRefreshIndicator
+        pullDistance={pullDistance}
+        progress={progress}
+        rotation={rotation}
+        isThresholdReached={isThresholdReached}
+        refreshing={refreshing}
+      />
+      
       <div className="relative flex flex-col">
         <div
           className="sticky z-30 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.28)]"
@@ -176,6 +208,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
 
           <div className="mt-3 px-2 sm:px-3">
             <EnhancedNewsFeed
+              key={refreshKey}
               activeCategory={activeCategory}
               onPostClick={onPostClick}
               feedType="all"
@@ -192,7 +225,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
             className="absolute inset-0"
             onClick={() => setSectionSheetOpen(false)}
           />
-          <div className="relative z-50 rounded-t-3xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
+          <div className="relative z-50 flex max-h-[70vh] w-full flex-col rounded-t-3xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
             <div className="mx-auto mt-2 h-1 w-12 rounded-full bg-gray-300 dark:bg-gray-700" />
             <div className="px-5 pt-4 pb-6">
               <div className="mb-4 flex items-center justify-between">
@@ -214,7 +247,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid max-h-[55vh] grid-cols-1 gap-3 overflow-y-auto pr-2 sm:grid-cols-2">
                 {sections.map((section) => {
                   const Icon = section.icon;
                   const isActive = activeSection === section.id;

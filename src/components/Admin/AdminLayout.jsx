@@ -34,6 +34,7 @@ import PollManagement from './PollManagement';
 import CommentModeration from './CommentModeration';
 import RealTimeContent from './RealTimeContent';
 import MediaPostCreator from './MediaPostCreator';
+import UnifiedPostCreator from './UnifiedPostCreator';
 import AuthenticationManager from './AuthenticationManager';
 import CreatePost from './CreatePost';
 import CityManagement from './CityManagement';
@@ -73,7 +74,6 @@ const AdminLayout = () => {
   const desktopNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'create-post', label: 'Create Post', icon: Plus },
-    { id: 'create-media', label: 'Create Media Post', icon: Monitor },
     { id: 'media-management', label: 'Media Manager', icon: Film },
     { id: 'content-management', label: 'Content Manager', icon: FileText },
     { id: 'users', label: 'User Management', icon: Users },
@@ -105,12 +105,7 @@ const AdminLayout = () => {
       case 'dashboard':
         return <Dashboard />;
       case 'create-post':
-        return isMobile ? <MobileContentWarning /> : <CreatePost />;
-      case 'create-media':
-        if (isMobile) return <MobileContentWarning />;
-        setShowMediaCreator(true);
-        setActiveSection('dashboard');
-        return <Dashboard />;
+        return isMobile ? <MobileContentWarning /> : <UnifiedPostCreator />;
       case 'media-management':
         return isMobile ? <MobileContentWarning /> : <MediaContentManagement />;
       case 'content-management':

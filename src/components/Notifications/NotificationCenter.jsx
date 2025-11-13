@@ -10,6 +10,7 @@ import { db } from '../../firebase-config';
 import { Bell, Heart, MessageCircle, X, Check } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import LoadingSpinner from '../Common/LoadingSpinner';
+import { NotificationSkeleton } from '../Common/SkeletonLoader';
 
 const NotificationCenter = ({ isOpen, onClose }) => {
   const { user } = useAuth();
@@ -56,7 +57,13 @@ const NotificationCenter = ({ isOpen, onClose }) => {
         </div>
 
         <div className="overflow-y-auto flex-1">
-          {isLoading ? <LoadingSpinner /> : (
+          {isLoading ? (
+            <div>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <NotificationSkeleton key={i} />
+              ))}
+            </div>
+          ) : (
             notifications.length > 0 ? (
               notifications.map(notif => (
                 <div key={notif.id} className={`p-4 flex items-start gap-3 border-b ${!notif.isRead ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}>

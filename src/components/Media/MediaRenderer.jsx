@@ -37,6 +37,9 @@ const MediaRenderer = ({
   const [isMuted, setIsMuted] = useState(true);
   const [progress, setProgress] = useState(0);
   const [showProgress, setShowProgress] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const videoRef = useRef(null);
   const progressRef = useRef(null);
   const carouselChangeRef = useRef(onCarouselChange);
@@ -192,6 +195,8 @@ const MediaRenderer = ({
         if (video.duration) {
           const progress = (video.currentTime / video.duration) * 100;
           setProgress(progress);
+          setCurrentTime(video.currentTime);
+          setDuration(video.duration);
         }
       };
 
@@ -241,6 +246,32 @@ const MediaRenderer = ({
     }
   }, [currentIndex, type, items.length, settings.duration, settings.loop]);
 
+  // Handle global drag events for progress bar scrubbing
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleGlobalMove = (e) => {
+      e.preventDefault();
+      handleProgressDrag(e);
+    };
+
+    const handleGlobalEnd = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleGlobalMove);
+    document.addEventListener('mouseup', handleGlobalEnd);
+    document.addEventListener('touchmove', handleGlobalMove, { passive: false });
+    document.addEventListener('touchend', handleGlobalEnd);
+
+    return () => {
+      document.removeEventListener('mousemove', handleGlobalMove);
+      document.removeEventListener('mouseup', handleGlobalEnd);
+      document.removeEventListener('touchmove', handleGlobalMove);
+      document.removeEventListener('touchend', handleGlobalEnd);
+    };
+  }, [isDragging]);
+
   const togglePlayPause = () => {
     if (videoRef.current) {
       if (isPlaying) {
@@ -265,6 +296,38 @@ const MediaRenderer = ({
       const percentage = clickX / rect.width;
       videoRef.current.currentTime = percentage * videoRef.current.duration;
     }
+  };
+
+  const handleProgressDragStart = (e) => {
+    setIsDragging(true);
+    updateProgressFromEvent(e);
+  };
+
+  const handleProgressDrag = (e) => {
+    if (isDragging) {
+      updateProgressFromEvent(e);
+    }
+  };
+
+  const handleProgressDragEnd = () => {
+    setIsDragging(false);
+  };
+
+  const updateProgressFromEvent = (e) => {
+    if (videoRef.current && progressRef.current) {
+      const rect = progressRef.current.getBoundingClientRect();
+      const clientX = e.type.includes('touch') ? e.touches[0]?.clientX : e.clientX;
+      const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const percentage = clickX / rect.width;
+      videoRef.current.currentTime = percentage * videoRef.current.duration;
+    }
+  };
+
+  const formatTime = (seconds) => {
+    if (isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const nextSlide = () => {
@@ -400,21 +463,55 @@ const MediaRenderer = ({
 
           {/* Video Controls */}
           {currentItem.type === 'video' && showControls && (
-            <div className="absolute bottom-4 right-4 flex items-center space-x-2">
-              <button
-                onClick={togglePlayPause}
-                className="w-8 h-8 flex items-center justify-center text-white bg-black bg-opacity-50 rounded-full hover:bg-opacity-70 transition-colors"
-              >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-              </button>
+            <>
+              {/* Progress Bar for Video Stories */}
+              <div className="absolute bottom-16 left-4 right-4">
+                <div className="flex justify-between text-white text-xs mb-1 px-1">
+                  <span className="font-medium">{formatTime(currentTime)}</span>
+                  <span className="opacity-70">{formatTime(duration)}</span>
+                </div>
+                
+                <div 
+                  ref={progressRef}
+                  className="relative h-1 bg-white bg-opacity-30 rounded-full cursor-pointer group"
+                  onClick={handleProgressClick}
+                  onMouseDown={handleProgressDragStart}
+                  onMouseMove={handleProgressDrag}
+                  onMouseUp={handleProgressDragEnd}
+                  onMouseLeave={handleProgressDragEnd}
+                  onTouchStart={handleProgressDragStart}
+                  onTouchMove={handleProgressDrag}
+                  onTouchEnd={handleProgressDragEnd}
+                >
+                  <div 
+                    className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-100"
+                    style={{ width: `${progress}%` }}
+                  />
+                  
+                  <div 
+                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                    style={{ left: `calc(${progress}% - 6px)` }}
+                  />
+                </div>
+              </div>
               
-              <button
-                onClick={toggleMute}
-                className="w-8 h-8 flex items-center justify-center text-white bg-black bg-opacity-50 rounded-full hover:bg-opacity-70 transition-colors"
-              >
-                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </button>
-            </div>
+              {/* Control Buttons */}
+              <div className="absolute bottom-4 right-4 flex items-center space-x-2">
+                <button
+                  onClick={togglePlayPause}
+                  className="w-8 h-8 flex items-center justify-center text-white bg-black bg-opacity-50 rounded-full hover:bg-opacity-70 transition-colors"
+                >
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                </button>
+                
+                <button
+                  onClick={toggleMute}
+                  className="w-8 h-8 flex items-center justify-center text-white bg-black bg-opacity-50 rounded-full hover:bg-opacity-70 transition-colors"
+                >
+                  {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -452,15 +549,38 @@ const MediaRenderer = ({
         </button>
 
         {/* Progress Bar */}
-        <div 
-          ref={progressRef}
-          className="absolute bottom-20 left-4 right-4 h-1 bg-white bg-opacity-30 rounded-full cursor-pointer"
-          onClick={handleProgressClick}
-        >
+        <div className="absolute bottom-20 left-4 right-4">
+          {/* Time Display */}
+          <div className="flex justify-between text-white text-xs mb-1 px-1">
+            <span className="font-medium">{formatTime(currentTime)}</span>
+            <span className="opacity-70">{formatTime(duration)}</span>
+          </div>
+          
+          {/* Progress Track */}
           <div 
-            className="h-full bg-white rounded-full transition-all duration-100"
-            style={{ width: `${progress}%` }}
-          />
+            ref={progressRef}
+            className="relative h-1 bg-white bg-opacity-30 rounded-full cursor-pointer group"
+            onClick={handleProgressClick}
+            onMouseDown={handleProgressDragStart}
+            onMouseMove={handleProgressDrag}
+            onMouseUp={handleProgressDragEnd}
+            onMouseLeave={handleProgressDragEnd}
+            onTouchStart={handleProgressDragStart}
+            onTouchMove={handleProgressDrag}
+            onTouchEnd={handleProgressDragEnd}
+          >
+            {/* Filled Progress */}
+            <div 
+              className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-100"
+              style={{ width: `${progress}%` }}
+            />
+            
+            {/* Scrubber Thumb */}
+            <div 
+              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+              style={{ left: `calc(${progress}% - 6px)` }}
+            />
+          </div>
         </div>
 
         {/* Reel Info */}

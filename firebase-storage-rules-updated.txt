@@ -1,0 +1,95 @@
+// =============================================
+// Firebase Storage Security Rules - UPDATED
+// Copy these rules to your Firebase Console > Storage > Rules
+// =============================================
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ===== POSTS =====
+    // Allow read access to all users for published content
+    match /posts/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // Allow authenticated users to upload images and videos
+    match /posts/images/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null 
+                   && request.resource.size < 2 * 1024 * 1024 // 2MB limit
+                   && request.resource.contentType.matches('image/.*');
+    }
+    
+    match /posts/videos/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null 
+                   && request.resource.size < 10 * 1024 * 1024 // 10MB limit
+                   && request.resource.contentType.matches('video/.*');
+    }
+    
+    // Allow authenticated users to upload files
+    match /posts/files/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null 
+                   && request.resource.size < 2 * 1024 * 1024; // 2MB limit
+    }
+    
+    // ===== STORIES =====
+    // Stories - authenticated users can upload
+    match /stories/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null 
+                   && request.auth.uid == userId
+                   && request.resource.size < 2 * 1024 * 1024; // 2MB limit
+    }
+    
+    // Thumbnails for stories
+    match /stories/{userId}/thumbnails/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null 
+                   && request.auth.uid == userId
+                   && request.resource.size < 2 * 1024 * 1024; // 2MB limit
+    }
+    
+    // ===== REELS =====
+    // Reels - authenticated users can upload
+    match /reels/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null 
+                   && request.auth.uid == userId
+                   && request.resource.size < 10 * 1024 * 1024; // 10MB limit for videos
+    }
+    
+    // Thumbnails for reels
+    match /reels/{userId}/thumbnails/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null 
+                   && request.auth.uid == userId
+                   && request.resource.size < 2 * 1024 * 1024; // 2MB limit
+    }
+    
+    // ===== CAROUSELS =====
+    // Carousels - authenticated users can upload
+    match /carousels/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null 
+                   && request.auth.uid == userId
+                   && request.resource.size < 2 * 1024 * 1024; // 2MB limit
+    }
+    
+    // Thumbnails for carousels
+    match /carousels/{userId}/thumbnails/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null 
+                   && request.auth.uid == userId
+                   && request.resource.size < 2 * 1024 * 1024; // 2MB limit
+    }
+    
+    // Default: deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

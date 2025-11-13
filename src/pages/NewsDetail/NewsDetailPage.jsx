@@ -21,7 +21,7 @@ import {
   Flag
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
-import CommentSection from '../../components/Comments/CommentSection';
+import ThreadedCommentSection from '../../components/Comments/ThreadedCommentSection';
 import ShareModal from '../../components/Social/ShareModal';
 import ReportModal from '../../components/Report/ReportModal';
 import ImageViewer from '../../components/Media/ImageViewer';
@@ -415,11 +415,8 @@ const NewsDetailPage = ({ newsId, onBack }) => {
 
           {/* Comments Section */}
           {showComments && (
-            <CommentSection
+            <ThreadedCommentSection
               postId={news.id}
-              comments={comments}
-              onAddComment={handleAddComment}
-              onLikeComment={handleLikeComment}
             />
           )}
 

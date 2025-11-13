@@ -1,11 +1,13 @@
 // =============================================
 // src/components/Layout/Header.jsx
+// With Real-time Notification Badge
 // =============================================
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useCity } from '../../context/CityContext';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { LANGUAGES } from '../../utils/constants';
 import { Globe, Bell, LogIn, MapPin } from 'lucide-react';
 import Logo from '../Shared/Logo';
@@ -16,6 +18,15 @@ const Header = ({ onNotificationClick, onLoginClick }) => {
   const { currentLanguage, changeLanguage } = useLanguage();
   const { currentCity, setCurrentCity, cities } = useCity();
   const { user } = useEnhancedAuth();
+
+  // Get unread notifications count
+  const { data: notificationsObject } = useRealtimeData(
+    user ? `notifications/${user.uid}` : null
+  );
+
+  const unreadCount = notificationsObject
+    ? Object.values(notificationsObject).filter(n => !n.isRead).length
+    : 0;
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 dark:bg-gray-950/80 backdrop-blur-xl border-b border-white/60 dark:border-gray-800/70 shadow-[0_10px_30px_-15px_rgba(15,23,42,0.45)]">
@@ -67,7 +78,14 @@ const Header = ({ onNotificationClick, onLoginClick }) => {
               aria-label={t('notifications', 'Notifications')}
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-accent dark:border-gray-900"></span>
+              {unreadCount > 0 && (
+                <>
+                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white shadow-md">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-600 animate-ping opacity-75"></span>
+                </>
+              )}
             </button>
 
             <PWAInstallButton />
