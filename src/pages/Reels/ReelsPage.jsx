@@ -22,7 +22,9 @@ import {
   User,
   Plus,
   Play,
-  Pause
+  Pause,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { POST_TYPES } from '../../utils/mediaSchema';
 
@@ -39,6 +41,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const [savedReels, setSavedReels] = useState(new Set());
   const [showLikeAnimation, setShowLikeAnimation] = useState(false);
   const [showPlayPauseIcon, setShowPlayPauseIcon] = useState(false);
+  const [showHints, setShowHints] = useState(true);
   
   const containerRef = useRef(null);
   const videoRef = useRef(null);
@@ -121,6 +124,14 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       setCurrentReelIndex(initialIndex);
     }
   }, [initialReelId, reels]);
+
+  // Hide hints after 3 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowHints(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -418,6 +429,32 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
             {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>
         </div>
+        
+        {/* Navigation Hints */}
+        {showHints && (
+          <div className="mt-4 bg-black/50 backdrop-blur-sm rounded-lg p-3 animate-fade-in">
+            <div className="text-white text-xs space-y-1">
+              <div className="flex items-center space-x-2">
+                <ChevronUp className="w-4 h-4" />
+                <span>Swipe down or ↑ for previous</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <ChevronDown className="w-4 h-4" />
+                <span>Swipe up or ↓ for next</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="font-mono">Space</span>
+                <span>or tap to play/pause</span>
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowHints(false)}
+              className="mt-2 text-xs text-gray-300 hover:text-white underline"
+            >
+              Got it!
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Current Reel */}
@@ -428,10 +465,11 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
             ref={videoRef}
             src={currentReel.mediaContent?.items?.[0]?.url || currentReel.videoUrl}
             poster={currentReel.mediaContent?.items?.[0]?.thumbnailUrl || currentReel.thumbnail}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover cursor-pointer"
             loop
             playsInline
             muted={isMuted}
+            onClick={togglePlay}
           />
 
           {/* Bottom Gradient Overlay */}
@@ -524,6 +562,38 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
           {/* Action Buttons - Right Side */}
           <div className="absolute bottom-24 right-4 flex flex-col space-y-5 z-20">
+            {/* Navigation Arrows */}
+            <div className="flex flex-col space-y-2 mb-4">
+              {/* Previous Reel */}
+              {currentReelIndex > 0 && (
+                <button
+                  onClick={goToPrevious}
+                  className="w-11 h-11 flex items-center justify-center bg-black/50 backdrop-blur-sm text-white rounded-full hover:bg-black/70 transition-all animate-bounce-slow"
+                  title="Previous reel (or swipe down)"
+                >
+                  <ChevronUp className="w-6 h-6" />
+                </button>
+              )}
+              
+              {/* Reel Counter */}
+              <div className="flex items-center justify-center">
+                <div className="bg-black/50 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-semibold">
+                  {currentReelIndex + 1}/{reels.length}
+                </div>
+              </div>
+              
+              {/* Next Reel */}
+              {currentReelIndex < reels.length - 1 && (
+                <button
+                  onClick={goToNext}
+                  className="w-11 h-11 flex items-center justify-center bg-black/50 backdrop-blur-sm text-white rounded-full hover:bg-black/70 transition-all animate-bounce-slow"
+                  title="Next reel (or swipe up)"
+                >
+                  <ChevronDown className="w-6 h-6" />
+                </button>
+              )}
+            </div>
+
             {/* Like Button */}
             <button
               onClick={() => handleLike(currentReel.id)}
