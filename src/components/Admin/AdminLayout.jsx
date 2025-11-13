@@ -26,6 +26,7 @@ import {
   Newspaper
 } from 'lucide-react';
 import Dashboard from './Dashboard';
+import EnhancedDashboard from './EnhancedDashboard';
 import UserManager from './UserManager';
 import Analytics from './Analytics';
 import AdminSettings from './AdminSettings';
@@ -106,7 +107,7 @@ const AdminLayout = () => {
   const renderContent = () => {
     switch (activeSection) {
       case 'dashboard':
-        return <Dashboard />;
+        return <EnhancedDashboard />;
       case 'create-post':
         return isMobile ? <MobileContentWarning /> : <UnifiedPostCreator />;
       case 'media-management':

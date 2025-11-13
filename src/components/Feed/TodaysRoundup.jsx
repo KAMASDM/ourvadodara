@@ -27,7 +27,14 @@ const TodaysRoundup = ({ onClose }) => {
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   const containerRef = useRef(null);
-  const navigate = useNavigate();
+  
+  // Safe navigation - try useNavigate, fallback to window.location
+  let navigate;
+  try {
+    navigate = useNavigate();
+  } catch (err) {
+    navigate = null;
+  }
 
   useEffect(() => {
     loadRoundup();
@@ -143,7 +150,11 @@ const TodaysRoundup = ({ onClose }) => {
 
     // Navigate to post detail
     onClose();
-    navigate(`/news/${postId}`);
+    if (navigate) {
+      navigate(`/news/${postId}`);
+    } else {
+      window.location.href = `/news/${postId}`;
+    }
   };
 
   const handleShare = async () => {
