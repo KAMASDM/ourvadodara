@@ -19,6 +19,7 @@ import { ref, get } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { sampleNews } from '../../data/newsData';
+import { adminStyles } from './adminStyles';
 
 const Dashboard = () => {
   const { t } = useTranslation();

@@ -26,25 +26,35 @@ const Comment = ({
   const replies = repliesObject 
     ? Object.entries(repliesObject)
         .map(([key, value]) => ({ ...value, id: key }))
-        .sort((a, b) => a.createdAt - b.createdAt)
+        .sort((a, b) => {
+          // Handle both 'createdAt' and 'timestamp' fields
+          const timeA = a.createdAt || a.timestamp || 0;
+          const timeB = b.createdAt || b.timestamp || 0;
+          return timeA - timeB;
+        })
     : [];
 
   const maxNestingLevel = 3; // Limit nesting depth to 3 levels
   const canReply = level < maxNestingLevel;
   
+  // Handle both 'author' and 'userName' fields for backward compatibility
+  const authorName = comment.author || comment.userName || 'Anonymous';
+  // Handle both 'createdAt' and 'timestamp' fields for backward compatibility
+  const commentTime = comment.createdAt || comment.timestamp || Date.now();
+
   return (
     <div className={`${level > 0 ? 'ml-8 mt-2' : 'py-3'}`}>
       <div className="flex space-x-3">
         {/* Avatar */}
         <div className="w-8 h-8 bg-primary-red rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-          {comment.author.charAt(0).toUpperCase()}
+          {authorName.charAt(0).toUpperCase()}
         </div>
 
         {/* Comment Content */}
         <div className="flex-1 min-w-0">
           <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl px-3 py-2">
             <span className="font-semibold text-sm text-gray-900 dark:text-white">
-              {comment.author}
+              {authorName}
             </span>
             <p className="text-sm text-gray-700 dark:text-gray-300 break-words">
               {comment.text}
@@ -54,7 +64,7 @@ const Comment = ({
           {/* Actions */}
           <div className="flex items-center space-x-4 mt-1 px-1">
             <span className="text-xs text-gray-500">
-              {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+              {formatDistanceToNow(new Date(commentTime), { addSuffix: true })}
             </span>
             
             <button 
@@ -127,7 +137,12 @@ const ThreadedCommentSection = ({ postId }) => {
     ? Object.entries(commentsObject)
         .map(([key, value]) => ({ ...value, id: key }))
         .filter(comment => !comment.parentId) // Only top-level comments
-        .sort((a, b) => b.createdAt - a.createdAt)
+        .sort((a, b) => {
+          // Handle both 'createdAt' and 'timestamp' fields
+          const timeA = a.createdAt || a.timestamp || 0;
+          const timeB = b.createdAt || b.timestamp || 0;
+          return timeB - timeA;
+        })
     : [];
 
   const handleSubmitComment = (e) => {

@@ -70,6 +70,15 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
     }
   }, [user, onClose]);
 
+  // Initialize reCAPTCHA when phone mode is selected
+  useEffect(() => {
+    if (mode === 'phone' && !recaptchaReady) {
+      setupRecaptcha().catch(err => {
+        console.error('Failed to setup reCAPTCHA:', err);
+      });
+    }
+  }, [mode, recaptchaReady, setupRecaptcha]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));

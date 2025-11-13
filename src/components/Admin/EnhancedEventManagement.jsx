@@ -42,6 +42,7 @@ import {
 import { ref, onValue, push, update, remove } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase-config';
+import { adminStyles } from './adminStyles';
 
 const EnhancedEventManagement = () => {
   const { user } = useAuth();

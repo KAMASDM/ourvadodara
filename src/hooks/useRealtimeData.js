@@ -21,7 +21,7 @@ export const useRealtimeData = (collectionName, options = {}) => {
     scope = 'auto', // 'auto' | 'city' | 'global'
     fallbackToGlobal = true,
     cityId: overrideCityId = null,
-    debug = isDevEnv
+    debug = false // Changed from isDevEnv to reduce console noise
   } = options;
 
   useEffect(() => {

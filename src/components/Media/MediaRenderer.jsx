@@ -27,6 +27,8 @@ const MediaRenderer = ({
   className = '', 
   autoplay = false, 
   showControls = true,
+  showActionButtons = true,
+  showReelInfo = true,
   onInteraction = null,
   showCarouselDots = true,
   onCarouselChange = null,
@@ -217,8 +219,8 @@ const MediaRenderer = ({
 
       if (autoplay && type === POST_TYPES.REEL) {
         video.play().catch(() => {
-          // Autoplay failed, likely due to browser policy
-          console.log('Autoplay failed');
+          // Autoplay failed - this is expected browser behavior
+          // User interaction is required to start playback
         });
       }
 
@@ -584,37 +586,40 @@ const MediaRenderer = ({
         </div>
 
         {/* Reel Info */}
-        <div className="absolute bottom-4 left-4 right-16 text-white">
-          <div className="flex items-center space-x-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-white p-1 flex items-center justify-center">
-              <img
-                src={brandAvatar}
-                alt={brandName}
-                className="w-full h-full rounded-full object-contain"
-              />
+        {showReelInfo && (
+          <div className="absolute bottom-4 left-4 right-16 text-white">
+            <div className="flex items-center space-x-2 mb-2">
+              <div className="w-8 h-8 rounded-full bg-white p-1 flex items-center justify-center">
+                <img
+                  src={brandAvatar}
+                  alt={brandName}
+                  className="w-full h-full rounded-full object-contain"
+                />
+              </div>
+              <span className="font-semibold">{brandName}</span>
             </div>
-            <span className="font-semibold">{brandName}</span>
+            
+            {post.title?.en && (
+              <h3 className="font-medium mb-1">{post.title.en}</h3>
+            )}
+            
+            {post.description?.en && (
+              <p className="text-sm opacity-90 line-clamp-2">{post.description.en}</p>
+            )}
+            
+            {post.hashtags && post.hashtags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {post.hashtags.slice(0, 3).map((tag, index) => (
+                  <span key={index} className="text-blue-300 text-sm">#{tag}</span>
+                ))}
+              </div>
+            )}
           </div>
-          
-          {post.title?.en && (
-            <h3 className="font-medium mb-1">{post.title.en}</h3>
-          )}
-          
-          {post.description?.en && (
-            <p className="text-sm opacity-90 line-clamp-2">{post.description.en}</p>
-          )}
-          
-          {post.hashtags && post.hashtags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {post.hashtags.slice(0, 3).map((tag, index) => (
-                <span key={index} className="text-blue-300 text-sm">#{tag}</span>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Action Buttons */}
-        <div className="absolute bottom-4 right-4 flex flex-col space-y-4">
+        {showActionButtons && (
+          <div className="absolute bottom-4 right-4 flex flex-col space-y-4">
           <button
             onClick={() => handleInteraction('like')}
             className="w-12 h-12 flex items-center justify-center text-white bg-black bg-opacity-30 rounded-full hover:bg-opacity-50 transition-colors"
@@ -649,7 +654,8 @@ const MediaRenderer = ({
           >
             {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>
-        </div>
+          </div>
+        )}
 
         {/* Music Attribution */}
         {post.reelSettings?.musicTitle && (

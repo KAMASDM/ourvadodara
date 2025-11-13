@@ -21,6 +21,7 @@ import {
   Calendar,
   CheckCircle
 } from 'lucide-react';
+import { adminStyles } from './adminStyles';
 
 const PollManagement = () => {
   const { user } = useAuth();

@@ -25,6 +25,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'fi
 import { db, storage } from '../../firebase-config';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { DATABASE_PATHS } from '../../utils/databaseSchema';
+import { adminStyles } from '../Admin/adminStyles';
 import axios from 'axios';
 
 const BreakingNewsManager = () => {

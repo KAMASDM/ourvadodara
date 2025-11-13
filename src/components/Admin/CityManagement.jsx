@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Check
 } from 'lucide-react';
+import { adminStyles } from './adminStyles';
 
 const FALLBACK_CITY_LOGO = '/logo.png';
 
@@ -230,15 +231,15 @@ const CityManagement = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">City Management</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">Add and manage cities for your news platform</p>
+          <h1 className={adminStyles.heading}>City Management</h1>
+          <p className={adminStyles.textMuted + " mt-2"}>Add and manage cities for your news platform</p>
         </div>
         {!showAddForm && (
           <button
             onClick={handleAddCity}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className={adminStyles.secondaryButton}
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-5 h-5 mr-2 inline" />
             <span>Add City</span>
           </button>
         )}

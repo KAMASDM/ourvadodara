@@ -20,6 +20,7 @@ import {
   Search,
   AlertTriangle
 } from 'lucide-react';
+import { adminStyles } from './adminStyles';
 
 const CommentModeration = () => {
   const { user } = useAuth();
@@ -30,6 +31,15 @@ const CommentModeration = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPost, setSelectedPost] = useState('all');
   const [posts, setPosts] = useState([]);
+
+  // Helper function to safely get title text
+  const getTitleText = (title) => {
+    if (typeof title === 'string') return title;
+    if (typeof title === 'object' && title !== null) {
+      return title.en || title.hi || title.gu || Object.values(title)[0] || 'Untitled';
+    }
+    return 'Untitled';
+  };
 
   // Load comments and posts
   useEffect(() => {
@@ -44,8 +54,9 @@ const CommentModeration = () => {
           postsDataMap = postsSnapshot.val();
           postsListCache = Object.keys(postsDataMap).map(key => ({
             id: key,
-            title: postsDataMap[key].title?.en || postsDataMap[key].title || 'Untitled',
-            ...postsDataMap[key]
+            ...postsDataMap[key],
+            // Ensure title is always a string for the dropdown
+            displayTitle: postsDataMap[key].title?.en || postsDataMap[key].title || 'Untitled'
           }));
           setPosts(postsListCache);
         } else {
@@ -187,72 +198,72 @@ const CommentModeration = () => {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Comment Moderation</h1>
-        <p className="text-gray-600">Review and moderate user comments across all posts</p>
+        <p className={adminStyles.textMuted}>Review and moderate user comments across all posts</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow-sm p-4">
+        <div className={adminStyles.cardCompact}>
           <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <AlertTriangle className="h-6 w-6 text-yellow-600" />
+            <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+              <AlertTriangle className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Pending Review</p>
-              <p className="text-2xl font-bold text-gray-900">{pendingCount}</p>
+              <p className={adminStyles.textSmall}>Pending Review</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{pendingCount}</p>
             </div>
           </div>
         </div>
         
-        <div className="bg-white rounded-lg shadow-sm p-4">
+        <div className={adminStyles.cardCompact}>
           <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="h-6 w-6 text-green-600" />
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Approved</p>
-              <p className="text-2xl font-bold text-gray-900">{approvedCount}</p>
+              <p className={adminStyles.textSmall}>Approved</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{approvedCount}</p>
             </div>
           </div>
         </div>
         
-        <div className="bg-white rounded-lg shadow-sm p-4">
+        <div className={adminStyles.cardCompact}>
           <div className="flex items-center">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <XCircle className="h-6 w-6 text-red-600" />
+            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+              <XCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Rejected</p>
-              <p className="text-2xl font-bold text-gray-900">{rejectedCount}</p>
+              <p className={adminStyles.textSmall}>Rejected</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{rejectedCount}</p>
             </div>
           </div>
         </div>
         
-        <div className="bg-white rounded-lg shadow-sm p-4">
+        <div className={adminStyles.cardCompact}>
           <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <MessageSquare className="h-6 w-6 text-blue-600" />
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <MessageSquare className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Total Comments</p>
-              <p className="text-2xl font-bold text-gray-900">{comments.length}</p>
+              <p className={adminStyles.textSmall}>Total Comments</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{comments.length}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+      <div className={`${adminStyles.cardCompact} mb-6`}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Status Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={adminStyles.label}>
               Status
             </label>
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              className={adminStyles.select}
             >
               <option value="pending">Pending Review</option>
               <option value="approved">Approved</option>
@@ -263,37 +274,40 @@ const CommentModeration = () => {
 
           {/* Post Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={adminStyles.label}>
               Post
             </label>
             <select
               value={selectedPost}
               onChange={(e) => setSelectedPost(e.target.value)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              className={adminStyles.select}
             >
               <option value="all">All Posts</option>
-              {posts.map(post => (
-                <option key={post.id} value={post.id}>
-                  {post.title.substring(0, 50)}...
-                </option>
-              ))}
+              {posts.map(post => {
+                const titleText = post.displayTitle || getTitleText(post.title);
+                return (
+                  <option key={post.id} value={post.id}>
+                    {titleText.substring(0, 50)}{titleText.length > 50 ? '...' : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
           {/* Search */}
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={adminStyles.label}>
               Search
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-gray-400" />
+                <Search className="h-4 w-4 text-gray-400 dark:text-gray-500" />
               </div>
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pl-10 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                className={`${adminStyles.input} pl-10`}
                 placeholder="Search comments, authors, or posts..."
               />
             </div>
@@ -302,7 +316,7 @@ const CommentModeration = () => {
       </div>
 
       {/* Comments List */}
-      <div className="bg-white rounded-lg shadow-sm">
+      <div className={adminStyles.card}>
         {filteredComments.length === 0 ? (
           <div className="text-center py-12">
             <MessageSquare className="mx-auto h-12 w-12 text-gray-400 mb-4" />
@@ -344,7 +358,7 @@ const CommentModeration = () => {
                         href={`/news/${comment.postId}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+                        className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                       >
                         <ExternalLink className="h-4 w-4 mr-1" />
                         View Post
@@ -353,18 +367,18 @@ const CommentModeration = () => {
 
                     {/* Post Title */}
                     <div className="mb-3">
-                      <p className="text-sm text-gray-600">
-                        Comment on: <span className="font-medium">{comment.postTitle}</span>
+                      <p className={adminStyles.textSmall}>
+                        Comment on: <span className="font-medium text-gray-900 dark:text-white">{comment.postTitle}</span>
                       </p>
                     </div>
 
                     {/* Comment Content */}
-                    <div className="bg-gray-50 rounded-lg p-3 mb-4">
-                      <p className="text-gray-900 whitespace-pre-wrap">{comment.content}</p>
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mb-4">
+                      <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{comment.content}</p>
                     </div>
 
                     {/* User Information */}
-                    <div className="text-xs text-gray-500 mb-4">
+                    <div className={`${adminStyles.textSmall} mb-4`}>
                       <p>Email: {comment.author?.email || 'Not provided'}</p>
                       {comment.author?.uid && (
                         <p>User ID: {comment.author.uid}</p>
@@ -373,7 +387,7 @@ const CommentModeration = () => {
 
                     {/* Moderation Info */}
                     {(comment.approved || comment.rejected) && (
-                      <div className="text-xs text-gray-500 bg-gray-50 rounded p-2">
+                      <div className={`${adminStyles.textSmall} bg-gray-50 dark:bg-gray-700 rounded p-2`}>
                         <p>
                           {comment.approved ? 'Approved' : 'Rejected'} by{' '}
                           {comment.moderatedBy} on{' '}
@@ -388,16 +402,16 @@ const CommentModeration = () => {
                     <div className="ml-4 flex space-x-2">
                       <button
                         onClick={() => handleModeration(comment.id, 'approve')}
-                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                        className={adminStyles.successButton}
                       >
-                        <CheckCircle className="h-4 w-4 mr-1" />
+                        <CheckCircle className="h-4 w-4 mr-1 inline" />
                         Approve
                       </button>
                       <button
                         onClick={() => handleModeration(comment.id, 'reject')}
-                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                        className={adminStyles.dangerButton}
                       >
-                        <XCircle className="h-4 w-4 mr-1" />
+                        <XCircle className="h-4 w-4 mr-1 inline" />
                         Reject
                       </button>
                     </div>

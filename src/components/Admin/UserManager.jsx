@@ -20,6 +20,7 @@ import {
 import { ref, get, update, remove } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { useToast } from '../Common/Toast';
+import { adminStyles } from './adminStyles';
 
 const UserManager = () => {
   const [users, setUsers] = useState([]);
@@ -236,24 +237,24 @@ const UserManager = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-        <div className="text-sm text-gray-600">
+        <h1 className={adminStyles.heading}>User Management</h1>
+        <div className={adminStyles.textSmall}>
           {users.length} total users
         </div>
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className={adminStyles.card}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
             <input
               type="text"
               placeholder="Search users..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`${adminStyles.input} pl-10`}
             />
           </div>
 
@@ -261,7 +262,7 @@ const UserManager = () => {
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={adminStyles.select}
           >
             <option value="all">All Roles</option>
             <option value="admin">Admin</option>
@@ -274,7 +275,7 @@ const UserManager = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={adminStyles.select}
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
@@ -289,14 +290,14 @@ const UserManager = () => {
               <div className="flex gap-1">
                 <button
                   onClick={() => bulkUpdateStatus('active')}
-                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                  className={adminStyles.successButton}
                   title="Activate users"
                 >
                   <UserCheck className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => bulkUpdateStatus('suspended')}
-                  className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                  className={adminStyles.dangerButton}
                   title="Suspend users"
                 >
                   <Ban className="w-4 h-4" />

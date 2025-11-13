@@ -14,22 +14,12 @@ const Skeleton = ({ className = '', variant = 'rectangular' }) => {
 
   return (
     <div
-      className={`animate-pulse bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 bg-[length:200%_100%] ${variantClasses[variant]} ${className}`}
+      className={`animate-pulse bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 ${variantClasses[variant]} ${className}`}
       style={{
+        backgroundSize: '200% 100%',
         animation: 'shimmer 2s infinite linear'
       }}
-    >
-      <style jsx>{`
-        @keyframes shimmer {
-          0% {
-            background-position: -200% 0;
-          }
-          100% {
-            background-position: 200% 0;
-          }
-        }
-      `}</style>
-    </div>
+    />
   );
 };
 

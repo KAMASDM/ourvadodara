@@ -23,6 +23,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import EditPost from './EditPost';
+import { adminStyles } from './adminStyles';
 
 const ContentManagement = () => {
   const { cities } = useCity(); // Use dynamic cities from Firebase
