@@ -9,6 +9,7 @@ import EnhancedStorySection from '../../components/Story/EnhancedStorySection';
 import CategoryFilter from '../../components/Category/CategoryFilter';
 import EnhancedNewsFeed from '../../components/Feed/EnhancedNewsFeed';
 import ReelsRail from '../../components/Reels/ReelsRail.jsx';
+import TodaysRoundup from '../../components/Feed/TodaysRoundup';
 import WeatherWidget from '../../components/Weather/WeatherWidget';
 import LiveUpdates from '../../components/Live/LiveUpdates';
 import TrendingTopics from '../../components/Trending/TrendingTopics';
@@ -24,7 +25,8 @@ import {
   Radio,
   ChevronRight,
   SlidersHorizontal,
-  X
+  X,
+  Newspaper
 } from 'lucide-react';
 
 const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
@@ -33,6 +35,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
   const [activeSection, setActiveSection] = useState(null); // null means show news
   const [isSectionSheetOpen, setSectionSheetOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showRoundup, setShowRoundup] = useState(false);
 
   // Pull-to-refresh implementation
   const handleRefresh = async () => {
@@ -200,6 +203,31 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                 onViewStory={(story) => console.log('View story:', story)}
               />
 
+              {/* Today's News Roundup Button */}
+              <button
+                onClick={() => setShowRoundup(true)}
+                className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl p-4 shadow-lg hover:shadow-xl transition-all group overflow-hidden relative"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-700 via-purple-700 to-pink-700 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div className="relative flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                      <Newspaper className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-white font-bold text-lg">Today's News Roundup</h3>
+                      <p className="text-white/80 text-sm">Catch up on today's top stories</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full">
+                      <span className="text-white text-xs font-semibold">View All</span>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-white group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+              </button>
+
               <ReelsRail
                 onSelectReel={(reelId) => onShowReels(reelId)}
               />
@@ -216,6 +244,11 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
           </div>
         </div>
       </div>
+
+      {/* Today's Roundup Modal */}
+      {showRoundup && (
+        <TodaysRoundup onClose={() => setShowRoundup(false)} />
+      )}
 
       {isSectionSheetOpen && (
         <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/40 backdrop-blur-sm">

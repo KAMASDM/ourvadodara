@@ -22,7 +22,8 @@ import {
   CheckSquare,
   Zap,
   MapPin,
-  Film
+  Film,
+  Newspaper
 } from 'lucide-react';
 import Dashboard from './Dashboard';
 import UserManager from './UserManager';
@@ -38,6 +39,7 @@ import UnifiedPostCreator from './UnifiedPostCreator';
 import AuthenticationManager from './AuthenticationManager';
 import CreatePost from './CreatePost';
 import CityManagement from './CityManagement';
+import RoundupManagement from './RoundupManagement';
 import MediaContentManagement from './MediaContentManagement';
 
 const AdminLayout = () => {
@@ -76,6 +78,7 @@ const AdminLayout = () => {
     { id: 'create-post', label: 'Create Post', icon: Plus },
     { id: 'media-management', label: 'Media Manager', icon: Film },
     { id: 'content-management', label: 'Content Manager', icon: FileText },
+    { id: 'news-roundup', label: 'News Roundup', icon: Newspaper },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'city-management', label: 'City Management', icon: MapPin },
     { id: 'auth-management', label: 'Authentication', icon: Globe },
@@ -110,6 +113,8 @@ const AdminLayout = () => {
         return isMobile ? <MobileContentWarning /> : <MediaContentManagement />;
       case 'content-management':
         return isMobile ? <MobileContentWarning /> : <ContentManagement />;
+      case 'news-roundup':
+        return isMobile ? <MobileContentWarning /> : <RoundupManagement />;
       case 'users':
         return <UserManager />;
       case 'city-management':
