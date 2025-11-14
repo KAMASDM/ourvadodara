@@ -290,14 +290,14 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                       key={section.id}
                       type="button"
                       onClick={() => handleSectionClick(section.id)}
-                      className={`flex items-center justify-between rounded-2xl border px-3.5 py-3 text-left transition-all ${
+                      className={`flex items-center justify-between rounded-2xl border-2 px-3.5 py-3 text-left transition-all ${
                         isActive
-                          ? 'border-gray-900 bg-white text-gray-900 shadow-sm dark:border-gray-200/50 dark:bg-gray-800 dark:text-white'
-                          : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300 hover:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-gray-600'
+                          ? 'border-warmBrown-400 bg-ivory-50 text-warmBrown-900 shadow-ivory-lg dark:border-gray-200/50 dark:bg-gray-800 dark:text-white'
+                          : 'border-warmBrown-200 bg-ivory-100 text-warmBrown-800 hover:border-warmBrown-300 hover:bg-ivory-50 hover:shadow-ivory dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-gray-600'
                       }`}
                     >
                       <span className="flex items-center gap-3">
-                        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${section.color} text-white`}>
+                        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${section.color} text-white shadow-sm`}>
                           <Icon className="h-4 w-4" />
                         </span>
                         <span className="text-sm font-semibold">
@@ -305,7 +305,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                         </span>
                       </span>
                       {isActive && (
-                        <ChevronRight className="h-4 w-4 text-gray-500" />
+                        <ChevronRight className="h-4 w-4 text-warmBrown-600" />
                       )}
                     </button>
                   );

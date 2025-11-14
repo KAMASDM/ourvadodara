@@ -140,11 +140,11 @@ const PostCard = ({ post, onPostClick }) => {
   const needsReadMore = contentText.length > 150;
 
   return (
-    <article className="bg-white dark:bg-bg-card-dark border-b border-border-light dark:border-border-dark shadow-sm hover:shadow-md transition-shadow duration-200">
+    <article className="bg-ivory-50 dark:bg-bg-card-dark border border-warmBrown-200 dark:border-border-dark shadow-ivory hover:shadow-ivory-lg transition-all duration-200 rounded-lg overflow-hidden mb-3">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 pb-2">
+      <div className="flex items-center justify-between px-3 py-3 pb-2">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full bg-white dark:bg-white shadow-sm border border-border-light dark:border-border-dark p-1 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-white dark:bg-white shadow-sm border border-warmBrown-200 dark:border-border-dark p-1 flex items-center justify-center">
             <img 
               src={logoImage} 
               alt="Our Vadodara" 
@@ -152,17 +152,17 @@ const PostCard = ({ post, onPostClick }) => {
             />
           </div>
           <div>
-            <p className="font-semibold text-text-dark dark:text-text-light text-sm">
+            <p className="font-semibold text-warmBrown-900 dark:text-text-light text-sm">
               {post.author}
             </p>
-            <p className="text-gray-500 dark:text-gray-400 text-xs">
+            <p className="text-warmBrown-600 dark:text-gray-400 text-xs">
               {formatTime(post.publishedAt)}
             </p>
           </div>
         </div>
         <button 
           onClick={(e) => e.stopPropagation()}
-          className="p-1 text-gray-500 dark:text-gray-400 hover:bg-surface-light dark:hover:bg-surface-dark rounded-full transition-colors duration-200"
+          className="p-1 text-warmBrown-600 dark:text-gray-400 hover:bg-ivory-200 dark:hover:bg-surface-dark rounded-full transition-colors duration-200"
         >
           <MoreHorizontal className="w-5 h-5" />
         </button>
@@ -172,7 +172,7 @@ const PostCard = ({ post, onPostClick }) => {
       <div onClick={handlePostClick} className="cursor-pointer">
         {/* Breaking News Badge */}
         {post.isBreaking && (
-          <div className="px-4 pb-2">
+          <div className="px-3 pb-2">
             <span className="bg-accent text-white px-2 py-1 rounded text-xs font-bold animate-pulse shadow-lg">
               🚨 BREAKING
             </span>
@@ -180,11 +180,11 @@ const PostCard = ({ post, onPostClick }) => {
         )}
 
         {/* Content */}
-        <div className="px-4 pb-2">
-          <h2 className="text-lg font-semibold text-text-dark dark:text-text-light mb-2">
+        <div className="px-3 pb-2">
+          <h2 className="text-lg font-semibold text-warmBrown-900 dark:text-text-light mb-2">
             {titleText}
           </h2>
-          <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+          <p className="text-warmBrown-700 dark:text-gray-300 text-sm leading-relaxed">
             {showFullContent ? contentText : contentPreview}
             {needsReadMore && !showFullContent && '...'}
           </p>
@@ -194,7 +194,7 @@ const PostCard = ({ post, onPostClick }) => {
                 e.stopPropagation();
                 setShowFullContent(!showFullContent);
               }}
-              className="text-primary-500 text-sm font-medium mt-1 hover:underline"
+              className="text-warmBrown-500 text-sm font-medium mt-1 hover:underline"
             >
               {showFullContent ? 'Show less' : t('readMore')}
             </button>
@@ -203,7 +203,7 @@ const PostCard = ({ post, onPostClick }) => {
 
         {/* Media - Images and Videos */}
         {post.media && post.media.length > 0 && (
-          <div className="px-4 pb-2">
+          <div className="px-3 pb-2">
             {post.media.filter(media => media.type === 'image').slice(0, 1).map((media, index) => (
               <div key={index} className="mb-2">
                 <img
@@ -239,7 +239,7 @@ const PostCard = ({ post, onPostClick }) => {
         
         {/* Legacy image support for backward compatibility */}
         {!post.media && post.image && (
-          <div className="px-4 pb-2">
+          <div className="px-3 pb-2">
             <img
               src={post.image}
               alt={titleText}
@@ -256,12 +256,12 @@ const PostCard = ({ post, onPostClick }) => {
 
       {/* Tags */}
       {post.tags && post.tags.length > 0 && (
-        <div className="px-4 pb-2">
+        <div className="px-3 pb-2">
           <div className="flex flex-wrap gap-1">
             {post.tags.map((tag, index) => (
               <span
                 key={index}
-                className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full"
+                className="text-xs bg-ivory-200 dark:bg-gray-800 text-warmBrown-700 dark:text-gray-300 px-2 py-1 rounded-full border border-warmBrown-300 dark:border-gray-700"
               >
                 #{tag}
               </span>
@@ -271,7 +271,7 @@ const PostCard = ({ post, onPostClick }) => {
       )}
 
       {/* Actions */}
-      <div className="px-4 py-3">
+      <div className="px-3 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <button

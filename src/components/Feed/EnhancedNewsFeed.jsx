@@ -407,14 +407,14 @@ const PostCard = ({
   const displayContent = isExpanded ? content : (excerpt || content?.substring(0, 150) + '...');
   const shouldShowReadMore = content.length > 150;
   const isClickable = post.source === 'posts';
-  const titleClasses = `text-xl font-semibold text-gray-900 dark:text-white tracking-tight transition-colors ${
-    isClickable ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : 'cursor-default'
+  const titleClasses = `text-xl font-semibold text-warmBrown-900 dark:text-white tracking-tight transition-colors ${
+    isClickable ? 'cursor-pointer hover:text-warmBrown-600 dark:hover:text-blue-400' : 'cursor-default'
   }`;
   const authorName = 'Our Vadodara';
   const authorAvatar = logoImage;
 
   return (
-    <article className="group relative overflow-hidden rounded-3xl border border-gray-200/60 dark:border-gray-700/60 bg-gradient-to-b from-white/95 via-white to-gray-50 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-sm shadow-gray-200/50 dark:shadow-black/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
+    <article className="group relative overflow-hidden rounded-2xl border-2 border-warmBrown-200 dark:border-gray-700/60 bg-gradient-to-b from-ivory-50 via-ivory-100 to-ivory-200 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-ivory hover:shadow-ivory-xl dark:shadow-black/40 transition-all duration-300 hover:-translate-y-1 mb-4">
       {/* Heart animation overlay */}
       <HeartAnimation
         show={showHeartAnimation}
@@ -422,32 +422,32 @@ const PostCard = ({
         onComplete={() => setShowHeartAnimation(false)}
       />
       
-      <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.18),transparent_55%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.3),transparent_55%)]"></div>
+      <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(circle_at_top_left,rgba(168,146,111,0.15),transparent_55%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.3),transparent_55%)]"></div>
 
       {/* Post Header */}
-      <div className="relative px-5 pt-5">
+      <div className="relative px-4 pt-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="relative">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-500/0 dark:from-blue-500/20 dark:to-transparent flex items-center justify-center shadow-inner">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-warmBrown-200 to-ivory-100 dark:from-blue-500/20 dark:to-transparent flex items-center justify-center shadow-inner">
                 <img
                   src={authorAvatar}
                   alt={authorName}
-                  className="w-10 h-10 rounded-full border border-white/80 dark:border-gray-800 shadow-md object-contain bg-white p-1"
+                  className="w-10 h-10 rounded-full border-2 border-warmBrown-300 dark:border-gray-800 shadow-md object-contain bg-white p-1"
                 />
               </div>
-              <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border border-white dark:border-gray-900 bg-emerald-500 shadow-sm"></span>
+              <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-ivory-50 dark:border-gray-900 bg-emerald-500 shadow-sm"></span>
             </div>
             <div className="flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base">
+                <h3 className="font-semibold text-warmBrown-900 dark:text-white text-sm sm:text-base">
                   {authorName}
                 </h3>
                 {post.type !== POST_TYPES.STANDARD && (
-                  <span className={`text-[11px] tracking-wide uppercase px-2 py-0.5 rounded-full font-semibold ${
-                    post.type === POST_TYPES.STORY ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-200' :
-                    post.type === POST_TYPES.REEL ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-200' :
-                    post.type === POST_TYPES.CAROUSEL ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200' :
+                  <span className={`text-[11px] tracking-wide uppercase px-2 py-0.5 rounded-full font-semibold border ${
+                    post.type === POST_TYPES.STORY ? 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/50 dark:text-purple-200 dark:border-purple-700' :
+                    post.type === POST_TYPES.REEL ? 'bg-pink-100 text-pink-700 border-pink-300 dark:bg-pink-900/50 dark:text-pink-200 dark:border-pink-700' :
+                    post.type === POST_TYPES.CAROUSEL ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/50 dark:text-blue-200 dark:border-blue-700' :
                     'bg-gray-100 text-gray-700 dark:bg-gray-800/70 dark:text-gray-200'
                   }`}>
                     {post.type.toUpperCase()}
@@ -476,7 +476,7 @@ const PostCard = ({
       </div>
 
       {/* Post Content */}
-      <div className="relative px-5 pt-4">
+      <div className="relative px-4 pt-4">
         {title && (
           <h2 
             className={titleClasses}
@@ -488,24 +488,24 @@ const PostCard = ({
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {post.isBreaking && (
-            <span className="bg-red-600 text-white text-[11px] font-bold px-2 py-1 rounded-full shadow-sm animate-pulse">
+            <span className="bg-red-600 text-white text-[11px] font-bold px-2 py-1 rounded-full shadow-sm animate-pulse border border-red-700">
               BREAKING
             </span>
           )}
           {post.isFeatured && (
-            <span className="bg-blue-600/90 text-white text-[11px] font-semibold px-2 py-1 rounded-full shadow-sm">
+            <span className="bg-blue-600/90 text-white text-[11px] font-semibold px-2 py-1 rounded-full shadow-sm border border-blue-700">
               FEATURED
             </span>
           )}
           {post.isUrgent && (
-            <span className="bg-orange-500 text-white text-[11px] font-semibold px-2 py-1 rounded-full shadow-sm">
+            <span className="bg-orange-500 text-white text-[11px] font-semibold px-2 py-1 rounded-full shadow-sm border border-orange-600">
               URGENT
             </span>
           )}
         </div>
 
         {displayContent && (
-          <div className="mt-3 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+          <div className="mt-3 text-sm leading-relaxed text-warmBrown-800 dark:text-gray-300">
             <p>{displayContent}</p>
             {shouldShowReadMore && (
               <button
@@ -562,22 +562,22 @@ const PostCard = ({
 
       {/* Category, Tags & Stats */}
       {(post.category || (post.tags && post.tags.length > 0) || showStats) && (
-        <div className="relative mt-5 px-5">
+        <div className="relative mt-5 px-4">
           <div className="flex flex-wrap items-center gap-2">
             {post.category && (
-              <span className="rounded-full bg-gray-100 text-gray-700 px-3 py-1 text-xs font-medium dark:bg-gray-800/70 dark:text-gray-200">
+              <span className="rounded-full bg-ivory-200 text-warmBrown-800 border border-warmBrown-300 px-3 py-1 text-xs font-medium dark:bg-gray-800/70 dark:text-gray-200 dark:border-gray-700">
                 {post.category}
               </span>
             )}
             {post.tags && post.tags.slice(0, 3).map((tag, index) => (
-              <span key={index} className="rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-xs font-medium dark:bg-blue-500/20 dark:text-blue-200">
+              <span key={index} className="rounded-full bg-warmBrown-100 text-warmBrown-700 border border-warmBrown-200 px-3 py-1 text-xs font-medium dark:bg-blue-500/20 dark:text-blue-200 dark:border-blue-700">
                 #{tag}
               </span>
             ))}
           </div>
 
           {showStats && (
-            <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400">
+            <div className="mt-4 flex flex-wrap gap-4 text-xs text-warmBrown-600 dark:text-gray-400">
               {viewCount !== null && (
                 <span className="inline-flex items-center gap-1">
                   <Eye className="w-4 h-4" />
@@ -599,15 +599,15 @@ const PostCard = ({
       )}
 
       {/* Action Buttons */}
-      <div className="relative mt-6 border-t border-gray-100 dark:border-gray-800 bg-white/70 dark:bg-gray-900/60 backdrop-blur-sm">
-        <div className="flex items-center justify-between px-5 py-4">
+      <div className="relative mt-6 border-t border-warmBrown-200 dark:border-gray-800 bg-ivory-50/70 dark:bg-gray-900/60 backdrop-blur-sm">
+        <div className="flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-4 text-sm">
             <button
               onClick={onLike}
               className={`flex items-center gap-2 rounded-full px-3 py-2 transition-colors ${
                 isLiked 
                   ? 'bg-red-500/10 text-red-500 dark:bg-red-500/20' 
-                  : 'text-gray-600 dark:text-gray-300 hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-red-500/20'
+                  : 'text-warmBrown-700 dark:text-gray-300 hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-red-500/20'
               }`}
             >
               <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
@@ -618,8 +618,8 @@ const PostCard = ({
               onClick={isClickable ? () => onPostClick(post.id) : undefined}
               className={`flex items-center gap-2 rounded-full px-3 py-2 transition-colors ${
                 isClickable
-                  ? 'text-gray-600 dark:text-gray-300 hover:text-blue-500 hover:bg-blue-500/10 dark:hover:bg-blue-500/20'
-                  : 'text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60'
+                  ? 'text-warmBrown-700 dark:text-gray-300 hover:text-warmBrown-500 hover:bg-warmBrown-100 dark:hover:bg-blue-500/20'
+                  : 'text-warmBrown-400 dark:text-gray-500 cursor-not-allowed opacity-60'
               }`}
               disabled={!isClickable}
             >

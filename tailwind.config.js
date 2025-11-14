@@ -24,6 +24,32 @@ module.exports = {
           800: '#991b1b',  // Very dark red
           900: '#7f1d1d',  // Darkest red
         },
+        // Ivory Color Palette for Light Mode
+        ivory: {
+          50: '#fffef9',   // Almost white ivory
+          100: '#fffcf0',  // Very light ivory
+          200: '#fff9e6',  // Light ivory
+          300: '#fff5d9',  // Medium light ivory
+          400: '#ffefcc',  // Medium ivory
+          500: '#ffe9bf',  // Main ivory
+          600: '#f5e0b3',  // Darker ivory
+          700: '#e6d4a3',  // Dark ivory
+          800: '#d4c189',  // Very dark ivory
+          900: '#c2ae70',  // Darkest ivory
+        },
+        // Warm accent colors for ivory theme
+        warmBrown: {
+          50: '#faf8f5',
+          100: '#f5f1ea',
+          200: '#ebe3d5',
+          300: '#d9cbb8',
+          400: '#c4b09a',
+          500: '#a8926f',  // Main warm brown
+          600: '#8f7a5d',
+          700: '#73624b',
+          800: '#5a4d3c',
+          900: '#443a2f',
+        },
         gray: {
           50: '#fafafa',   // Almost white
           100: '#f4f4f5',  // Very light gray

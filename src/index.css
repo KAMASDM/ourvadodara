@@ -5,19 +5,24 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Base styles for light mode */
+/* Base styles for light mode with ivory theme */
 body {
-  @apply bg-surface-light text-text-dark;
+  @apply bg-ivory-100 text-warmBrown-900;
+  background: linear-gradient(to bottom, #fffcf0 0%, #fff9e6 100%);
+  min-height: 100vh;
 }
 
 /* Dark mode styles */
 .dark body {
   @apply bg-surface-dark text-text-light;
+  background: linear-gradient(to bottom, #18181b 0%, #27272a 100%);
 }
 
-/* Custom component styles */
+/* Custom component styles for Ivory theme */
 .card-light {
-  @apply bg-white border border-border-light shadow-sm;
+  @apply bg-ivory-50 border border-warmBrown-200 shadow-md;
+  background: linear-gradient(135deg, #fffef9 0%, #fffcf0 100%);
+  box-shadow: 0 4px 6px -1px rgba(162, 146, 111, 0.1), 0 2px 4px -1px rgba(162, 146, 111, 0.06);
 }
 
 .card-dark {
@@ -25,15 +30,28 @@ body {
 }
 
 .button-primary {
-  @apply bg-accent hover:bg-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200;
+  @apply bg-warmBrown-500 hover:bg-warmBrown-600 text-ivory-50 font-medium px-4 py-2 rounded-lg transition-all duration-200 shadow-lg;
+  box-shadow: 0 4px 6px -1px rgba(168, 146, 111, 0.3), 0 2px 4px -1px rgba(168, 146, 111, 0.2);
+}
+
+.button-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 8px -1px rgba(168, 146, 111, 0.4), 0 4px 6px -1px rgba(168, 146, 111, 0.3);
 }
 
 .button-secondary {
-  @apply bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium px-4 py-2 rounded-lg transition-colors duration-200;
+  @apply bg-ivory-200 hover:bg-ivory-300 dark:bg-gray-800 dark:hover:bg-gray-700 text-warmBrown-800 dark:text-gray-100 font-medium px-4 py-2 rounded-lg transition-all duration-200;
+  box-shadow: 0 2px 4px -1px rgba(162, 146, 111, 0.1);
 }
 
 .input-field {
-  @apply bg-white dark:bg-gray-800 border border-border-light dark:border-border-dark text-text-dark dark:text-text-light rounded-lg px-3 py-2 focus:ring-2 focus:ring-accent focus:border-transparent;
+  @apply bg-ivory-50 dark:bg-gray-800 border border-warmBrown-300 dark:border-border-dark text-warmBrown-900 dark:text-text-light rounded-lg px-3 py-2 focus:ring-2 focus:ring-warmBrown-400 focus:border-transparent;
+  transition: all 0.2s ease;
+}
+
+.input-field:focus {
+  @apply bg-white dark:bg-gray-700;
+  box-shadow: 0 0 0 3px rgba(168, 146, 111, 0.1);
 }
 
 /* Scrollbar hide utility */
@@ -53,18 +71,18 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #fff9e6;
   @apply dark:bg-gray-800;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
+  background: #c4b09a;
   @apply dark:bg-gray-600;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #a8926f;
   @apply dark:bg-gray-500;
 }
 
@@ -245,4 +263,92 @@ body {
 
 .animate-bounce-slow {
   animation: bounce-slow 2s ease-in-out infinite;
+}
+
+/* =============================================
+// Ivory Theme Utility Classes
+// ============================================= */
+
+/* Ivory gradient backgrounds */
+.bg-ivory-gradient {
+  background: linear-gradient(135deg, #fffef9 0%, #fff9e6 50%, #fffcf0 100%);
+}
+
+.bg-ivory-gradient-radial {
+  background: radial-gradient(circle at top, #fffef9, #fff9e6);
+}
+
+/* Warm shadow utilities */
+.shadow-ivory {
+  box-shadow: 0 4px 6px -1px rgba(162, 146, 111, 0.1), 0 2px 4px -1px rgba(162, 146, 111, 0.06);
+}
+
+.shadow-ivory-lg {
+  box-shadow: 0 10px 15px -3px rgba(162, 146, 111, 0.15), 0 4px 6px -2px rgba(162, 146, 111, 0.1);
+}
+
+.shadow-ivory-xl {
+  box-shadow: 0 20px 25px -5px rgba(162, 146, 111, 0.2), 0 10px 10px -5px rgba(162, 146, 111, 0.1);
+}
+
+/* Hover glow effect for ivory theme */
+.hover-glow-ivory {
+  transition: all 0.3s ease;
+}
+
+.hover-glow-ivory:hover {
+  box-shadow: 0 0 20px rgba(168, 146, 111, 0.3), 0 0 40px rgba(168, 146, 111, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Text gradient for headings */
+.text-gradient-ivory {
+  background: linear-gradient(135deg, #a8926f 0%, #73624b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card with ivory glass effect */
+.card-ivory-glass {
+  background: rgba(255, 254, 249, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(212, 193, 152, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(162, 146, 111, 0.15);
+}
+
+.dark .card-ivory-glass {
+  background: rgba(39, 39, 42, 0.8);
+  border: 1px solid rgba(63, 63, 70, 0.5);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Ivory divider */
+.divider-ivory {
+  height: 1px;
+  background: linear-gradient(to right, transparent, #d4c189, transparent);
+}
+
+/* Subtle pattern background */
+.pattern-dots-ivory {
+  background-image: radial-gradient(circle, #f5e0b3 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Warm brown accent for highlights */
+.accent-warm {
+  color: #a8926f;
+}
+
+.bg-accent-warm {
+  background-color: #a8926f;
+}
+
+.border-accent-warm {
+  border-color: #a8926f;
+}
+
+/* Smooth transitions for theme elements */
+.transition-ivory {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
