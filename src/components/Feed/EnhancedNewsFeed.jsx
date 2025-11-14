@@ -414,7 +414,7 @@ const PostCard = ({
   const authorAvatar = logoImage;
 
   return (
-    <article className="group relative overflow-hidden rounded-2xl border-2 border-warmBrown-200 dark:border-gray-700/60 bg-gradient-to-b from-ivory-50 via-ivory-100 to-ivory-200 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-ivory hover:shadow-ivory-xl dark:shadow-black/40 transition-all duration-300 hover:-translate-y-1 mb-4">
+    <article className="group relative overflow-hidden border-y-2 border-warmBrown-200 dark:border-gray-700/60 bg-gradient-to-b from-ivory-50 via-ivory-100 to-ivory-200 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-sm hover:shadow-md dark:shadow-black/40 transition-all duration-300 mb-0">
       {/* Heart animation overlay */}
       <HeartAnimation
         show={showHeartAnimation}
@@ -521,9 +521,9 @@ const PostCard = ({
 
       {/* Media Content */}
       {hasMedia && (
-        <div className="relative mt-5 px-5">
+        <div className="relative mt-5">
           <div 
-            className="overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60 cursor-pointer select-none"
+            className="overflow-hidden bg-black dark:bg-gray-900 cursor-pointer select-none"
             onClick={handleDoubleTap}
             onTouchStart={handleDoubleTap}
           >
@@ -539,7 +539,7 @@ const PostCard = ({
           </div>
 
           {isCarouselPost && carouselTotal > 1 && (
-            <div className="mt-3 flex justify-center space-x-2">
+            <div className="mt-3 flex justify-center space-x-2 px-4">
               {Array.from({ length: carouselTotal }).map((_, index) => (
                 <button
                   key={index}

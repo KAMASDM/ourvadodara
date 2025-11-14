@@ -234,7 +234,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
             </div>
           )}
 
-          <div className="mt-3 px-2 sm:px-3">
+          <div className="mt-3">
             <EnhancedNewsFeed
               key={refreshKey}
               activeCategory={activeCategory}

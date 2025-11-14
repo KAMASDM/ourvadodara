@@ -140,9 +140,9 @@ const PostCard = ({ post, onPostClick }) => {
   const needsReadMore = contentText.length > 150;
 
   return (
-    <article className="bg-ivory-50 dark:bg-bg-card-dark border border-warmBrown-200 dark:border-border-dark shadow-ivory hover:shadow-ivory-lg transition-all duration-200 rounded-lg overflow-hidden mb-3">
+    <article className="bg-ivory-50 dark:bg-bg-card-dark border-y border-warmBrown-200 dark:border-border-dark shadow-sm hover:shadow-md transition-all duration-200 mb-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-3 pb-2">
+      <div className="flex items-center justify-between px-4 py-3 pb-2">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 rounded-full bg-white dark:bg-white shadow-sm border border-warmBrown-200 dark:border-border-dark p-1 flex items-center justify-center">
             <img 
@@ -172,7 +172,7 @@ const PostCard = ({ post, onPostClick }) => {
       <div onClick={handlePostClick} className="cursor-pointer">
         {/* Breaking News Badge */}
         {post.isBreaking && (
-          <div className="px-3 pb-2">
+          <div className="px-4 pb-2">
             <span className="bg-accent text-white px-2 py-1 rounded text-xs font-bold animate-pulse shadow-lg">
               🚨 BREAKING
             </span>
@@ -180,7 +180,7 @@ const PostCard = ({ post, onPostClick }) => {
         )}
 
         {/* Content */}
-        <div className="px-3 pb-2">
+        <div className="px-4 pb-2">
           <h2 className="text-lg font-semibold text-warmBrown-900 dark:text-text-light mb-2">
             {titleText}
           </h2>
@@ -203,13 +203,13 @@ const PostCard = ({ post, onPostClick }) => {
 
         {/* Media - Images and Videos */}
         {post.media && post.media.length > 0 && (
-          <div className="px-3 pb-2">
+          <div className="pb-2">
             {post.media.filter(media => media.type === 'image').slice(0, 1).map((media, index) => (
               <div key={index} className="mb-2">
                 <img
                   src={media.url}
                   alt={titleText}
-                  className="w-full h-64 object-cover rounded-lg"
+                  className="w-full h-auto object-cover"
                   onLoad={() => console.log('Image loaded successfully:', media.url)}
                   onError={(e) => {
                     console.error('Image failed to load:', media.url);
@@ -223,7 +223,7 @@ const PostCard = ({ post, onPostClick }) => {
                 <video
                   src={media.url}
                   controls
-                  className="w-full h-64 object-cover rounded-lg"
+                  className="w-full h-auto object-cover"
                   onLoadedData={() => console.log('Video loaded successfully:', media.url)}
                   onError={(e) => {
                     console.error('Video failed to load:', media.url);
@@ -239,11 +239,11 @@ const PostCard = ({ post, onPostClick }) => {
         
         {/* Legacy image support for backward compatibility */}
         {!post.media && post.image && (
-          <div className="px-3 pb-2">
+          <div className="pb-2">
             <img
               src={post.image}
               alt={titleText}
-              className="w-full h-64 object-cover rounded-lg"
+              className="w-full h-auto object-cover"
               onLoad={() => console.log('Legacy image loaded successfully:', post.image)}
               onError={(e) => {
                 console.error('Legacy image failed to load:', post.image);
@@ -256,7 +256,7 @@ const PostCard = ({ post, onPostClick }) => {
 
       {/* Tags */}
       {post.tags && post.tags.length > 0 && (
-        <div className="px-3 pb-2">
+        <div className="px-4 pb-2">
           <div className="flex flex-wrap gap-1">
             {post.tags.map((tag, index) => (
               <span
