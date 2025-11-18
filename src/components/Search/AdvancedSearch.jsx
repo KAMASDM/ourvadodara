@@ -141,6 +141,13 @@ const AdvancedSearch = ({ isOpen, onClose, onSearch }) => {
               <option value="business">{t('categories.business')}</option>
               <option value="entertainment">{t('categories.entertainment')}</option>
               <option value="technology">{t('categories.technology')}</option>
+              <option value="local">{t('categories.local')}</option>
+              <option value="weather">{t('categories.weather')}</option>
+              <option value="india">{t('categories.india')}</option>
+              <option value="world">{t('categories.world')}</option>
+              <option value="science">{t('categories.science')}</option>
+              <option value="space">{t('categories.space')}</option>
+              <option value="health">{t('categories.health')}</option>
             </select>
           </div>
 

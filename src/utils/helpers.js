@@ -11,6 +11,27 @@ export const formatTime = (date, locale = 'en') => {
   }
 };
 
+export const formatTimeAgo = (date) => {
+  try {
+    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+    
+    if (seconds < 60) return 'Just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+    
+    return formatDistanceToNow(new Date(date), { addSuffix: true });
+  } catch (error) {
+    return 'Unknown time';
+  }
+};
+
+export const formatNumber = (num) => {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toString();
+};
+
 export const formatDate = (date, pattern = 'MMM dd, yyyy') => {
   try {
     return format(new Date(date), pattern);

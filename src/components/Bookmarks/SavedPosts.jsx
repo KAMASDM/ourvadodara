@@ -65,7 +65,7 @@ const SavedPosts = ({ onPostClick }) => {
       }
     });
 
-  const categories = ['all', 'local', 'politics', 'sports', 'entertainment', 'business'];
+  const categories = ['all', 'local', 'politics', 'sports', 'entertainment', 'business', 'technology', 'weather', 'india', 'world', 'science', 'space', 'health'];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20">

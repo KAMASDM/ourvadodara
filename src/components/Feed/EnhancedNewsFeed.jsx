@@ -61,6 +61,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
         type: post.type || POST_TYPES.STANDARD,
         source: 'posts'
       })).filter(post => (post.status || 'published') !== 'draft');
+      
       allPosts = [...allPosts, ...posts];
     }
 
@@ -105,7 +106,6 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
 
     // Only show sample data if we're still loading or explicitly have no data at all
     if (allPosts.length === 0 && !postsLoading && !storiesLoading && !reelsLoading && !carouselsLoading) {
-      console.log('No real posts found, showing sample data');
       allPosts = sampleNews.map(post => ({
         ...post,
         type: POST_TYPES.STANDARD,
@@ -205,7 +205,6 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
     });
 
     // TODO: Update Firebase with like status
-    console.log('Liked post:', postId);
   };
 
   const handleSave = async (postId) => {
@@ -220,7 +219,6 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
     });
 
     // TODO: Update Firebase with saved status
-    console.log('Saved post:', postId);
   };
 
   const handleShare = async (post) => {
@@ -249,7 +247,6 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
   };
 
   const handleMediaInteraction = (type, data) => {
-    console.log('Media interaction:', type, data);
     // Handle media-specific interactions (video play, carousel navigation, etc.)
   };
 
@@ -294,22 +291,24 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
   // Standard feed layout
   return (
     <div className="flex flex-col gap-6 px-3 pb-8 sm:px-4">
-      {paginatedPosts.map((post, index) => (
-        <PostCard 
-          key={post.id || `post-${index}`}
-          post={post} 
-          onPostClick={onPostClick}
-          onLike={() => handleLike(post.id)}
-          onSave={() => handleSave(post.id)}
-          onShare={() => handleShare(post)}
-          onMediaInteraction={handleMediaInteraction}
-          isLiked={likedPosts.has(post.id)}
-          isSaved={savedPosts.has(post.id)}
-          isExpanded={expandedPosts.has(post.id)}
-          onToggleExpanded={() => toggleExpanded(post.id)}
-          currentLanguage={currentLanguage}
-        />
-      ))}
+      {paginatedPosts.map((post, index) => {
+        return (
+          <PostCard 
+            key={post.id || `post-${index}`}
+            post={post} 
+            onPostClick={onPostClick}
+            onLike={() => handleLike(post.id)}
+            onSave={() => handleSave(post.id)}
+            onShare={() => handleShare(post)}
+            onMediaInteraction={handleMediaInteraction}
+            isLiked={likedPosts.has(post.id)}
+            isSaved={savedPosts.has(post.id)}
+            isExpanded={expandedPosts.has(post.id)}
+            onToggleExpanded={() => toggleExpanded(post.id)}
+            currentLanguage={currentLanguage}
+          />
+        );
+      })}
       
       {/* Infinite scroll sentinel */}
       {hasMore && (
@@ -356,9 +355,20 @@ const PostCard = ({
   const title = post.title?.[currentLanguage] || post.title?.en || 'Untitled';
   const content = post.content?.[currentLanguage] || post.content?.en || '';
   const excerpt = post.excerpt?.[currentLanguage] || post.excerpt?.en || '';
-  const mediaItems = Array.isArray(post.mediaContent?.items)
-    ? post.mediaContent.items
-    : Object.values(post.mediaContent?.items || {});
+  
+  // Handle both new mediaContent structure and legacy media array
+  let mediaItems = [];
+  if (post.mediaContent?.items) {
+    mediaItems = Array.isArray(post.mediaContent.items)
+      ? post.mediaContent.items
+      : Object.values(post.mediaContent.items || {});
+  } else if (post.media) {
+    // Legacy media array for standard posts
+    mediaItems = Array.isArray(post.media)
+      ? post.media
+      : Object.values(post.media || {});
+  }
+  
   const hasMedia = mediaItems.length > 0;
   const isCarouselPost = mediaItems.length > 1;
   const [carouselIndex, setCarouselIndex] = useState(0);

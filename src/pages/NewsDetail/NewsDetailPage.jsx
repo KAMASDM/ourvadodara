@@ -63,6 +63,13 @@ const NewsDetailPage = ({ newsId, onBack }) => {
       const newsItem = postsArray.find(item => item.id === newsId);
       
       if (newsItem) {
+        console.log('Post loaded:', newsItem);
+        console.log('Post media check:', {
+          image: newsItem.image,
+          media: newsItem.media,
+          mediaContent: newsItem.mediaContent
+        });
+        
         setNews(newsItem);
         setIsLiked(false); // Check from user's liked posts
         setIsSaved(false); // Check from user's saved posts
@@ -163,23 +170,33 @@ const NewsDetailPage = ({ newsId, onBack }) => {
     return '';
   };
 
+  // Strip HTML tags from content
+  const stripHtmlTags = (html) => {
+    if (!html) return '';
+    const tmp = document.createElement('DIV');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
+  };
+
   const getContentText = () => {
     if (!news?.content) return '';
     
+    let content = '';
     // If content is a string, return it directly
     if (typeof news.content === 'string') {
-      return news.content;
+      content = news.content;
     }
     
     // If content is an object, try to get the current language or fallback
-    if (typeof news.content === 'object') {
-      return news.content[currentLanguage] || 
+    else if (typeof news.content === 'object') {
+      content = news.content[currentLanguage] || 
              news.content['gu'] || 
              news.content['en'] || 
              Object.values(news.content)[0] || '';
     }
     
-    return '';
+    // Strip HTML tags from rich text editor content
+    return stripHtmlTags(content);
   };
 
   // Show loading state while fetching data
@@ -308,7 +325,7 @@ const NewsDetailPage = ({ newsId, onBack }) => {
               <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-4">
                 <div className="flex items-center space-x-1">
                   <User className="w-4 h-4" />
-                  <span>By {news.author}</span>
+                  <span>By {typeof news.author === 'object' ? (news.author?.name || news.author?.email) : (news.author || news.authorName || 'Unknown')}</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Calendar className="w-4 h-4" />
@@ -340,19 +357,56 @@ const NewsDetailPage = ({ newsId, onBack }) => {
             </div>
           </div>
 
-          {/* Featured Image */}
-          {news.image && (
-            <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-              <div className="px-4 py-4">
-                <img
-                  src={news.image}
-                  alt={getTitleText()}
-                  className="w-full h-64 md:h-96 object-cover rounded-lg cursor-pointer"
-                  onClick={() => setShowImageViewer(true)}
-                />
+          {/* Featured Media (Image or Video) */}
+          {(news.image || (news.media && news.media.length > 0) || (news.mediaContent && news.mediaContent.items && news.mediaContent.items.length > 0)) && (() => {
+            // Prioritize media array over old image field
+            const firstMediaItem = news.media?.[0] || news.mediaContent?.items?.[0];
+            const mediaUrl = (firstMediaItem?.url) || news.image; // Check media first, then fallback to image
+            const mediaType = firstMediaItem?.type || 'image';
+            
+            // Check if it's a video based on type or file extension
+            const isVideo = mediaType === 'video' || 
+                           mediaUrl?.includes('.mp4') || 
+                           mediaUrl?.includes('.webm') || 
+                           mediaUrl?.includes('.mov');
+            
+            console.log('Media check:', { mediaUrl, mediaType, isVideo, firstMediaItem });
+            
+            return (
+              <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                <div className="px-4 py-4">
+                  {isVideo ? (
+                    <video
+                      src={mediaUrl}
+                      poster={firstMediaItem?.thumbnailUrl || ''}
+                      controls
+                      preload="metadata"
+                      className="w-full h-64 md:h-96 object-cover rounded-lg bg-gray-900"
+                      onError={(e) => {
+                        console.error('Video failed to load:', mediaUrl);
+                        e.target.style.display = 'none';
+                      }}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  ) : (
+                    <img
+                      src={mediaUrl}
+                      alt={getTitleText()}
+                      loading="lazy"
+                      className="w-full h-64 md:h-96 object-cover rounded-lg cursor-pointer"
+                      onClick={() => setShowImageViewer(true)}
+                      onLoad={() => console.log('Image loaded successfully:', mediaUrl)}
+                      onError={(e) => {
+                        console.error('Image failed to load:', mediaUrl);
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Article Content */}
           <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
@@ -472,7 +526,12 @@ const NewsDetailPage = ({ newsId, onBack }) => {
 
       <ImageViewer
         isOpen={showImageViewer}
-        images={[{ url: news.image, caption: getTitleText() }]}
+        images={[{ 
+          url: news.image || 
+               (news.media && news.media[0]?.url) || 
+               (news.mediaContent && news.mediaContent.items && news.mediaContent.items[0]?.url), 
+          caption: getTitleText() 
+        }]}
         initialIndex={0}
         onClose={() => setShowImageViewer(false)}
       />

@@ -323,12 +323,13 @@ const StoryViewer = ({ story, allStories, onClose, currentLanguage, onLike, onCo
       </div>
 
       {/* Story content */}
-      <div className="w-full max-w-sm h-full relative">
+      <div className="w-full max-w-md relative flex items-center justify-center" style={{ height: 'calc(100vh - 140px)', marginTop: '80px', marginBottom: '60px' }}>
         <MediaRenderer
           post={currentStory}
           className="w-full h-full"
           autoplay={true}
-          showControls={false}
+          showControls={true}
+          style={{ objectFit: 'contain' }}
         />
 
         {/* Navigation areas */}
@@ -353,7 +354,7 @@ const StoryViewer = ({ story, allStories, onClose, currentLanguage, onLike, onCo
             />
           </div>
           <div className="flex-1">
-            <p className="font-semibold text-sm">{currentStory.author?.name}</p>
+            <p className="font-semibold text-sm">Our Vadodara</p>
             <p className="text-xs opacity-75">
               {formatTimeAgo(currentStory.createdAt || currentStory.publishedAt)}
             </p>

@@ -64,6 +64,51 @@ export const categoryData = {
     },
     trending: ['forecast', 'monsoon', 'temperature', 'alert'],
     relatedCategories: ['local']
+  },
+  india: {
+    description: {
+      en: 'National news, politics, and developments from across India',
+      hi: 'राष्ट्रीय समाचार, राजनीति और पूरे भारत से विकास',
+      gu: 'રાષ્ટ્રીય સમાચાર, રાજકારણ અને સમગ્ર ભારતથી વિકાસ'
+    },
+    trending: ['parliament', 'government', 'states', 'national'],
+    relatedCategories: ['politics', 'world']
+  },
+  world: {
+    description: {
+      en: 'International news, global events, and world affairs',
+      hi: 'अंतर्राष्ट्रीय समाचार, वैश्विक घटनाएँ और विश्व मामले',
+      gu: 'આંતરરાષ્ટ્રીય સમાચાર, વૈશ્વિક ઘટનાઓ અને વિશ્વ બાબતો'
+    },
+    trending: ['global', 'international', 'diplomacy', 'countries'],
+    relatedCategories: ['india', 'politics']
+  },
+  science: {
+    description: {
+      en: 'Scientific discoveries, research, and technological breakthroughs',
+      hi: 'वैज्ञानिक खोजें, अनुसंधान और तकनीकी सफलताएं',
+      gu: 'વૈજ્ઞાનિક શોધો, સંશોધન અને તકનીકી સફળતાઓ'
+    },
+    trending: ['research', 'discovery', 'innovation', 'experiments'],
+    relatedCategories: ['technology', 'space', 'health']
+  },
+  space: {
+    description: {
+      en: 'Space exploration, astronomy, and cosmic discoveries',
+      hi: 'अंतरिक्ष अन्वेषण, खगोल विज्ञान और ब्रह्मांडीय खोजें',
+      gu: 'અવકાશ સંશોધન, ખગોળશાસ્ત્ર અને બ્રહ્માંડીય શોધો'
+    },
+    trending: ['ISRO', 'NASA', 'satellites', 'planets', 'astronomy'],
+    relatedCategories: ['science', 'technology']
+  },
+  health: {
+    description: {
+      en: 'Health news, medical breakthroughs, and wellness information',
+      hi: 'स्वास्थ्य समाचार, चिकित्सा सफलताएं और कल्याण जानकारी',
+      gu: 'આરોગ્ય સમાચાર, તબીબી સફળતાઓ અને સુખાકારી માહિતી'
+    },
+    trending: ['medical', 'wellness', 'healthcare', 'fitness', 'hospitals'],
+    relatedCategories: ['science', 'local']
   }
 };
 

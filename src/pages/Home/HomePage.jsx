@@ -1,15 +1,14 @@
 // =============================================
 // src/pages/Home/HomePage.jsx - Redesigned Layout with Pull-to-Refresh
 // =============================================
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import PullToRefreshIndicator from '../../components/Common/PullToRefreshIndicator';
 import EnhancedStorySection from '../../components/Story/EnhancedStorySection';
 import CategoryFilter from '../../components/Category/CategoryFilter';
 import EnhancedNewsFeed from '../../components/Feed/EnhancedNewsFeed';
-import ReelsRail from '../../components/Reels/ReelsRail.jsx';
-import TodaysRoundup from '../../components/Feed/TodaysRoundup';
+import DesktopNewsFeed from '../../components/Feed/DesktopNewsFeed';
 import WeatherWidget from '../../components/Weather/WeatherWidget';
 import LiveUpdates from '../../components/Live/LiveUpdates';
 import TrendingTopics from '../../components/Trending/TrendingTopics';
@@ -25,8 +24,7 @@ import {
   Radio,
   ChevronRight,
   SlidersHorizontal,
-  X,
-  Newspaper
+  X
 } from 'lucide-react';
 
 const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
@@ -35,7 +33,16 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
   const [activeSection, setActiveSection] = useState(null); // null means show news
   const [isSectionSheetOpen, setSectionSheetOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [showRoundup, setShowRoundup] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Pull-to-refresh implementation
   const handleRefresh = async () => {
@@ -178,14 +185,24 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setSectionSheetOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-gray-600"
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  {t('home.open_focus', 'Focus')}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onShowReels()}
+                    className="inline-flex items-center gap-1 rounded-full border border-pink-200 bg-gradient-to-r from-pink-50 to-purple-50 px-3 py-1.5 text-[11px] font-semibold text-pink-700 shadow-sm transition-colors hover:border-pink-300 hover:from-pink-100 hover:to-purple-100 dark:border-pink-800 dark:from-pink-900/20 dark:to-purple-900/20 dark:text-pink-300 dark:hover:border-pink-700"
+                  >
+                    <span className="text-sm">🎬</span>
+                    Reels
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSectionSheetOpen(true)}
+                    className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-gray-600"
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    {t('home.open_focus', 'Focus')}
+                  </button>
+                </div>
               </div>
 
               <CategoryFilter
@@ -197,58 +214,33 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
         </div>
 
         <div className="flex-1 bg-gray-50 dark:bg-gray-950 pt-0 pb-6">
-          {!activeSection && (
-            <div className="space-y-4 px-2 sm:px-3 mt-3 mb-5">
+          {!activeSection && !isDesktop && (
+            <div className="px-2 sm:px-3 mt-3 mb-3">
               <EnhancedStorySection
                 onViewStory={(story) => console.log('View story:', story)}
-              />
-
-              {/* Today's News Roundup Button */}
-              <button
-                onClick={() => setShowRoundup(true)}
-                className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl p-4 shadow-lg hover:shadow-xl transition-all group overflow-hidden relative"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-700 via-purple-700 to-pink-700 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <div className="relative flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                      <Newspaper className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="text-left">
-                      <h3 className="text-white font-bold text-lg">Today's News Roundup</h3>
-                      <p className="text-white/80 text-sm">Catch up on today's top stories</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full">
-                      <span className="text-white text-xs font-semibold">View All</span>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-white group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </button>
-
-              <ReelsRail
-                onSelectReel={(reelId) => onShowReels(reelId)}
               />
             </div>
           )}
 
           <div className="mt-3">
-            <EnhancedNewsFeed
-              key={refreshKey}
-              activeCategory={activeCategory}
-              onPostClick={onPostClick}
-              feedType="all"
-            />
+            {isDesktop ? (
+              <DesktopNewsFeed
+                key={refreshKey}
+                category={activeCategory === 'all' ? null : activeCategory}
+                feedType="all"
+                onPostClick={onPostClick}
+              />
+            ) : (
+              <EnhancedNewsFeed
+                key={refreshKey}
+                activeCategory={activeCategory}
+                onPostClick={onPostClick}
+                feedType="all"
+              />
+            )}
           </div>
         </div>
       </div>
-
-      {/* Today's Roundup Modal */}
-      {showRoundup && (
-        <TodaysRoundup onClose={() => setShowRoundup(false)} />
-      )}
 
       {isSectionSheetOpen && (
         <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/40 backdrop-blur-sm">

@@ -3,10 +3,10 @@
 // Desktop-Optimized Post Creation Interface
 // Now with Multi-City Support
 // =============================================
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useCity } from '../../context/CityContext';
-import { ref, push, set } from 'firebase/database';
+import { ref, push } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase-config';
 import { 
@@ -25,22 +25,41 @@ import {
   AlertCircle,
   Languages,
   FileText,
-  RefreshCw
+  RefreshCw,
+  Check
 } from 'lucide-react';
-import { categoryData, categories } from '../../data/categories';
+import { categories } from '../../data/categories';
 import axios from 'axios';
+
+const MAX_VISIBLE_CITY_PILLS = 12;
+const CITY_VALIDATION_MESSAGE = 'Please select at least one city | ઓછામાં ઓછું એક શહેર પસંદ કરો';
 
 const CreatePost = () => {
   const { user } = useAuth();
-  const { cities } = useCity(); // Use dynamic cities from Firebase
+  const { cities, currentCity } = useCity(); // Use dynamic cities from Firebase
   const [selectedCities, setSelectedCities] = useState([]); // Changed to multi-select
+  const [citiesTouched, setCitiesTouched] = useState(false);
+  const [showAllCities, setShowAllCities] = useState(false);
   
-  // Initialize selectedCities when cities load
+  // Keep selected cities in sync with available cities and current city preference
   useEffect(() => {
-    if (cities && cities.length > 0 && selectedCities.length === 0) {
-      setSelectedCities([cities[0].id]);
-    }
-  }, [cities]);
+    if (!cities || cities.length === 0) return;
+
+    setSelectedCities(prev => {
+      const availableIds = new Set(cities.map(city => city.id));
+      const filtered = prev.filter(id => availableIds.has(id));
+
+      if (filtered.length > 0) {
+        return filtered.length === prev.length ? prev : filtered;
+      }
+
+      const fallbackId = (currentCity && availableIds.has(currentCity.id))
+        ? currentCity.id
+        : cities[0]?.id;
+
+      return fallbackId ? [fallbackId] : [];
+    });
+  }, [cities, currentCity]);
   
   // Language labels for the multi-language interface
   const languageLabels = {
@@ -70,12 +89,27 @@ const CreatePost = () => {
   const [translating, setTranslating] = useState(false);
   const [preview, setPreview] = useState(false);
   const [mediaFiles, setMediaFiles] = useState([]);
-  const [uploadProgress, setUploadProgress] = useState({});
+  const [, setUploadProgress] = useState({});
   const [errors, setErrors] = useState({});
   const [activeLanguage, setActiveLanguage] = useState('en');
-  const imageInputRef = useRef(null);
-  const videoInputRef = useRef(null);
   const multipleImageInputRef = useRef(null);
+
+  const availableCities = useMemo(() => cities || [], [cities]);
+  const cityIdSet = useMemo(() => new Set(availableCities.map(city => city.id)), [availableCities]);
+  const validSelectedCities = useMemo(
+    () => selectedCities.filter(id => cityIdSet.has(id)),
+    [selectedCities, cityIdSet]
+  );
+  const selectedCityNames = useMemo(() => {
+    if (availableCities.length === 0) return [];
+    const nameMap = new Map(availableCities.map(city => [city.id, city.name]));
+    return validSelectedCities.map(id => nameMap.get(id) || id);
+  }, [availableCities, validSelectedCities]);
+  const displayedCities = useMemo(() => {
+    if (availableCities.length === 0) return [];
+    return showAllCities ? availableCities : availableCities.slice(0, MAX_VISIBLE_CITY_PILLS);
+  }, [availableCities, showAllCities]);
+  const citySelectionError = errors.cities || (citiesTouched && validSelectedCities.length === 0 ? CITY_VALIDATION_MESSAGE : null);
 
   // Debug Firebase configuration on component mount
   useEffect(() => {
@@ -214,6 +248,42 @@ const CreatePost = () => {
       setTranslating(false);
     }
   };
+
+  const handleCityToggle = (cityId) => {
+    setCitiesTouched(true);
+    setErrors(prev => ({ ...prev, cities: null }));
+    setSelectedCities(prev => {
+      if (prev.includes(cityId)) {
+        return prev.filter(id => id !== cityId);
+      }
+      return [...prev, cityId];
+    });
+  };
+
+  const handleSelectCurrentCity = () => {
+    if (!currentCity?.id) return;
+    setCitiesTouched(true);
+    setErrors(prev => ({ ...prev, cities: null }));
+    setSelectedCities([currentCity.id]);
+  };
+
+  const handleSelectAllCities = () => {
+    if (availableCities.length === 0) return;
+    setCitiesTouched(true);
+    setErrors(prev => ({ ...prev, cities: null }));
+    setSelectedCities(availableCities.map(city => city.id));
+  };
+
+  const handleClearCities = () => {
+    setCitiesTouched(true);
+    setSelectedCities([]);
+  };
+
+  const getCityNamesString = useCallback((cityIds) => {
+    if (!availableCities.length || !cityIds?.length) return 'selected cities';
+    const nameMap = new Map(availableCities.map(city => [city.id, city.name]));
+    return cityIds.map(id => nameMap.get(id) || id).join(', ');
+  }, [availableCities]);
 
   const handleForceTranslateContent = async () => {
     const gujaratiContent = formData.content.gu.trim();
@@ -608,15 +678,24 @@ const CreatePost = () => {
     if (!formData.category) newErrors.category = 'Category is required';
     if (!formData.excerpt.gu.trim()) newErrors.excerpt = 'Gujarati excerpt is required | ગુજરાતી સારાંશ જરૂરી છે';
     
-    if (selectedCities.length === 0) {
-      newErrors.cities = 'Please select at least one city | ઓછામાં ઓછું એક શહેર પસંદ કરો';
+    if (validSelectedCities.length === 0) {
+      newErrors.cities = CITY_VALIDATION_MESSAGE;
     }
 
+    setCitiesTouched(true);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSaveDraft = async () => {
+    const targetCities = validSelectedCities;
+    if (targetCities.length === 0) {
+      setCitiesTouched(true);
+      setErrors(prev => ({ ...prev, cities: CITY_VALIDATION_MESSAGE }));
+      alert('Please select at least one city before saving a draft.');
+      return;
+    }
+
     setLoading(true);
     try {
       const postData = {
@@ -629,12 +708,12 @@ const CreatePost = () => {
       };
 
       // Save to all selected cities
-      for (const cityId of selectedCities) {
+      for (const cityId of targetCities) {
         const postsRef = ref(db, `cities/${cityId}/posts`);
         await push(postsRef, postData);
       }
 
-      const cityNames = cities && cities.length > 0 ? cities.filter(c => selectedCities.includes(c.id)).map(c => c.name).join(', ') : 'selected cities';
+      const cityNames = getCityNamesString(targetCities);
       alert(`Draft saved successfully for: ${cityNames}!`);
       // Reset form
       setFormData({
@@ -659,6 +738,14 @@ const CreatePost = () => {
 
     setLoading(true);
     try {
+      const targetCities = validSelectedCities;
+      if (targetCities.length === 0) {
+        setCitiesTouched(true);
+        setErrors(prev => ({ ...prev, cities: CITY_VALIDATION_MESSAGE }));
+        alert('Please select at least one city before publishing.');
+        return;
+      }
+
       const postData = {
         ...formData,
         status: 'published',
@@ -673,12 +760,12 @@ const CreatePost = () => {
       };
 
       // Publish to all selected cities
-      for (const cityId of selectedCities) {
+      for (const cityId of targetCities) {
         const postsRef = ref(db, `cities/${cityId}/posts`);
         await push(postsRef, postData);
       }
 
-      const cityNames = cities && cities.length > 0 ? cities.filter(c => selectedCities.includes(c.id)).map(c => c.name).join(', ') : 'selected cities';
+      const cityNames = getCityNamesString(targetCities);
       alert(`Post published successfully for: ${cityNames}!`);
       // Reset form
       setFormData({
@@ -713,34 +800,99 @@ const CreatePost = () => {
             <div className="p-6 space-y-6">
               {/* City Multi-Selector */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  <MapPin className="inline w-4 h-4 mr-1" />
-                  Select Cities (Multi-select)
-                </label>
-                <div className="space-y-2 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                  {cities && cities.length > 0 ? cities.map(city => (
-                    <label key={city.id} className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedCities.includes(city.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedCities([...selectedCities, city.id]);
-                          } else {
-                            setSelectedCities(selectedCities.filter(id => id !== city.id));
-                          }
-                        }}
-                        className="w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">{city.name}</span>
-                    </label>
-                  )) : (
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <MapPin className="inline w-4 h-4 mr-1" />
+                    Target Cities
+                  </label>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {validSelectedCities.length}/{availableCities.length || 0} selected
+                  </span>
+                </div>
+                <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  {availableCities.length > 0 ? (
+                    <>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={handleSelectCurrentCity}
+                          disabled={!currentCity?.id}
+                          className={`px-3 py-1.5 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${
+                            currentCity?.id && validSelectedCities.length === 1 && validSelectedCities[0] === currentCity.id
+                              ? 'bg-blue-600 text-white border-blue-600 focus:ring-blue-500'
+                              : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:border-blue-500 disabled:opacity-60 disabled:cursor-not-allowed'
+                          }`}
+                        >
+                          Use {currentCity?.name || 'current city'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSelectAllCities}
+                          disabled={availableCities.length === 0 || availableCities.length === validSelectedCities.length}
+                          className="px-3 py-1.5 rounded-full border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 hover:border-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          Select all ({availableCities.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClearCities}
+                          disabled={validSelectedCities.length === 0}
+                          className="px-3 py-1.5 rounded-full border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 hover:border-red-400 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          Clear selection
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {displayedCities.map(city => {
+                          const isSelected = validSelectedCities.includes(city.id);
+                          return (
+                            <button
+                              key={city.id}
+                              type="button"
+                              onClick={() => handleCityToggle(city.id)}
+                              className={`flex items-center px-3 py-1.5 text-sm rounded-full border transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white border-blue-600 focus:ring-blue-500 shadow-sm'
+                                  : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:border-blue-500'
+                              }`}
+                            >
+                              <Check className={`w-3.5 h-3.5 mr-1.5 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+                              <span>{city.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {availableCities.length > MAX_VISIBLE_CITY_PILLS && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllCities(prev => !prev)}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          {showAllCities ? 'Show fewer cities' : `Show all ${availableCities.length} cities`}
+                        </button>
+                      )}
+
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        {selectedCityNames.length > 0 ? (
+                          <span>Selected: {selectedCityNames.join(', ')}</span>
+                        ) : (
+                          <span>No cities selected yet.</span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
                     <p className="text-sm text-gray-500 dark:text-gray-400">Loading cities...</p>
                   )}
+
+                  {citySelectionError && (
+                    <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>{citySelectionError}</span>
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Selected: {selectedCities.length > 0 && cities && cities.length > 0 ? cities.filter(c => selectedCities.includes(c.id)).map(c => c.name).join(', ') : 'None'}
-                </p>
               </div>
 
               {/* Multiple Media Upload */}
@@ -803,7 +955,7 @@ const CreatePost = () => {
                                 src={media.previewUrl || media.url}
                                 className="w-full h-32 object-cover"
                                 controls={false}
-                                onError={(e) => {
+                                onError={() => {
                                   console.log('Video failed to load:', media.previewUrl || media.url);
                                 }}
                               />

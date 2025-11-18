@@ -284,14 +284,46 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
 
     setLoading(true);
     try {
+      // Build proper mediaContent structure from media array
+      let mediaContent = null;
+      if (formData.media && formData.media.length > 0) {
+        const mediaType = formData.media.length > 1 ? 'carousel' : 
+                         (formData.media[0].type === 'video' ? 'video' : 'single_image');
+        
+        mediaContent = {
+          type: mediaType,
+          items: formData.media.map(item => ({
+            url: item.url,
+            type: item.type,
+            name: item.name,
+            size: item.size,
+            path: item.path
+          })),
+          settings: {
+            autoplay: false,
+            showCaptions: true,
+            duration: 15,
+            infinite: false,
+            loop: false,
+            aspectRatio: '16:9'
+          }
+        };
+      }
+
       const updateData = {
         ...formData,
+        mediaContent, // Add or update structured mediaContent
         updatedAt: new Date().toISOString(),
         updatedBy: user?.uid || 'admin',
         updatedByName: user?.displayName || user?.email || 'Admin'
       };
 
-  const postRef = ref(db, `${basePath}/${postId}`);
+      // Clear old image field if new media exists
+      if (updateData.media && updateData.media.length > 0) {
+        updateData.image = null; // Remove old single image field
+      }
+
+      const postRef = ref(db, `${basePath}/${postId}`);
       await update(postRef, updateData);
 
       alert('Post updated successfully!');

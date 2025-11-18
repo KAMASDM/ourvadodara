@@ -177,8 +177,8 @@ const EnhancedReelsPage = ({ onBack, initialReelId = null }) => {
       }
     };
 
-    container.addEventListener('touchstart', handleTouchStart, { passive: true });
-    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+    container.addEventListener('touchstart', handleTouchStart);
+    container.addEventListener('touchend', handleTouchEnd);
 
     return () => {
       container.removeEventListener('touchstart', handleTouchStart);
@@ -437,7 +437,8 @@ const ReelCard = ({
         ref={videoRef}
         src={videoUrl}
         poster={thumbnailUrl}
-        className="w-full h-full object-cover"
+        className="w-full object-contain"
+        style={{ height: 'calc(100vh - 120px)', maxHeight: 'calc(100vh - 120px)' }}
         muted={isMuted}
         loop
         playsInline
@@ -471,7 +472,7 @@ const ReelCard = ({
               className="w-full h-full rounded-full object-contain"
             />
           </div>
-          <span className="font-semibold">{reel.author?.name || brandName}</span>
+          <span className="font-semibold">{brandName}</span>
           {/* <button className="px-4 py-1 bg-primary-red rounded-full text-sm font-medium">
             Follow
           </button> */}

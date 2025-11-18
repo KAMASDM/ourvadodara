@@ -45,6 +45,7 @@ const InstagramCarousel = ({
   const [touchEnd, setTouchEnd] = useState(0);
   const carouselRef = useRef(null);
   const autoPlayRef = useRef(null);
+  const isExternalUpdate = useRef(false);
 
   // Minimum swipe distance to trigger slide change
   const minSwipeDistance = 50;
@@ -91,24 +92,26 @@ const InstagramCarousel = ({
     }
 
     const clampedIndex = Math.max(0, Math.min(externalCurrentIndex, imageCount - 1));
-    if (clampedIndex !== currentIndex) {
-      setCurrentIndex(clampedIndex);
-    }
-  }, [externalCurrentIndex, imageCount, currentIndex]);
+    isExternalUpdate.current = true;
+    setCurrentIndex(clampedIndex);
+  }, [externalCurrentIndex, imageCount]);
 
   // Handle autoplay
   useEffect(() => {
-    if (autoPlay && imageCount > 1) {
-      autoPlayRef.current = setInterval(() => {
-        goToNext();
-      }, autoPlayInterval);
+    if (!autoPlay || imageCount <= 1) return;
 
-      return () => {
-        if (autoPlayRef.current) {
-          clearInterval(autoPlayRef.current);
-        }
-      };
-    }
+    autoPlayRef.current = setInterval(() => {
+      setCurrentIndex(prev => {
+        const nextIndex = prev >= imageCount - 1 ? 0 : prev + 1;
+        return nextIndex;
+      });
+    }, autoPlayInterval);
+
+    return () => {
+      if (autoPlayRef.current) {
+        clearInterval(autoPlayRef.current);
+      }
+    };
   }, [autoPlay, autoPlayInterval, imageCount]);
 
   // Clear autoplay on manual interaction
@@ -124,10 +127,7 @@ const InstagramCarousel = ({
     
     setIsTransitioning(true);
     setCurrentIndex(index);
-    
-    if (onImageChange) {
-      onImageChange(index);
-    }
+    // onImageChange is now called via useEffect when currentIndex changes
     
     setTimeout(() => {
       setIsTransitioning(false);
@@ -215,13 +215,32 @@ const InstagramCarousel = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, imageCount]);
 
+  // Store onImageChange in a ref to avoid triggering effect when callback reference changes
+  const onImageChangeRef = useRef(onImageChange);
   useEffect(() => {
-    if (imageCount === 0 && currentIndex !== 0) {
-      setCurrentIndex(0);
-    } else if (imageCount > 0 && currentIndex > imageCount - 1) {
+    onImageChangeRef.current = onImageChange;
+  }, [onImageChange]);
+
+  // Notify parent of index changes - in useEffect to avoid setState during render
+  useEffect(() => {
+    // Only notify parent if this was an internal change (not from externalCurrentIndex prop)
+    if (!isExternalUpdate.current && onImageChangeRef.current) {
+      onImageChangeRef.current(currentIndex);
+    }
+    // Reset the flag after handling
+    isExternalUpdate.current = false;
+  }, [currentIndex]);
+
+  // Reset index if it's out of bounds - wrapped in useEffect to avoid setState during render
+  useEffect(() => {
+    if (imageCount === 0) {
+      if (currentIndex !== 0) {
+        setCurrentIndex(0);
+      }
+    } else if (currentIndex >= imageCount) {
       setCurrentIndex(imageCount - 1);
     }
-  }, [imageCount, currentIndex]);
+  }, [imageCount]); // Only depend on imageCount, not currentIndex to avoid loops
 
   if (imageCount === 0) {
     return (

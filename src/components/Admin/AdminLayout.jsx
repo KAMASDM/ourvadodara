@@ -25,7 +25,6 @@ import {
   Film,
   Newspaper
 } from 'lucide-react';
-import Dashboard from './Dashboard';
 import EnhancedDashboard from './EnhancedDashboard';
 import UserManager from './UserManager';
 import Analytics from './Analytics';
@@ -38,7 +37,6 @@ import RealTimeContent from './RealTimeContent';
 import MediaPostCreator from './MediaPostCreator';
 import UnifiedPostCreator from './UnifiedPostCreator';
 import AuthenticationManager from './AuthenticationManager';
-import CreatePost from './CreatePost';
 import CityManagement from './CityManagement';
 import RoundupManagement from './RoundupManagement';
 import MediaContentManagement from './MediaContentManagement';
@@ -135,7 +133,7 @@ const AdminLayout = () => {
       case 'settings':
         return <AdminSettings />;
       default:
-        return <Dashboard />;
+        return <EnhancedDashboard />;
     }
   };
 

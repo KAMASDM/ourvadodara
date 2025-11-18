@@ -1,7 +1,7 @@
 // =============================================
 // Updated src/components/Feed/PostCard.jsx (Make clickable)
 // =============================================
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { Heart, MessageCircle, Share, Bookmark, MoreHorizontal } from 'lucide-react';
@@ -16,6 +16,101 @@ const PostCard = ({ post, onPostClick }) => {
   const [isLiked, setIsLiked] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
+
+  const normalizeMediaCollection = (collection) => {
+    if (!collection) return [];
+    if (Array.isArray(collection)) {
+      return collection.filter(Boolean);
+    }
+    if (typeof collection === 'object') {
+      return Object.entries(collection)
+        .sort((entryA, entryB) => {
+          const [, valueA] = entryA;
+          const [, valueB] = entryB;
+          const orderA = typeof valueA?.order === 'number' ? valueA.order : parseInt(entryA[0], 10) || 0;
+          const orderB = typeof valueB?.order === 'number' ? valueB.order : parseInt(entryB[0], 10) || 0;
+          return orderA - orderB;
+        })
+        .map(([, value]) => value)
+        .filter(Boolean);
+    }
+    return [];
+  };
+
+  const getSafeMediaUrl = (mediaItem) => {
+    if (!mediaItem || typeof mediaItem !== 'object') return '';
+    const candidates = [
+      mediaItem.url,
+      mediaItem.downloadURL,
+      mediaItem.downloadUrl,
+      mediaItem.fileUrl,
+      mediaItem.fileURL,
+      mediaItem.src,
+      mediaItem.secureUrl,
+      mediaItem.mediaUrl,
+      mediaItem.previewUrl,
+      mediaItem.thumbnailUrl
+    ];
+    return candidates.find(Boolean) || '';
+  };
+
+  const getUrlFromMediaItem = (item) => {
+    if (!item) return '';
+    if (typeof item === 'string') return item;
+    return getSafeMediaUrl(item);
+  };
+
+  const isVideoCandidate = (item, urlOverride) => {
+    if (!item && !urlOverride) return false;
+    const url = urlOverride || getUrlFromMediaItem(item);
+    const typeLabel = typeof item === 'object' ? (item?.type || '').toLowerCase() : '';
+    const mimeType = typeof item === 'object' ? (item?.mimeType || '').toLowerCase() : '';
+    const isVideoByMime = mimeType.startsWith('video/');
+    const isVideoByType = typeLabel.includes('video') || typeLabel.includes('reel');
+    const isVideoByExtension = /(\.mp4|\.webm|\.mov|\.m4v)$/i.test(url || '');
+    return isVideoByMime || isVideoByType || isVideoByExtension;
+  };
+
+  const legacyMediaItems = normalizeMediaCollection(post.media);
+  const structuredMediaItems = normalizeMediaCollection(post.mediaContent?.items);
+  const mergedMediaItems = [...legacyMediaItems, ...structuredMediaItems];
+
+  const preferredImageItem = mergedMediaItems.find((item) => {
+    const url = getUrlFromMediaItem(item);
+    if (!url) return false;
+    return !isVideoCandidate(item, url);
+  });
+
+  const selectedMediaItem = preferredImageItem || mergedMediaItems.find((item) => getUrlFromMediaItem(item)) || null;
+  
+  // Comprehensive fallback chain for media URL  
+  let fallbackImageUrl = post.image || post.imageUrl || post.thumbnailUrl || post.coverImage || post.featuredImage;
+  
+  // If media is an array and has items, try to get URL from first item
+  if (!fallbackImageUrl && Array.isArray(post.media) && post.media.length > 0) {
+    const firstMedia = post.media[0];
+    if (typeof firstMedia === 'string') {
+      fallbackImageUrl = firstMedia;
+    } else if (typeof firstMedia === 'object' && firstMedia) {
+      fallbackImageUrl = getSafeMediaUrl(firstMedia);
+    }
+  }
+  
+  // If mediaContent exists, try to get from there
+  if (!fallbackImageUrl && post.mediaContent?.items && post.mediaContent.items.length > 0) {
+    const firstItem = post.mediaContent.items[0];
+    if (typeof firstItem === 'object' && firstItem) {
+      fallbackImageUrl = getSafeMediaUrl(firstItem);
+    }
+  }
+  
+  const mediaUrl = getUrlFromMediaItem(selectedMediaItem) || fallbackImageUrl || '';
+  const isVideoMedia = selectedMediaItem ? isVideoCandidate(selectedMediaItem, mediaUrl) : /(\.mp4|\.webm|\.mov|\.m4v)$/i.test(mediaUrl || '');
+
+  useEffect(() => {
+    setMediaError(false);
+  }, [mediaUrl]);
 
   const handleLike = async (e) => {
     e.stopPropagation(); // Prevent triggering post click
@@ -94,48 +189,69 @@ const PostCard = ({ post, onPostClick }) => {
     }
   };
 
+  // Strip HTML tags from content
+  const stripHtmlTags = (html) => {
+    if (!html) return '';
+    const tmp = document.createElement('DIV');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
+  };
+
   // Handle both string content and multi-language object content
   const getContentForLanguage = () => {
-    if (!post.content) return '';
-    
-    // If content is a string, return it directly
-    if (typeof post.content === 'string') {
-      return post.content;
+    try {
+      if (!post.content) return '';
+      
+      let content = '';
+      // If content is a string, return it directly
+      if (typeof post.content === 'string') {
+        content = post.content;
+      }
+      
+      // If content is an object, try to get the current language or fallback
+      else if (typeof post.content === 'object') {
+        content = post.content[currentLanguage] || 
+               post.content['gu'] || 
+               post.content['en'] || 
+               Object.values(post.content)[0] || '';
+      }
+      
+      // Strip HTML tags from rich text editor content
+      return stripHtmlTags(content);
+    } catch (error) {
+      console.error('Error in getContentForLanguage:', error, post.id);
+      return '';
     }
-    
-    // If content is an object, try to get the current language or fallback
-    if (typeof post.content === 'object') {
-      return post.content[currentLanguage] || 
-             post.content['gu'] || 
-             post.content['en'] || 
-             Object.values(post.content)[0] || '';
-    }
-    
-    return '';
   };
 
   // Handle both string title and multi-language object title
   const getTitleForLanguage = () => {
-    if (!post.title) return '';
-    
-    // If title is a string, return it directly
-    if (typeof post.title === 'string') {
-      return post.title;
+    try {
+      if (!post.title) return '';
+      
+      // If title is a string, return it directly
+      if (typeof post.title === 'string') {
+        return post.title;
+      }
+      
+      // If title is an object, try to get the current language or fallback
+      if (typeof post.title === 'object') {
+        return post.title[currentLanguage] || 
+               post.title['gu'] || 
+               post.title['en'] || 
+               Object.values(post.title)[0] || '';
+      }
+      
+      return '';
+    } catch (error) {
+      console.error('Error in getTitleForLanguage:', error, post.id);
+      return '';
     }
-    
-    // If title is an object, try to get the current language or fallback
-    if (typeof post.title === 'object') {
-      return post.title[currentLanguage] || 
-             post.title['gu'] || 
-             post.title['en'] || 
-             Object.values(post.title)[0] || '';
-    }
-    
-    return '';
   };
 
   const contentText = getContentForLanguage();
   const titleText = getTitleForLanguage();
+  // Strip HTML from preview as well
   const contentPreview = contentText.substring(0, 150);
   const needsReadMore = contentText.length > 150;
 
@@ -153,7 +269,7 @@ const PostCard = ({ post, onPostClick }) => {
           </div>
           <div>
             <p className="font-semibold text-warmBrown-900 dark:text-text-light text-sm">
-              {post.author}
+              {typeof post.author === 'object' ? (post.author?.name || post.author?.email) : (post.author || post.authorName || 'Our Vadodara')}
             </p>
             <p className="text-warmBrown-600 dark:text-gray-400 text-xs">
               {formatTime(post.publishedAt)}
@@ -202,54 +318,44 @@ const PostCard = ({ post, onPostClick }) => {
         </div>
 
         {/* Media - Images and Videos */}
-        {post.media && post.media.length > 0 && (
+        {mediaUrl && !mediaError && (
           <div className="pb-2">
-            {post.media.filter(media => media.type === 'image').slice(0, 1).map((media, index) => (
-              <div key={index} className="mb-2">
-                <img
-                  src={media.url}
-                  alt={titleText}
-                  className="w-full h-auto object-cover"
-                  onLoad={() => console.log('Image loaded successfully:', media.url)}
-                  onError={(e) => {
-                    console.error('Image failed to load:', media.url);
-                    e.target.style.display = 'none';
-                  }}
-                />
-              </div>
-            ))}
-            {post.media.filter(media => media.type === 'video').slice(0, 1).map((media, index) => (
-              <div key={index} className="mb-2">
+            <div className="mb-2">
+              {isVideoMedia ? (
                 <video
-                  src={media.url}
+                  src={mediaUrl}
+                  poster={selectedMediaItem?.thumbnailUrl || ''}
+                  preload="metadata"
                   controls
-                  className="w-full h-auto object-cover"
-                  onLoadedData={() => console.log('Video loaded successfully:', media.url)}
-                  onError={(e) => {
-                    console.error('Video failed to load:', media.url);
-                    e.target.style.display = 'none';
+                  className="w-full h-auto object-cover bg-gray-900"
+                  onError={() => {
+                    console.error('Video failed to load:', mediaUrl);
+                    setMediaError(true);
                   }}
                 >
                   Your browser does not support the video tag.
                 </video>
-              </div>
-            ))}
+              ) : (
+                <img
+                  src={mediaUrl}
+                  alt={titleText}
+                  className="w-full h-auto object-cover"
+                  loading="lazy"
+                  onError={() => {
+                    console.error('PostCard image failed:', mediaUrl);
+                    setMediaError(true);
+                  }}
+                />
+              )}
+            </div>
           </div>
         )}
-        
-        {/* Legacy image support for backward compatibility */}
-        {!post.media && post.image && (
-          <div className="pb-2">
-            <img
-              src={post.image}
-              alt={titleText}
-              className="w-full h-auto object-cover"
-              onLoad={() => console.log('Legacy image loaded successfully:', post.image)}
-              onError={(e) => {
-                console.error('Legacy image failed to load:', post.image);
-                e.target.style.display = 'none';
-              }}
-            />
+
+        {mediaError && (
+          <div className="px-4 pb-2">
+            <div className="w-full h-48 rounded-xl bg-gray-100 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
+              {t('imageUnavailable', 'Image preview unavailable')}
+            </div>
           </div>
         )}
       </div>

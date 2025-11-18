@@ -4,7 +4,7 @@
 // =============================================
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Home, Calendar, User, AlertTriangle, LogIn } from 'lucide-react';
+import { Home, Newspaper, User, AlertTriangle, LogIn } from 'lucide-react';
 import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
@@ -24,7 +24,7 @@ const Navigation = ({ activeTab, setActiveTab, hasActiveSOS = false }) => {
 
   const leftNavItems = [
     { id: 'home', icon: Home, label: t('home') },
-    { id: 'events', icon: Calendar, label: 'Events' },
+    { id: 'roundup', icon: Newspaper, label: 'Roundup' },
   ];
 
   const rightNavItems = [

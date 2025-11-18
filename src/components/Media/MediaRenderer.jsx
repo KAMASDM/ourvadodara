@@ -217,7 +217,7 @@ const MediaRenderer = ({
       video.addEventListener('pause', handlePause);
       video.addEventListener('ended', handleEnded);
 
-      if (autoplay && type === POST_TYPES.REEL) {
+      if (autoplay && (type === POST_TYPES.REEL || type === POST_TYPES.STORY)) {
         video.play().catch(() => {
           // Autoplay failed - this is expected browser behavior
           // User interaction is required to start playback
@@ -408,21 +408,22 @@ const MediaRenderer = ({
         )}
 
         {/* Story Content */}
-        <div className="relative w-full h-full">
-          {currentItem.type === 'image' ? (
-            <img
-              src={currentItem.url}
-              alt={currentItem.caption?.en || ''}
-              className="w-full h-full object-cover"
-            />
-          ) : (
+        <div className="relative w-full" style={{ aspectRatio: '9/16', maxHeight: '100vh' }}>
+          {isVideo ? (
             <video
               ref={videoRef}
-              src={currentItem.url}
-              className="w-full h-full object-cover"
+              src={currentItemSource}
+              className="w-full h-full object-contain bg-black"
               muted={isMuted}
               loop={settings.loop}
               playsInline
+              onClick={togglePlayPause}
+            />
+          ) : (
+            <img
+              src={currentItemSource}
+              alt={currentItem.caption?.en || ''}
+              className="w-full h-full object-contain bg-black"
             />
           )}
 
@@ -464,7 +465,7 @@ const MediaRenderer = ({
           )}
 
           {/* Video Controls */}
-          {currentItem.type === 'video' && showControls && (
+          {isVideo && showControls && (
             <>
               {/* Progress Bar for Video Stories */}
               <div className="absolute bottom-16 left-4 right-4">
@@ -523,32 +524,30 @@ const MediaRenderer = ({
   // Reel Renderer
   if (type === POST_TYPES.REEL) {
     return (
-      <div className={`relative bg-black rounded-lg overflow-hidden ${className}`}>
+      <div className={`relative bg-black rounded-lg overflow-hidden ${className}`} style={{ aspectRatio: '9/16', maxHeight: '100vh' }}>
         {/* Video */}
         <video
           ref={videoRef}
-          src={currentItem.url}
-          className="w-full h-full object-cover"
+          src={currentItemSource}
+          className="w-full h-full object-contain"
           muted={isMuted}
           loop
           playsInline
           poster={currentItem.thumbnailUrl}
+          onClick={togglePlayPause}
         />
 
         {/* Reel Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60 pointer-events-none" />
 
-        {/* Play/Pause Overlay */}
-        <button
-          onClick={togglePlayPause}
-          className="absolute inset-0 flex items-center justify-center bg-transparent"
-        >
-          {!isPlaying && (
-            <div className="w-16 h-16 flex items-center justify-center bg-white bg-opacity-20 rounded-full">
-              <Play className="w-8 h-8 text-white ml-1" />
+        {/* Play/Pause Button - Centered */}
+        {!isPlaying && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-20 h-20 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm rounded-full border-2 border-white">
+              <Play className="w-10 h-10 text-white ml-1" fill="white" />
             </div>
-          )}
-        </button>
+          </div>
+        )}
 
         {/* Progress Bar */}
         <div className="absolute bottom-20 left-4 right-4">
@@ -596,7 +595,7 @@ const MediaRenderer = ({
                   className="w-full h-full rounded-full object-contain"
                 />
               </div>
-              <span className="font-semibold">{brandName}</span>
+              <span className="font-semibold">{post.author?.name || brandName}</span>
             </div>
             
             {post.title?.en && (
@@ -729,6 +728,8 @@ const MediaRenderer = ({
           aspectRatio={normalizeAspectRatio(settings.aspectRatio, '1/1')}
           showDots={showCarouselDots && settings.showDots !== false}
           enableSwipe={true}
+          autoPlay={post.carouselSettings?.autoPlay || settings.autoPlay || false}
+          autoPlayInterval={post.carouselSettings?.interval || settings.interval || 3000}
           externalCurrentIndex={currentIndex}
           viewCount={post.analytics?.views ?? post.views ?? null}
           onImageChange={(index) => {

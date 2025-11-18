@@ -69,6 +69,29 @@ const resources = {
         resetPassword: 'Reset Password'
       },
       
+      // Categories
+      categories: {
+        politics: 'Politics',
+        sports: 'Sports',
+        entertainment: 'Entertainment',
+        business: 'Business',
+        technology: 'Technology',
+        local: 'Local',
+        weather: 'Weather',
+        india: 'India',
+        world: 'World',
+        science: 'Science',
+        space: 'Space',
+        health: 'Health'
+      },
+      
+      // Search
+      search: {
+        all_categories: 'All Categories',
+        category: 'Category',
+        tags: 'Tags'
+      },
+      
       // Time
       justNow: 'Just now',
       minutesAgo: '{{count}} minutes ago',
@@ -110,6 +133,29 @@ const resources = {
       edit: 'संपादित करें',
       delete: 'हटाएं',
       
+      // Categories
+      categories: {
+        politics: 'राजनीति',
+        sports: 'खेल',
+        entertainment: 'मनोरंजन',
+        business: 'व्यापार',
+        technology: 'तकनीक',
+        local: 'स्थानीय',
+        weather: 'मौसम',
+        india: 'भारत',
+        world: 'विश्व',
+        science: 'विज्ञान',
+        space: 'अंतरिक्ष',
+        health: 'स्वास्थ्य'
+      },
+      
+      // Search
+      search: {
+        all_categories: 'सभी श्रेणियां',
+        category: 'श्रेणी',
+        tags: 'टैग'
+      },
+      
       // Time
       justNow: 'अभी',
       minutesAgo: '{{count}} मिनट पहले',
@@ -150,6 +196,29 @@ const resources = {
       cancel: 'રદ કરો',
       edit: 'એડિટ કરો',
       delete: 'ડિલીટ કરો',
+      
+      // Categories
+      categories: {
+        politics: 'રાજકારણ',
+        sports: 'રમતગમત',
+        entertainment: 'મનોરંજન',
+        business: 'વ્યવસાય',
+        technology: 'ટેકનોલોજી',
+        local: 'સ્થાનિક',
+        weather: 'હવામાન',
+        india: 'ભારત',
+        world: 'વિશ્વ',
+        science: 'વિજ્ઞાન',
+        space: 'અવકાશ',
+        health: 'આરોગ્ય'
+      },
+      
+      // Search
+      search: {
+        all_categories: 'બધી શ્રેણીઓ',
+        category: 'શ્રેણી',
+        tags: 'ટેગ્સ'
+      },
       
       // Time
       justNow: 'હમણાં',

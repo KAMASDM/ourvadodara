@@ -9,6 +9,7 @@ import { LanguageProvider } from './context/Language/LanguageContext.jsx';
 import { CityProvider } from './context/CityContext.jsx';
 import { ToastProvider } from './components/Common/Toast.jsx';
 import ErrorBoundary from './components/Common/ErrorBoundary.jsx';
+import ResponsiveLayout from './components/Layout/ResponsiveLayout.jsx';
 import OfflineIndicator from './components/Common/OfflineIndicator.jsx';
 import NotificationCenter from './components/Notifications/NotificationCenter.jsx';
 import SplashScreen from './components/Common/SplashScreen.jsx';
@@ -27,6 +28,7 @@ import EnhancedLogin from './components/Auth/EnhancedLogin.jsx';
 import GuestModePrompt from './components/Auth/GuestModePrompt.jsx';
 import FirebaseSetupGuide from './components/Auth/FirebaseSetupGuide.jsx';
 import ReelsPage from './pages/Reels/ReelsPage.jsx';
+import RoundupPage from './pages/Roundup/RoundupPage.jsx';
 import EventsCalendar from './components/Events/EventsCalendar.jsx';
 import FirebaseSetup from './components/Admin/FirebaseSetup.jsx';
 import AdminUpgrade from './components/Admin/AdminUpgrade.jsx';
@@ -48,6 +50,7 @@ function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
   const [showGuestPrompt, setShowGuestPrompt] = useState(false);
   const [showFirebaseSetup, setShowFirebaseSetup] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const { hasActiveSOS } = useBloodSOS();
   
   // Use the enhanced auth context
@@ -93,9 +96,9 @@ function AppContent() {
       return;
     }
 
-    if (path === '/events') {
-      setCurrentView({ type: 'events', data: null });
-      setActiveTab('events');
+    if (path === '/roundup') {
+      setCurrentView({ type: 'roundup', data: null });
+      setActiveTab('roundup');
       return;
     }
 
@@ -171,6 +174,14 @@ function AppContent() {
     // Track page views
     analytics.page(activeTab);
   }, [activeTab]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // --- LAYOUT FIX START ---
   // Define which views should take up the full screen width
@@ -223,6 +234,62 @@ function AppContent() {
     setActiveTab(tab);
     setCurrentView({ type: tab, data: null });
   };
+
+  // Navigation handler for desktop layout
+  const handleNavigation = (viewData) => {
+    // Handle object format { type: 'view', data: {...} }
+    if (typeof viewData === 'object' && viewData.type) {
+      const { type, data } = viewData;
+      
+      // Check authentication for protected views
+      if (['profile', 'saved', 'admin'].includes(type) && !user) {
+        setShowLogin(true);
+        return;
+      }
+      
+      setCurrentView({ type, data });
+      
+      // Set active tab based on view type
+      if (type === 'home' || type === 'category' || type === 'trending' || type === 'headlines') {
+        setActiveTab('home');
+      } else if (type === 'reels') {
+        setActiveTab('reels');
+      } else if (type === 'profile') {
+        setActiveTab('profile');
+      }
+      
+      return;
+    }
+    
+    // Legacy path-based navigation (kept for backward compatibility)
+    if (viewData === '/') {
+      handleBackToHome();
+    } else if (viewData.startsWith('/category/')) {
+      const category = viewData.replace('/category/', '');
+      setCurrentView({ type: 'category', data: { category } });
+      setActiveTab('home');
+    } else if (viewData === '/trending') {
+      setCurrentView({ type: 'trending', data: null });
+      setActiveTab('home');
+    } else if (viewData === '/reels') {
+      setCurrentView({ type: 'reels', data: null });
+      setActiveTab('reels');
+    } else if (viewData === '/saved') {
+      if (!user) {
+        setShowLogin(true);
+        return;
+      }
+      setCurrentView({ type: 'saved', data: null });
+      setActiveTab('home');
+    } else if (viewData === '/profile') {
+      if (!user) {
+        setShowLogin(true);
+        return;
+      }
+      setCurrentView({ type: 'profile', data: null });
+      setActiveTab('profile');
+    }
+  };
   
   const handleProfileClick = () => {
     if (!user) {
@@ -254,8 +321,8 @@ function AppContent() {
         );
       case 'home':
         return <HomePage onPostClick={handlePostClick} onShowReels={handleShowReels} />;
-      case 'events':
-        return <EventsCalendar />;
+      case 'roundup':
+        return <RoundupPage onBack={handleBackToHome} />;
       case 'profile':
         return <ProfilePage />;
       case 'admin':
@@ -282,40 +349,41 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-light dark:bg-surface-dark">
-      {/* Splash Screen */}
-      {showSplash && (
-        <SplashScreen onComplete={handleSplashComplete} />
-      )}
-      
-      {!showSplash && (
-        <>
-          <OfflineIndicator />
-          
-          {currentView.type !== 'news-detail' && !isFullWidthView && (
-            <Header 
-              onNotificationClick={() => setShowNotifications(true)}
-              onLoginClick={() => setShowLogin(true)}
-              onProfileClick={handleProfileClick}
-            />
-          )}
+    <ResponsiveLayout currentView={currentView} onNavigate={handleNavigation} isDesktop={isDesktop}>
+      <div className="min-h-screen bg-surface-light dark:bg-surface-dark">
+        {/* Splash Screen */}
+        {showSplash && (
+          <SplashScreen onComplete={handleSplashComplete} />
+        )}
+        
+        {!showSplash && (
+          <>
+            <OfflineIndicator />
+            
+            {!isDesktop && currentView.type !== 'news-detail' && !isFullWidthView && (
+              <Header 
+                onNotificationClick={() => setShowNotifications(true)}
+                onLoginClick={() => setShowLogin(true)}
+                onProfileClick={handleProfileClick}
+              />
+            )}
 
-          {currentView.type !== 'news-detail' && (
-            <BloodSOSBanner />
-          )}
-          
-          {/* Apply the dynamic container class to the main element */}
-          <main className={mainContainerClass}>
-            {renderContent()}
-          </main>
-          
-          {currentView.type !== 'news-detail' && !isFullWidthView && (
-            <Navigation 
-              activeTab={activeTab} 
-              setActiveTab={handleTabChange}
-              hasActiveSOS={hasActiveSOS}
-            />
-          )}
+            {!isDesktop && currentView.type !== 'news-detail' && (
+              <BloodSOSBanner />
+            )}
+            
+            {/* Apply the dynamic container class to the main element */}
+            <main className={mainContainerClass}>
+              {renderContent()}
+            </main>
+            
+            {!isDesktop && currentView.type !== 'news-detail' && !isFullWidthView && (
+              <Navigation 
+                activeTab={activeTab} 
+                setActiveTab={handleTabChange}
+                hasActiveSOS={hasActiveSOS}
+              />
+            )}
 
           {/* PWA Install Prompt */}
           <InstallPrompt />
@@ -341,7 +409,8 @@ function AppContent() {
           />
         </>
       )}
-    </div>
+      </div>
+    </ResponsiveLayout>
   );
 }
 

@@ -3,12 +3,13 @@
 // Single Unified Interface for All Post Types
 // Regular News Posts + Media Posts (Reels, Stories, Carousels)
 // =============================================
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useCity } from '../../context/CityContext';
 import { ref, push, set } from 'firebase/database';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase-config';
+import RichTextEditor from '../Common/RichTextEditor';
 import { 
   Save, 
   Eye, 
@@ -34,6 +35,7 @@ import {
   ArrowDown,
   MapPin,
   Languages,
+  Check,
   RefreshCw,
   Tag,
   Calendar,
@@ -55,9 +57,12 @@ import {
 } from '../../utils/mediaSchema';
 import axios from 'axios';
 
+const MAX_VISIBLE_CITY_PILLS = 12;
+const CITY_VALIDATION_MESSAGE = 'Please select at least one city | ઓછામાં ઓછું એક શહેર પસંદ કરો';
+
 const UnifiedPostCreator = () => {
   const { user } = useAuth();
-  const { cities } = useCity();
+  const { cities, currentCity } = useCity();
   
   // Post Type Selection
   const [postType, setPostType] = useState(POST_TYPES.STANDARD); // STANDARD, STORY, REEL, CAROUSEL
@@ -70,13 +75,79 @@ const UnifiedPostCreator = () => {
   
   // Multi-city selection
   const [selectedCities, setSelectedCities] = useState([]);
+  const [citiesTouched, setCitiesTouched] = useState(false);
+  const [showAllCities, setShowAllCities] = useState(false);
+
+  const availableCities = useMemo(() => cities || [], [cities]);
+  const cityIdSet = useMemo(() => new Set(availableCities.map(city => city.id)), [availableCities]);
+  const validSelectedCities = useMemo(
+    () => selectedCities.filter(id => cityIdSet.has(id)),
+    [selectedCities, cityIdSet]
+  );
+  const displayedCities = useMemo(
+    () => (showAllCities ? availableCities : availableCities.slice(0, MAX_VISIBLE_CITY_PILLS)),
+    [availableCities, showAllCities]
+  );
+  const selectedCityNames = useMemo(() => {
+    if (availableCities.length === 0) return [];
+    const nameMap = new Map(
+      availableCities.map(city => [
+        city.id,
+        city.name?.en || city.name || city.nameEn || city.nameGu || city.nameHi || city.id
+      ])
+    );
+    return validSelectedCities.map(id => nameMap.get(id) || id);
+  }, [availableCities, validSelectedCities]);
+  const citySelectionError = errors.cities || (citiesTouched && validSelectedCities.length === 0 ? CITY_VALIDATION_MESSAGE : null);
   
-  // Initialize selectedCities
+  // Keep selected cities in sync with available cities and current preference
   useEffect(() => {
-    if (cities && cities.length > 0 && selectedCities.length === 0) {
-      setSelectedCities([cities[0].id]);
-    }
-  }, [cities, selectedCities.length]);
+    if (!availableCities.length) return;
+
+    setSelectedCities(prev => {
+      const availableIds = new Set(availableCities.map(city => city.id));
+      const filtered = prev.filter(id => availableIds.has(id));
+
+      if (filtered.length > 0) {
+        return filtered.length === prev.length ? prev : filtered;
+      }
+
+      const fallbackId = (currentCity && availableIds.has(currentCity.id))
+        ? currentCity.id
+        : availableCities[0]?.id;
+
+      return fallbackId ? [fallbackId] : [];
+    });
+  }, [availableCities, currentCity]);
+
+  const handleCityToggle = (cityId) => {
+    setCitiesTouched(true);
+    setErrors(prev => ({ ...prev, cities: null }));
+    setSelectedCities(prev => (
+      prev.includes(cityId)
+        ? prev.filter(id => id !== cityId)
+        : [...prev, cityId]
+    ));
+  };
+
+  const handleSelectCurrentCity = () => {
+    if (!currentCity?.id) return;
+    setCitiesTouched(true);
+    setErrors(prev => ({ ...prev, cities: null }));
+    setSelectedCities([currentCity.id]);
+  };
+
+  const handleSelectAllCities = () => {
+    if (!availableCities.length) return;
+    setCitiesTouched(true);
+    setErrors(prev => ({ ...prev, cities: null }));
+    setSelectedCities(availableCities.map(city => city.id));
+  };
+
+  const handleClearCities = () => {
+    setCitiesTouched(true);
+    setSelectedCities([]);
+  };
   
   // Universal form data structure
   const [formData, setFormData] = useState({
@@ -245,14 +316,13 @@ const UnifiedPostCreator = () => {
     }
   };
   
-  // Handle media file selection
+  // Handle media file selection - Optimized with parallel processing
   const handleMediaSelect = async (e, type = 'image') => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
     
-    const newMediaFiles = [];
-    
-    for (const file of files) {
+    // Process all files in parallel for faster loading
+    const processFile = async (file) => {
       const previewUrl = URL.createObjectURL(file);
       const mediaItem = {
         file,
@@ -263,28 +333,34 @@ const UnifiedPostCreator = () => {
         mimeType: file.type
       };
       
+      // Process thumbnail and dimensions in parallel
+      const promises = [];
+      
       // Generate thumbnail for videos
       if (mediaItem.type === 'video') {
-        try {
-          const thumbnail = await generateVideoThumbnail(file);
-          mediaItem.thumbnailUrl = thumbnail;
-        } catch (error) {
-          console.error('Thumbnail generation failed:', error);
-        }
+        promises.push(
+          generateVideoThumbnail(file)
+            .then(thumbnail => { mediaItem.thumbnailUrl = thumbnail; })
+            .catch(error => console.error('Thumbnail generation failed:', error))
+        );
       }
       
       // Get dimensions
-      try {
-        const dimensions = await getMediaDimensions(file);
-        mediaItem.width = dimensions.width;
-        mediaItem.height = dimensions.height;
-      } catch (error) {
-        console.error('Dimension detection failed:', error);
-      }
+      promises.push(
+        getMediaDimensions(file)
+          .then(dimensions => {
+            mediaItem.width = dimensions.width;
+            mediaItem.height = dimensions.height;
+          })
+          .catch(error => console.error('Dimension detection failed:', error))
+      );
       
-      newMediaFiles.push(mediaItem);
-    }
+      await Promise.all(promises);
+      return mediaItem;
+    };
     
+    // Process all files in parallel
+    const newMediaFiles = await Promise.all(files.map(processFile));
     setMediaFiles(prev => [...prev, ...newMediaFiles]);
   };
   
@@ -331,10 +407,10 @@ const UnifiedPostCreator = () => {
     }));
   };
   
-  // Upload media files to Firebase Storage
+  // Upload media files to Firebase Storage with progress tracking
   const uploadMedia = async (mediaFile, index) => {
     try {
-      const fileName = `${Date.now()}_${mediaFile.name}`;
+      const fileName = `${Date.now()}_${index}_${mediaFile.name}`;
       const path = postType === POST_TYPES.STORY ? 'stories' :
                    postType === POST_TYPES.REEL ? 'reels' :
                    postType === POST_TYPES.CAROUSEL ? 'carousels' :
@@ -342,33 +418,50 @@ const UnifiedPostCreator = () => {
       
       const fileRef = storageRef(storage, `${path}/${user.uid}/${fileName}`);
       
-      // Update upload progress
-      setUploadProgress(prev => ({ ...prev, [index]: 0 }));
+      // Use uploadBytesResumable for progress tracking
+      const uploadTask = uploadBytesResumable(fileRef, mediaFile.file);
       
-      const snapshot = await uploadBytes(fileRef, mediaFile.file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
-      // Upload thumbnail for videos
-      let thumbnailURL = null;
-      if (mediaFile.type === 'video' && mediaFile.thumbnailUrl) {
-        const thumbnailBlob = await fetch(mediaFile.thumbnailUrl).then(r => r.blob());
-        const thumbnailRef = storageRef(storage, `${path}/${user.uid}/thumbnails/${fileName}_thumb.jpg`);
-        const thumbnailSnapshot = await uploadBytes(thumbnailRef, thumbnailBlob);
-        thumbnailURL = await getDownloadURL(thumbnailSnapshot.ref);
-      }
-      
-      setUploadProgress(prev => ({ ...prev, [index]: 100 }));
-      
-      return {
-        url: downloadURL,
-        thumbnailUrl: thumbnailURL || downloadURL,
-        type: mediaFile.type,
-        mimeType: mediaFile.mimeType,
-        width: mediaFile.width,
-        height: mediaFile.height,
-        size: mediaFile.size,
-        fileName: mediaFile.name
-      };
+      return new Promise((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(prev => ({ ...prev, [index]: Math.round(progress) }));
+          },
+          (error) => {
+            console.error('Upload error:', error);
+            reject(error);
+          },
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              
+              // Upload thumbnail for videos in parallel
+              let thumbnailURL = null;
+              if (mediaFile.type === 'video' && mediaFile.thumbnailUrl) {
+                const thumbnailBlob = await fetch(mediaFile.thumbnailUrl).then(r => r.blob());
+                const thumbnailRef = storageRef(storage, `${path}/${user.uid}/thumbnails/${fileName}_thumb.jpg`);
+                const thumbnailTask = uploadBytesResumable(thumbnailRef, thumbnailBlob);
+                const thumbnailSnapshot = await thumbnailTask;
+                thumbnailURL = await getDownloadURL(thumbnailSnapshot.ref);
+              }
+              
+              resolve({
+                url: downloadURL,
+                thumbnailUrl: thumbnailURL || downloadURL,
+                type: mediaFile.type,
+                mimeType: mediaFile.mimeType,
+                width: mediaFile.width,
+                height: mediaFile.height,
+                size: mediaFile.size,
+                fileName: mediaFile.name
+              });
+            } catch (error) {
+              reject(error);
+            }
+          }
+        );
+      });
     } catch (error) {
       console.error('Media upload error:', error);
       throw error;
@@ -391,8 +484,8 @@ const UnifiedPostCreator = () => {
       newErrors.category = 'Category is required';
     }
     
-    if (selectedCities.length === 0) {
-      newErrors.cities = 'At least one city must be selected';
+    if (validSelectedCities.length === 0) {
+      newErrors.cities = CITY_VALIDATION_MESSAGE;
     }
     
     // Media validation based on post type
@@ -408,6 +501,7 @@ const UnifiedPostCreator = () => {
       newErrors.media = 'At least 2 images are required for Carousels';
     }
     
+    setCitiesTouched(true);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -432,7 +526,7 @@ const UnifiedPostCreator = () => {
       // Prepare post data based on post type
       let postData = {
         ...formData,
-        cities: selectedCities,
+        cities: validSelectedCities,
         author: {
           uid: user.uid,
           name: user.displayName || 'Admin',
@@ -494,15 +588,20 @@ const UnifiedPostCreator = () => {
       
       alert(`${postType} created successfully!`);
       
-      // Reset form
+      // Clear upload progress first
+      setUploadProgress({});
+      
+      // Reset form to blank state
       resetForm();
+      
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       
     } catch (error) {
       console.error('Post creation error:', error);
       alert(`Failed to create ${postType}. Please try again.`);
     } finally {
       setLoading(false);
-      setUploadProgress({});
     }
   };
   
@@ -578,6 +677,7 @@ const UnifiedPostCreator = () => {
           return (
             <button
               key={type.value}
+              type="button"
               onClick={() => setPostType(type.value)}
               className={`p-4 rounded-lg border-2 transition-all ${
                 postType === type.value
@@ -669,15 +769,14 @@ const UnifiedPostCreator = () => {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Content ({languageLabels[activeLanguage]}) *
           </label>
-          <textarea
-            value={formData.content[activeLanguage]}
-            onChange={(e) => setFormData(prev => ({
+          <RichTextEditor
+            content={formData.content[activeLanguage]}
+            onChange={(html) => setFormData(prev => ({
               ...prev,
-              content: { ...prev.content, [activeLanguage]: e.target.value }
+              content: { ...prev.content, [activeLanguage]: html }
             }))}
-            rows={8}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-red focus:border-transparent dark:bg-gray-700 dark:text-white"
             placeholder={`Enter content in ${languageLabels[activeLanguage]}`}
+            minHeight="300px"
           />
           {errors.content && <p className="text-red-500 text-sm mt-1">{errors.content}</p>}
         </div>
@@ -688,15 +787,14 @@ const UnifiedPostCreator = () => {
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           {postType === POST_TYPES.STANDARD ? 'Excerpt' : 'Description'} ({languageLabels[activeLanguage]})
         </label>
-        <textarea
-          value={formData.excerpt[activeLanguage]}
-          onChange={(e) => setFormData(prev => ({
+        <RichTextEditor
+          content={formData.excerpt[activeLanguage]}
+          onChange={(html) => setFormData(prev => ({
             ...prev,
-            excerpt: { ...prev.excerpt, [activeLanguage]: e.target.value }
+            excerpt: { ...prev.excerpt, [activeLanguage]: html }
           }))}
-          rows={3}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-red focus:border-transparent dark:bg-gray-700 dark:text-white"
           placeholder={`Enter ${postType === POST_TYPES.STANDARD ? 'excerpt' : 'description'} in ${languageLabels[activeLanguage]}`}
+          minHeight="150px"
         />
       </div>
       
@@ -735,32 +833,100 @@ const UnifiedPostCreator = () => {
       
       {/* Cities Multi-Select */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Cities * (Select one or more)
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {cities && cities.map(city => (
-            <button
-              key={city.id}
-              type="button"
-              onClick={() => {
-                setSelectedCities(prev => 
-                  prev.includes(city.id) 
-                    ? prev.filter(id => id !== city.id)
-                    : [...prev, city.id]
-                );
-              }}
-              className={`px-4 py-2 rounded-lg border-2 transition-colors ${
-                selectedCities.includes(city.id)
-                  ? 'border-primary-red bg-red-50 dark:bg-red-900/20 text-primary-red'
-                  : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400'
-              }`}
-            >
-              {city.name.en}
-            </button>
-          ))}
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <MapPin className="inline w-4 h-4 mr-1" />
+            Target Cities
+          </label>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {validSelectedCities.length}/{availableCities.length || 0} selected
+          </span>
         </div>
-        {errors.cities && <p className="text-red-500 text-sm mt-1">{errors.cities}</p>}
+        <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          {availableCities.length > 0 ? (
+            <>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={handleSelectCurrentCity}
+                  disabled={!currentCity?.id}
+                  className={`px-3 py-1.5 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${
+                    currentCity?.id && validSelectedCities.length === 1 && validSelectedCities[0] === currentCity.id
+                      ? 'bg-blue-600 text-white border-blue-600 focus:ring-blue-500'
+                      : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:border-blue-500 disabled:opacity-60 disabled:cursor-not-allowed'
+                  }`}
+                >
+                  Use {currentCity?.name || 'current city'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectAllCities}
+                  disabled={availableCities.length === 0 || availableCities.length === validSelectedCities.length}
+                  className="px-3 py-1.5 rounded-full border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 hover:border-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Select all ({availableCities.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearCities}
+                  disabled={validSelectedCities.length === 0}
+                  className="px-3 py-1.5 rounded-full border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 hover:border-red-400 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Clear selection
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {displayedCities.map(city => {
+                  const isSelected = validSelectedCities.includes(city.id);
+                  const cityLabel = city.name?.en || city.name || city.nameEn || city.nameGu || city.nameHi || city.id;
+                  return (
+                    <button
+                      key={city.id}
+                      type="button"
+                      onClick={() => handleCityToggle(city.id)}
+                      className={`flex items-center px-3 py-1.5 text-sm rounded-full border transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${
+                        isSelected
+                          ? 'bg-blue-600 text-white border-blue-600 focus:ring-blue-500 shadow-sm'
+                          : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:border-blue-500'
+                      }`}
+                    >
+                      <Check className={`w-3.5 h-3.5 mr-1.5 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+                      <span>{cityLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {availableCities.length > MAX_VISIBLE_CITY_PILLS && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCities(prev => !prev)}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  {showAllCities ? 'Show fewer cities' : `Show all ${availableCities.length} cities`}
+                </button>
+              )}
+
+              <div className="text-xs text-gray-600 dark:text-gray-400">
+                {selectedCityNames.length > 0 ? (
+                  <span>Selected: {selectedCityNames.join(', ')}</span>
+                ) : (
+                  <span>No cities selected yet.</span>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Loading cities...</p>
+          )}
+
+          {citySelectionError && (
+            <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+              <AlertCircle className="w-4 h-4" />
+              <span>{citySelectionError}</span>
+            </div>
+          )}
+        </div>
       </div>
       
       {/* Tags */}
@@ -1208,7 +1374,7 @@ const UnifiedPostCreator = () => {
               {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Creating...</span>
+                  <span>Publishing...</span>
                 </>
               ) : (
                 <>
@@ -1220,6 +1386,53 @@ const UnifiedPostCreator = () => {
           </div>
         </form>
       </div>
+
+      {/* Upload Progress Overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-red/10 rounded-full mb-4">
+                <Loader2 className="w-8 h-8 text-primary-red animate-spin" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                Publishing Your {postType}
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Please wait while we upload your content...
+              </p>
+            </div>
+
+            {/* Upload Progress for Media Files */}
+            {Object.keys(uploadProgress).length > 0 && (
+              <div className="space-y-3 mb-4">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Uploading media files:
+                </p>
+                {Object.entries(uploadProgress).map(([index, progress]) => (
+                  <div key={index} className="space-y-1">
+                    <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                      <span>File {parseInt(index) + 1}</span>
+                      <span>{progress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-primary-red to-orange-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+              <Clock className="w-4 h-4" />
+              <span>This may take a few moments...</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
