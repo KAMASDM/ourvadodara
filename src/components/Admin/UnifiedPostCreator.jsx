@@ -472,12 +472,18 @@ const UnifiedPostCreator = () => {
   const validateForm = () => {
     const newErrors = {};
     
-    if (!formData.title.en.trim()) {
-      newErrors.title = 'Title (English) is required';
+    // Check if at least one language has a title
+    const hasTitle = formData.title.en.trim() || formData.title.hi.trim() || formData.title.gu.trim();
+    if (!hasTitle) {
+      newErrors.title = 'Title is required in at least one language';
     }
     
-    if (postType === POST_TYPES.STANDARD && !formData.content.en.trim()) {
-      newErrors.content = 'Content (English) is required';
+    // For standard posts, check if at least one language has content
+    if (postType === POST_TYPES.STANDARD) {
+      const hasContent = formData.content.en.trim() || formData.content.hi.trim() || formData.content.gu.trim();
+      if (!hasContent) {
+        newErrors.content = 'Content is required in at least one language';
+      }
     }
     
     if (!formData.category) {
@@ -715,7 +721,7 @@ const UnifiedPostCreator = () => {
         <button
           type="button"
           onClick={handleAutoTranslate}
-          disabled={translating || !formData.title.en}
+          disabled={translating || (!formData.title.en && !formData.title.hi && !formData.title.gu)}
           className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {translating ? (

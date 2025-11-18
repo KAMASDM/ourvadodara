@@ -195,8 +195,8 @@ const NewsDetailPage = ({ newsId, onBack }) => {
              Object.values(news.content)[0] || '';
     }
     
-    // Strip HTML tags from rich text editor content
-    return stripHtmlTags(content);
+    // Return HTML content for rich text rendering
+    return content;
   };
 
   // Show loading state while fetching data
@@ -411,11 +411,94 @@ const NewsDetailPage = ({ newsId, onBack }) => {
           {/* Article Content */}
           <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
             <div className="px-4 py-6">
-              <div className="prose prose-lg dark:prose-invert max-w-none">
-                <p className="text-gray-700 dark:text-gray-300 text-lg leading-relaxed whitespace-pre-line">
-                  {getContentText()}
-                </p>
-              </div>
+              <style dangerouslySetInnerHTML={{
+                __html: `
+                  .rich-text-content {
+                    line-height: 1.75;
+                  }
+                  .rich-text-content h1 {
+                    font-size: 2em;
+                    font-weight: 700;
+                    margin-top: 1em;
+                    margin-bottom: 0.5em;
+                    color: inherit;
+                  }
+                  .rich-text-content h2 {
+                    font-size: 1.5em;
+                    font-weight: 600;
+                    margin-top: 1em;
+                    margin-bottom: 0.5em;
+                    color: inherit;
+                  }
+                  .rich-text-content h3 {
+                    font-size: 1.25em;
+                    font-weight: 600;
+                    margin-top: 0.75em;
+                    margin-bottom: 0.5em;
+                    color: inherit;
+                  }
+                  .rich-text-content p {
+                    margin-bottom: 1em;
+                    font-size: 1.125rem;
+                    line-height: 1.75;
+                  }
+                  .rich-text-content strong {
+                    font-weight: 700;
+                    color: inherit;
+                  }
+                  .rich-text-content em {
+                    font-style: italic;
+                  }
+                  .rich-text-content ul, .rich-text-content ol {
+                    margin-left: 1.5em;
+                    margin-bottom: 1em;
+                  }
+                  .rich-text-content ul {
+                    list-style-type: disc;
+                  }
+                  .rich-text-content ol {
+                    list-style-type: decimal;
+                  }
+                  .rich-text-content li {
+                    margin-bottom: 0.5em;
+                  }
+                  .rich-text-content blockquote {
+                    border-left: 4px solid #e5e7eb;
+                    padding-left: 1em;
+                    margin: 1em 0;
+                    font-style: italic;
+                    color: #6b7280;
+                  }
+                  .dark .rich-text-content blockquote {
+                    border-left-color: #4b5563;
+                    color: #9ca3af;
+                  }
+                  .rich-text-content pre {
+                    background-color: #f3f4f6;
+                    padding: 1em;
+                    border-radius: 0.5em;
+                    overflow-x: auto;
+                    margin: 1em 0;
+                  }
+                  .dark .rich-text-content pre {
+                    background-color: #1f2937;
+                  }
+                  .rich-text-content code {
+                    background-color: #f3f4f6;
+                    padding: 0.2em 0.4em;
+                    border-radius: 0.25em;
+                    font-family: monospace;
+                    font-size: 0.9em;
+                  }
+                  .dark .rich-text-content code {
+                    background-color: #1f2937;
+                  }
+                `
+              }} />
+              <div 
+                className="prose prose-lg dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 rich-text-content"
+                dangerouslySetInnerHTML={{ __html: getContentText() }}
+              />
             </div>
           </div>
 

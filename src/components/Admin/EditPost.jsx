@@ -270,10 +270,25 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
   const validateForm = () => {
     const newErrors = {};
     
-    if (!formData.title.en.trim()) newErrors.title = 'English title is required';
-    if (!formData.content.en.trim()) newErrors.content = 'English content is required';
+    // Check if at least one language has title
+    const hasTitle = (formData.title.en && formData.title.en.trim()) || 
+                     (formData.title.hi && formData.title.hi.trim()) || 
+                     (formData.title.gu && formData.title.gu.trim());
+    if (!hasTitle) newErrors.title = 'Title is required in at least one language';
+    
+    // Check if at least one language has content
+    const hasContent = (formData.content.en && formData.content.en.trim()) || 
+                       (formData.content.hi && formData.content.hi.trim()) || 
+                       (formData.content.gu && formData.content.gu.trim());
+    if (!hasContent) newErrors.content = 'Content is required in at least one language';
+    
+    // Check if at least one language has excerpt
+    const hasExcerpt = (formData.excerpt.en && formData.excerpt.en.trim()) || 
+                       (formData.excerpt.hi && formData.excerpt.hi.trim()) || 
+                       (formData.excerpt.gu && formData.excerpt.gu.trim());
+    if (!hasExcerpt) newErrors.excerpt = 'Excerpt is required in at least one language';
+    
     if (!formData.category) newErrors.category = 'Category is required';
-    if (!formData.excerpt.en.trim()) newErrors.excerpt = 'English excerpt is required';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -292,13 +307,17 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
         
         mediaContent = {
           type: mediaType,
-          items: formData.media.map(item => ({
-            url: item.url,
-            type: item.type,
-            name: item.name,
-            size: item.size,
-            path: item.path
-          })),
+          items: formData.media.map(item => {
+            const mediaItem = {
+              url: item.url,
+              type: item.type
+            };
+            // Only add optional fields if they exist
+            if (item.name) mediaItem.name = item.name;
+            if (item.size) mediaItem.size = item.size;
+            if (item.path) mediaItem.path = item.path;
+            return mediaItem;
+          }),
           settings: {
             autoplay: false,
             showCaptions: true,
@@ -312,11 +331,15 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
 
       const updateData = {
         ...formData,
-        mediaContent, // Add or update structured mediaContent
         updatedAt: new Date().toISOString(),
         updatedBy: user?.uid || 'admin',
         updatedByName: user?.displayName || user?.email || 'Admin'
       };
+
+      // Only add mediaContent if it exists
+      if (mediaContent) {
+        updateData.mediaContent = mediaContent;
+      }
 
       // Clear old image field if new media exists
       if (updateData.media && updateData.media.length > 0) {
@@ -470,7 +493,7 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={handleForceTranslateTitle}
-                disabled={translating || !formData.title.en.trim()}
+                disabled={translating || (!formData.title.en.trim() && !formData.title.hi.trim() && !formData.title.gu.trim())}
                 className="flex items-center space-x-1 px-3 py-1.5 text-xs bg-blue-100 dark:bg-blue-500/20 hover:bg-blue-200 dark:hover:bg-blue-500/30 disabled:bg-gray-100 dark:disabled:bg-gray-700/60 disabled:text-gray-400 dark:disabled:text-gray-500 text-blue-700 dark:text-blue-200 rounded-md transition-colors"
               >
                 <RefreshCw className={`h-3 w-3 ${translating ? 'animate-spin' : ''}`} />
@@ -478,7 +501,7 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
               </button>
               <button
                 onClick={handleForceTranslateContent}
-                disabled={translating || !formData.content.en.trim()}
+                disabled={translating || (!formData.content.en.trim() && !formData.content.hi.trim() && !formData.content.gu.trim())}
                 className="flex items-center space-x-1 px-3 py-1.5 text-xs bg-blue-100 dark:bg-blue-500/20 hover:bg-blue-200 dark:hover:bg-blue-500/30 disabled:bg-gray-100 dark:disabled:bg-gray-700/60 disabled:text-gray-400 dark:disabled:text-gray-500 text-blue-700 dark:text-blue-200 rounded-md transition-colors"
               >
                 <RefreshCw className={`h-3 w-3 ${translating ? 'animate-spin' : ''}`} />

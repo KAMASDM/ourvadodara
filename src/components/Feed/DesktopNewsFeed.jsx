@@ -128,9 +128,20 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
   };
 
   const getPostDescription = (post) => {
-    const desc = post.description?.[currentLanguage] || post.description?.en || post.description || '';
+    // Try description first, then fall back to content
+    const text = post.description?.[currentLanguage] || 
+                 post.description?.en || 
+                 post.description || 
+                 post.content?.[currentLanguage] || 
+                 post.content?.en || 
+                 post.content || 
+                 '';
+    
+    // If it's an object, try to get a string value
+    const textStr = typeof text === 'string' ? text : '';
+    
     // Strip HTML tags
-    const stripped = desc.replace(/<[^>]*>/g, '');
+    const stripped = textStr.replace(/<[^>]*>/g, '');
     return stripped.slice(0, 150) + (stripped.length > 150 ? '...' : '');
   };
 

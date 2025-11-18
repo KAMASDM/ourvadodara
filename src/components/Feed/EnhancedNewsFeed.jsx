@@ -352,9 +352,21 @@ const PostCard = ({
   onToggleExpanded,
   currentLanguage 
 }) => {
+  // Strip HTML tags helper function
+  const stripHtmlTags = (html) => {
+    if (!html) return '';
+    const tmp = document.createElement('DIV');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
+  };
+
   const title = post.title?.[currentLanguage] || post.title?.en || 'Untitled';
-  const content = post.content?.[currentLanguage] || post.content?.en || '';
-  const excerpt = post.excerpt?.[currentLanguage] || post.excerpt?.en || '';
+  const rawContent = post.content?.[currentLanguage] || post.content?.en || '';
+  const rawExcerpt = post.excerpt?.[currentLanguage] || post.excerpt?.en || '';
+  
+  // Strip HTML from content and excerpt
+  const content = stripHtmlTags(rawContent);
+  const excerpt = stripHtmlTags(rawExcerpt);
   
   // Handle both new mediaContent structure and legacy media array
   let mediaItems = [];
