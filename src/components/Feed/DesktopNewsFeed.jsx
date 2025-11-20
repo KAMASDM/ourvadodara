@@ -124,20 +124,41 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
   };
 
   const getPostTitle = (post) => {
-    return post.title?.[currentLanguage] || post.title?.en || post.title || 'Untitled';
+    if (!post.title) return 'Untitled';
+    
+    // If title is a string, return it
+    if (typeof post.title === 'string') return post.title;
+    
+    // If title is an object, get the current language or fallback
+    if (typeof post.title === 'object') {
+      return post.title[currentLanguage] || 
+             post.title.en || 
+             post.title.gu || 
+             post.title.hi || 
+             'Untitled';
+    }
+    
+    return 'Untitled';
   };
 
   const getPostDescription = (post) => {
     // Try description first, then fall back to content
-    const text = post.description?.[currentLanguage] || 
-                 post.description?.en || 
-                 post.description || 
-                 post.content?.[currentLanguage] || 
-                 post.content?.en || 
-                 post.content || 
-                 '';
+    let text = post.description?.[currentLanguage] || 
+               post.description?.en || 
+               post.description?.gu ||
+               post.description?.hi ||
+               post.content?.[currentLanguage] || 
+               post.content?.en || 
+               post.content?.gu ||
+               post.content?.hi ||
+               '';
     
-    // If it's an object, try to get a string value
+    // If description/content is an object but we haven't extracted a string yet
+    if (typeof text === 'object' && text !== null) {
+      text = text[currentLanguage] || text.en || text.gu || text.hi || '';
+    }
+    
+    // Ensure we have a string
     const textStr = typeof text === 'string' ? text : '';
     
     // Strip HTML tags

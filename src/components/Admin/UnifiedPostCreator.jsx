@@ -754,7 +754,8 @@ const UnifiedPostCreator = () => {
       {/* Title */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Title ({languageLabels[activeLanguage]}) *
+          Title ({languageLabels[activeLanguage]}) <span className="text-red-500">*</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">(required in at least one language)</span>
         </label>
         <input
           type="text"
@@ -773,7 +774,8 @@ const UnifiedPostCreator = () => {
       {postType === POST_TYPES.STANDARD && (
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Content ({languageLabels[activeLanguage]}) *
+            Content ({languageLabels[activeLanguage]}) <span className="text-red-500">*</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">(required in at least one language)</span>
           </label>
           <RichTextEditor
             content={formData.content[activeLanguage]}
