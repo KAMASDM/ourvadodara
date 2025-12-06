@@ -85,18 +85,44 @@ const MediaContentEditor = ({ item, onClose, onSave }) => {
       .join(', ');
   }, [selectedCities, cities]);
 
+  // Handles text of any length by chunking into 500 character segments
   const translateText = async (text, targetLang) => {
     if (!text.trim()) return '';
     try {
-      const response = await axios.get(
-        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=gu|${targetLang}`,
-        {
-          timeout: 10000,
-          headers: { 'Content-Type': 'application/json' }
-        }
+      // Split text into chunks of 500 characters (API limit)
+      const chunkSize = 500;
+      const chunks = [];
+      for (let i = 0; i < text.length; i += chunkSize) {
+        chunks.push(text.slice(i, i + chunkSize));
+      }
+      
+      console.log(`Translating text from Gujarati to ${targetLang} (${chunks.length} chunks, ${text.length} total chars)`);
+      
+      // Translate each chunk
+      const translatedChunks = await Promise.all(
+        chunks.map(async (chunk, index) => {
+          try {
+            const response = await axios.get(
+              `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=gu|${targetLang}`,
+              {
+                timeout: 10000,
+                headers: { 'Content-Type': 'application/json' }
+              }
+            );
+            const translated = response.data?.responseData?.translatedText;
+            return translated || chunk;
+          } catch (chunkError) {
+            console.error(`Translation error for chunk ${index + 1}:`, chunkError);
+            return chunk;
+          }
+        })
       );
-      const translated = response.data?.responseData?.translatedText;
-      return translated || text;
+      
+      // Combine translated chunks
+      const translatedText = translatedChunks.join('');
+      console.log(`Translation completed: ${text.length} chars -> ${translatedText.length} chars`);
+      return translatedText;
+      
     } catch (error) {
       console.error('Translation failed:', error);
       return text;

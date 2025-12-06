@@ -241,8 +241,14 @@ function AppContent() {
     if (typeof viewData === 'object' && viewData.type) {
       const { type, data } = viewData;
       
+      // Handle login view
+      if (type === 'login') {
+        setShowLogin(true);
+        return;
+      }
+      
       // Check authentication for protected views
-      if (['profile', 'saved', 'admin'].includes(type) && !user) {
+      if (['profile', 'saved', 'admin', 'notifications'].includes(type) && !user) {
         setShowLogin(true);
         return;
       }
@@ -360,6 +366,7 @@ function AppContent() {
           <>
             <OfflineIndicator />
             
+            {/* Only show mobile header on mobile or for full-width views */}
             {!isDesktop && currentView.type !== 'news-detail' && !isFullWidthView && (
               <Header 
                 onNotificationClick={() => setShowNotifications(true)}
@@ -368,15 +375,17 @@ function AppContent() {
               />
             )}
 
+            {/* Only show Blood SOS banner on mobile */}
             {!isDesktop && currentView.type !== 'news-detail' && (
               <BloodSOSBanner />
             )}
             
-            {/* Apply the dynamic container class to the main element */}
-            <main className={mainContainerClass}>
+            {/* Apply the dynamic container class to the main element - only on mobile */}
+            <main className={!isDesktop && !isFullWidthView ? mainContainerClass : ''}>
               {renderContent()}
             </main>
             
+            {/* Only show mobile navigation on mobile */}
             {!isDesktop && currentView.type !== 'news-detail' && !isFullWidthView && (
               <Navigation 
                 activeTab={activeTab} 

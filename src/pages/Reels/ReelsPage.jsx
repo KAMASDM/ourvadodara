@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import useViewTracking from '../../hooks/useViewTracking';
 import { ref, update, increment, get, onValue } from 'firebase/database';
 import { db } from '../../firebase-config';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
@@ -42,11 +43,16 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const [showLikeAnimation, setShowLikeAnimation] = useState(false);
   const [showPlayPauseIcon, setShowPlayPauseIcon] = useState(false);
   const [showHints, setShowHints] = useState(true);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
   
   const containerRef = useRef(null);
   const videoRef = useRef(null);
   const touchStartY = useRef(0);
   const touchEndY = useRef(0);
+  const touchStartX = useRef(0);
+  const progressInterval = useRef(null);
 
   // Process reels data
   const reels = reelsData 
@@ -57,6 +63,9 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     : [];
 
   const currentReel = reels[currentReelIndex];
+
+  // Track view for current reel
+  useViewTracking(currentReel?.id, 'reels');
 
   // Load user's likes and saves
   useEffect(() => {
@@ -105,6 +114,47 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       video.pause();
     }
   }, [isPlaying, currentReelIndex]);
+
+  // Track video progress
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const updateProgress = () => {
+      if (video.duration) {
+        const currentProgress = (video.currentTime / video.duration) * 100;
+        setProgress(currentProgress);
+      }
+    };
+
+    const handleLoadedMetadata = () => {
+      setDuration(video.duration);
+      setProgress(0);
+    };
+
+    const handleTimeUpdate = () => {
+      updateProgress();
+    };
+
+    const handleEnded = () => {
+      // Auto-advance to next reel when current one ends
+      if (currentReelIndex < reels.length - 1) {
+        goToNext();
+      } else {
+        setProgress(100);
+      }
+    };
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    video.addEventListener('ended', handleEnded);
+
+    return () => {
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener('ended', handleEnded);
+    };
+  }, [currentReelIndex, reels.length]);
 
   // Control video mute
   useEffect(() => {
@@ -164,52 +214,76 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   }, [currentReelIndex]);
 
   const goToNext = () => {
-    if (currentReelIndex < reels.length - 1) {
-      setCurrentReelIndex(prev => prev + 1);
+    if (currentReelIndex < reels.length - 1 && !isTransitioning) {
+      setIsTransitioning(true);
+      setIsPlaying(false);
+      setTimeout(() => {
+        setCurrentReelIndex(prev => prev + 1);
+        setTimeout(() => {
+          setIsPlaying(true);
+          setIsTransitioning(false);
+        }, 100);
+      }, 200);
     }
   };
 
   const goToPrevious = () => {
-    if (currentReelIndex > 0) {
-      setCurrentReelIndex(prev => prev - 1);
+    if (currentReelIndex > 0 && !isTransitioning) {
+      setIsTransitioning(true);
+      setIsPlaying(false);
+      setTimeout(() => {
+        setCurrentReelIndex(prev => prev - 1);
+        setTimeout(() => {
+          setIsPlaying(true);
+          setIsTransitioning(false);
+        }, 100);
+      }, 200);
     }
   };
 
-  const handleSwipe = () => {
-    const swipeDistance = touchStartY.current - touchEndY.current;
-    const minSwipeDistance = 50;
 
-    if (Math.abs(swipeDistance) > minSwipeDistance) {
-      if (swipeDistance > 0) {
-        // Swipe up - next reel
-        goToNext();
-      } else {
-        // Swipe down - previous reel
-        goToPrevious();
-      }
-    }
-  };
 
-  // Touch gestures for mobile
+  // Enhanced touch gestures for mobile
   useEffect(() => {
     const handleTouchStart = (e) => {
       touchStartY.current = e.touches[0].clientY;
+      touchStartX.current = e.touches[0].clientX;
     };
 
     const handleTouchMove = (e) => {
-      e.preventDefault(); // Prevent scrolling
+      // Calculate swipe direction
+      const currentY = e.touches[0].clientY;
+      const currentX = e.touches[0].clientX;
+      const diffY = Math.abs(currentY - touchStartY.current);
+      const diffX = Math.abs(currentX - touchStartX.current);
+      
+      // Only prevent default if it's a vertical swipe (not horizontal)
+      if (diffY > diffX && diffY > 10) {
+        e.preventDefault();
+      }
     };
 
     const handleTouchEnd = (e) => {
       touchEndY.current = e.changedTouches[0].clientY;
-      handleSwipe();
+      const swipeDistance = touchStartY.current - touchEndY.current;
+      const minSwipeDistance = 50;
+
+      if (Math.abs(swipeDistance) > minSwipeDistance) {
+        if (swipeDistance > 0) {
+          // Swipe up - next reel
+          goToNext();
+        } else if (swipeDistance < 0) {
+          // Swipe down - previous reel
+          goToPrevious();
+        }
+      }
     };
 
     const container = containerRef.current;
     if (container) {
-      container.addEventListener('touchstart', handleTouchStart, { passive: false });
+      container.addEventListener('touchstart', handleTouchStart, { passive: true });
       container.addEventListener('touchmove', handleTouchMove, { passive: false });
-      container.addEventListener('touchend', handleTouchEnd, { passive: false });
+      container.addEventListener('touchend', handleTouchEnd, { passive: true });
 
       return () => {
         container.removeEventListener('touchstart', handleTouchStart);
@@ -217,7 +291,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         container.removeEventListener('touchend', handleTouchEnd);
       };
     }
-  }, [currentReelIndex, reels.length]);
+  }, []);
 
   const togglePlay = () => {
     setIsPlaying(prev => !prev);
@@ -404,14 +478,25 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     );
   }
 
+  // Detect if we're on desktop
+  const isDesktop = window.innerWidth >= 1024;
+
   return (
     <div 
       ref={containerRef}
-      className="fixed inset-0 bg-black overflow-hidden select-none"
+      className={`${isDesktop ? 'relative w-full h-screen' : 'fixed inset-0'} bg-black overflow-hidden select-none`}
       style={{ touchAction: 'none' }}
     >
+      {/* Progress Bar - Subtle Modern Design */}
+      <div className="absolute top-0 left-0 right-0 z-[60] h-1 bg-white/10">
+        <div 
+          className="h-full bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 transition-all duration-300 ease-linear shadow-lg"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/60 via-black/30 to-transparent p-4">
+      <div className="absolute top-1.5 left-0 right-0 z-50 bg-gradient-to-b from-black/60 via-black/30 to-transparent p-4">
         <div className="flex items-center justify-between">
           <button
             onClick={onBack}
@@ -434,18 +519,37 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         {showHints && (
           <div className="mt-4 bg-black/50 backdrop-blur-sm rounded-lg p-3 animate-fade-in">
             <div className="text-white text-xs space-y-1">
-              <div className="flex items-center space-x-2">
-                <ChevronUp className="w-4 h-4" />
-                <span>Swipe down or ↑ for previous</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <ChevronDown className="w-4 h-4" />
-                <span>Swipe up or ↓ for next</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="font-mono">Space</span>
-                <span>or tap to play/pause</span>
-              </div>
+              {isDesktop ? (
+                <>
+                  <div className="flex items-center space-x-2">
+                    <ChevronUp className="w-4 h-4" />
+                    <span>Press ↑ for previous reel</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <ChevronDown className="w-4 h-4" />
+                    <span>Press ↓ for next reel</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-mono">Space</span>
+                    <span>to play/pause</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center space-x-2">
+                    <ChevronUp className="w-4 h-4" />
+                    <span>Swipe down for previous reel</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <ChevronDown className="w-4 h-4" />
+                    <span>Swipe up for next reel</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span>👆</span>
+                    <span>Tap video to play/pause</span>
+                  </div>
+                </>
+              )}
             </div>
             <button 
               onClick={() => setShowHints(false)}
@@ -459,18 +563,20 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
       {/* Current Reel */}
       {currentReel && (
-        <div className="relative w-full h-full">
-          {/* Reel Video */}
-          <video
-            ref={videoRef}
-            src={currentReel.mediaContent?.items?.[0]?.url || currentReel.videoUrl}
-            poster={currentReel.mediaContent?.items?.[0]?.thumbnailUrl || currentReel.thumbnail}
-            className="w-full h-full object-cover cursor-pointer"
-            loop
-            playsInline
-            muted={isMuted}
-            onClick={togglePlay}
-          />
+        <div className={`relative ${isDesktop ? 'flex items-center justify-center h-full' : 'w-full h-full'}`}>
+          {/* Reel Video Container */}
+          <div className={`relative ${isDesktop ? 'w-full max-w-md h-full' : 'w-full h-full'}`}>
+            {/* Reel Video */}
+            <video
+              ref={videoRef}
+              src={currentReel.mediaContent?.items?.[0]?.url || currentReel.videoUrl}
+              poster={currentReel.mediaContent?.items?.[0]?.thumbnailUrl || currentReel.thumbnail}
+              className={`w-full h-full ${isDesktop ? 'object-contain' : 'object-cover'} cursor-pointer transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
+              loop
+              playsInline
+              muted={isMuted}
+              onClick={togglePlay}
+            />
 
           {/* Bottom Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/80 pointer-events-none" />
@@ -485,11 +591,11 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           {/* Play/Pause Indicator */}
           {showPlayPauseIcon && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
-              <div className="w-20 h-20 bg-black/50 rounded-full flex items-center justify-center animate-ping-once">
+              <div className="w-20 h-20 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center animate-scale-fade">
                 {isPlaying ? (
-                  <Play className="w-10 h-10 text-white ml-1" />
+                  <Play className="w-10 h-10 text-white fill-white ml-1" />
                 ) : (
-                  <Pause className="w-10 h-10 text-white" />
+                  <Pause className="w-10 h-10 text-white fill-white" />
                 )}
               </div>
             </div>
@@ -506,22 +612,6 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
           {/* Author Info & Content */}
           <div className="absolute bottom-20 left-4 right-20 text-white z-20">
-            <div className="flex items-center space-x-2 mb-3">
-              <div className="w-10 h-10 rounded-full bg-white p-1 flex items-center justify-center">
-                <img
-                  src={currentReel.author?.avatar || logoImage}
-                  alt={currentReel.author?.name}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              </div>
-              <span className="font-bold text-base drop-shadow-lg">
-                {currentReel.author?.name || 'Our Vadodara'}
-              </span>
-              {currentReel.author?.verified && (
-                <span className="text-blue-400">✓</span>
-              )}
-            </div>
-            
             {/* Title & Description */}
             {currentReel.title?.en && (
               <h2 className="font-semibold text-base mb-1 drop-shadow-lg line-clamp-2">
@@ -563,22 +653,22 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           {/* Action Buttons - Right Side */}
           <div className="absolute bottom-24 right-4 flex flex-col space-y-5 z-20">
             {/* Navigation Arrows */}
-            <div className="flex flex-col space-y-2 mb-4">
+            <div className="flex flex-col space-y-3 mb-4">
               {/* Previous Reel */}
               {currentReelIndex > 0 && (
                 <button
                   onClick={goToPrevious}
-                  className="w-11 h-11 flex items-center justify-center bg-black/50 backdrop-blur-sm text-white rounded-full hover:bg-black/70 transition-all animate-bounce-slow"
-                  title="Previous reel (or swipe down)"
+                  className={`${isDesktop ? 'w-14 h-14' : 'w-11 h-11'} flex items-center justify-center bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/30 hover:scale-110 transition-all shadow-xl`}
+                  title="Previous reel (↑ or swipe down)"
                 >
-                  <ChevronUp className="w-6 h-6" />
+                  <ChevronUp className={`${isDesktop ? 'w-8 h-8' : 'w-6 h-6'}`} />
                 </button>
               )}
               
               {/* Reel Counter */}
               <div className="flex items-center justify-center">
-                <div className="bg-black/50 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-semibold">
-                  {currentReelIndex + 1}/{reels.length}
+                <div className={`bg-white/20 backdrop-blur-md text-white ${isDesktop ? 'px-4 py-2 text-sm' : 'px-2.5 py-1 text-xs'} rounded-full font-bold shadow-lg`}>
+                  {currentReelIndex + 1} / {reels.length}
                 </div>
               </div>
               
@@ -586,10 +676,10 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
               {currentReelIndex < reels.length - 1 && (
                 <button
                   onClick={goToNext}
-                  className="w-11 h-11 flex items-center justify-center bg-black/50 backdrop-blur-sm text-white rounded-full hover:bg-black/70 transition-all animate-bounce-slow"
-                  title="Next reel (or swipe up)"
+                  className={`${isDesktop ? 'w-14 h-14' : 'w-11 h-11'} flex items-center justify-center bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/30 hover:scale-110 transition-all shadow-xl`}
+                  title="Next reel (↓ or swipe up)"
                 >
-                  <ChevronDown className="w-6 h-6" />
+                  <ChevronDown className={`${isDesktop ? 'w-8 h-8' : 'w-6 h-6'}`} />
                 </button>
               )}
             </div>
@@ -601,7 +691,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
             >
               <div className={`w-11 h-11 flex items-center justify-center rounded-full transition-all ${
                 likedReels.has(currentReel.id)
-                  ? 'bg-primary-red text-white scale-110'
+                  ? 'bg-red-500 text-white scale-110'
                   : 'bg-gray-900/40 backdrop-blur-sm text-white hover:bg-gray-900/60'
               }`}>
                 <Heart className={`w-6 h-6 ${likedReels.has(currentReel.id) ? 'fill-current' : ''}`} />
@@ -672,6 +762,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       )}

@@ -123,124 +123,130 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
     : null;
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-24">
-      {/* Pull-to-refresh indicator */}
-      <PullToRefreshIndicator
-        pullDistance={pullDistance}
-        progress={progress}
-        rotation={rotation}
-        isThresholdReached={isThresholdReached}
-        refreshing={refreshing}
-      />
+    <div ref={containerRef} className={`min-h-screen bg-gray-50 dark:bg-gray-950 ${!isDesktop ? 'pb-24' : ''}`}>
+      {/* Pull-to-refresh indicator - mobile only */}
+      {!isDesktop && (
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          progress={progress}
+          rotation={rotation}
+          isThresholdReached={isThresholdReached}
+          refreshing={refreshing}
+        />
+      )}
       
-      <div className="relative flex flex-col">
-        <div
-          className="sticky z-30 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.28)]"
-          style={{ top: '4.5rem' }}
-        >
-          {activeSection && ActiveSectionComponent && (
+      {/* Desktop view - no sticky sections */}
+      {isDesktop ? (
+        <div className="pt-6">
+          <DesktopNewsFeed
+            key={refreshKey}
+            category={activeCategory === 'all' ? null : activeCategory}
+            feedType="all"
+            onPostClick={onPostClick}
+          />
+        </div>
+      ) : (
+        /* Mobile view - with sticky sections */
+        <div className="relative flex flex-col">
+          <div
+            className="sticky z-30 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.28)]"
+            style={{ top: '4.5rem' }}
+          >
+            {activeSection && ActiveSectionComponent && (
+              <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+                <div className="px-2 sm:px-3 py-2.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-1.5 rounded-full ${sections.find(s => s.id === activeSection)?.color}`}>
+                        {React.createElement(sections.find(s => s.id === activeSection)?.icon, {
+                          className: 'h-4 w-4 text-white'
+                        })}
+                      </div>
+                      <h2 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+                        {sections.find(s => s.id === activeSection)?.name}
+                      </h2>
+                    </div>
+                    <button
+                      onClick={() => setActiveSection(null)}
+                      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <span>{t('show_news', 'Show News')}</span>
+                      <ChevronRight className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="max-h-[45vh] overflow-y-auto pr-1">
+                    <ActiveSectionComponent onPostClick={onPostClick} />
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
               <div className="px-2 sm:px-3 py-2.5">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <h2 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
+                    {sectionHeading}
+                  </h2>
                   <div className="flex items-center gap-2">
-                    <div className={`p-1.5 rounded-full ${sections.find(s => s.id === activeSection)?.color}`}>
-                      {React.createElement(sections.find(s => s.id === activeSection)?.icon, {
-                        className: 'h-4 w-4 text-white'
-                      })}
-                    </div>
-                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
-                      {sections.find(s => s.id === activeSection)?.name}
-                    </h2>
+                    {activeSection && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                        {sections.find((s) => s.id === activeSection)?.name}
+                      </span>
+                    )}
+                    {activeSection && (
+                      <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                        {t('scroll_for_updates', 'Scroll for more updates')}
+                      </span>
+                    )}
                   </div>
-                  <button
-                    onClick={() => setActiveSection(null)}
-                    className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    <span>{t('show_news', 'Show News')}</span>
-                    <ChevronRight className="h-3 w-3" />
-                  </button>
-                </div>
-                <div className="max-h-[45vh] overflow-y-auto pr-1">
-                  <ActiveSectionComponent onPostClick={onPostClick} />
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-            <div className="px-2 sm:px-3 py-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                <h2 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
-                  {sectionHeading}
-                </h2>
-                <div className="flex items-center gap-2">
-                  {activeSection && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                      {sections.find((s) => s.id === activeSection)?.name}
-                    </span>
-                  )}
-                  {activeSection && (
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                      {t('scroll_for_updates', 'Scroll for more updates')}
-                    </span>
-                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onShowReels()}
+                      className="inline-flex items-center gap-1 rounded-full border border-pink-200 bg-gradient-to-r from-pink-50 to-purple-50 px-3 py-1.5 text-[11px] font-semibold text-pink-700 shadow-sm transition-colors hover:border-pink-300 hover:from-pink-100 hover:to-purple-100 dark:border-pink-800 dark:from-pink-900/20 dark:to-purple-900/20 dark:text-pink-300 dark:hover:border-pink-700"
+                    >
+                      <span className="text-sm">🎬</span>
+                      Reels
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSectionSheetOpen(true)}
+                      className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-gray-600"
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                      {t('home.open_focus', 'Focus')}
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onShowReels()}
-                    className="inline-flex items-center gap-1 rounded-full border border-pink-200 bg-gradient-to-r from-pink-50 to-purple-50 px-3 py-1.5 text-[11px] font-semibold text-pink-700 shadow-sm transition-colors hover:border-pink-300 hover:from-pink-100 hover:to-purple-100 dark:border-pink-800 dark:from-pink-900/20 dark:to-purple-900/20 dark:text-pink-300 dark:hover:border-pink-700"
-                  >
-                    <span className="text-sm">🎬</span>
-                    Reels
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSectionSheetOpen(true)}
-                    className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-gray-600"
-                  >
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                    {t('home.open_focus', 'Focus')}
-                  </button>
-                </div>
+                <CategoryFilter
+                  activeCategory={activeCategory}
+                  setActiveCategory={setActiveCategory}
+                />
               </div>
-
-              <CategoryFilter
-                activeCategory={activeCategory}
-                setActiveCategory={setActiveCategory}
-              />
             </div>
           </div>
-        </div>
 
-        <div className="flex-1 bg-gray-50 dark:bg-gray-950 pt-0 pb-6">
-          {!activeSection && !isDesktop && (
-            <div className="px-2 sm:px-3 mt-3 mb-3">
-              <EnhancedStorySection
-                onViewStory={(story) => console.log('View story:', story)}
-              />
-            </div>
-          )}
+          <div className="flex-1 bg-gray-50 dark:bg-gray-950 pt-0 pb-6">
+            {!activeSection && (
+              <div className="px-2 sm:px-3 mt-3 mb-3">
+                <EnhancedStorySection
+                  onViewStory={(story) => console.log('View story:', story)}
+                />
+              </div>
+            )}
 
-          <div className="mt-3">
-            {isDesktop ? (
-              <DesktopNewsFeed
-                key={refreshKey}
-                category={activeCategory === 'all' ? null : activeCategory}
-                feedType="all"
-                onPostClick={onPostClick}
-              />
-            ) : (
+            <div className="mt-3">
               <EnhancedNewsFeed
                 key={refreshKey}
                 activeCategory={activeCategory}
                 onPostClick={onPostClick}
                 feedType="all"
               />
-            )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {isSectionSheetOpen && (
         <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/40 backdrop-blur-sm">

@@ -22,7 +22,7 @@ const ResponsiveLayout = ({ children, currentView = {}, onNavigate, isDesktop: i
   }, [isDesktopProp]);
 
   // Routes that should always use mobile layout (admin, login, etc.)
-  const mobileOnlyViews = ['admin', 'login', 'signup', 'news-detail', 'admin-upgrade', 'firebase-setup'];
+  const mobileOnlyViews = ['admin', 'login', 'signup', 'admin-upgrade', 'firebase-setup', 'qr-scanner'];
   const isMobileOnlyView = mobileOnlyViews.includes(currentView?.type);
 
   // Use desktop layout for desktop screens, unless it's a mobile-only view

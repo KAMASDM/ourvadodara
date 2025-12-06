@@ -264,18 +264,43 @@ const UnifiedPostCreator = () => {
   }, [mediaFiles]);
   
   // Translation function using MyMemory API
+  // Handles text of any length by chunking into 500 character segments
   const translateText = async (text, targetLang) => {
     if (!text || !text.trim()) return '';
     
     try {
-      const response = await axios.get('https://api.mymemory.translated.net/get', {
-        params: {
-          q: text,
-          langpair: `en|${targetLang}`
-        }
-      });
+      // Split text into chunks of 500 characters (API limit)
+      const chunkSize = 500;
+      const chunks = [];
+      for (let i = 0; i < text.length; i += chunkSize) {
+        chunks.push(text.slice(i, i + chunkSize));
+      }
       
-      return response.data.responseData.translatedText || text;
+      console.log(`Translating text from English to ${targetLang} (${chunks.length} chunks, ${text.length} total chars)`);
+      
+      // Translate each chunk
+      const translatedChunks = await Promise.all(
+        chunks.map(async (chunk, index) => {
+          try {
+            const response = await axios.get('https://api.mymemory.translated.net/get', {
+              params: {
+                q: chunk,
+                langpair: `en|${targetLang}`
+              }
+            });
+            return response.data.responseData.translatedText || chunk;
+          } catch (chunkError) {
+            console.error(`Translation error for chunk ${index + 1}:`, chunkError);
+            return chunk;
+          }
+        })
+      );
+      
+      // Combine translated chunks
+      const translatedText = translatedChunks.join('');
+      console.log(`Translation completed: ${text.length} chars -> ${translatedText.length} chars`);
+      return translatedText;
+      
     } catch (error) {
       console.error(`Translation error for ${targetLang}:`, error);
       return text;

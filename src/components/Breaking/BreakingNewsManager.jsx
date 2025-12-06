@@ -97,26 +97,53 @@ const BreakingNewsManager = () => {
   };
 
   // Translation functionality
+  // Handles text of any length by chunking into 500 character segments
   const translateText = async (text, targetLang) => {
     if (!text || text.trim().length === 0) return text;
     
     const langMap = { hi: 'hi', gu: 'gu' };
     
     try {
-      const response = await axios.get(
-        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${langMap[targetLang]}`,
-        { 
-          timeout: 10000,
-          headers: { 'Accept': 'application/json' }
-        }
+      // Split text into chunks of 500 characters (API limit)
+      const chunkSize = 500;
+      const chunks = [];
+      for (let i = 0; i < text.length; i += chunkSize) {
+        chunks.push(text.slice(i, i + chunkSize));
+      }
+      
+      console.log(`Translating text from English to ${targetLang} (${chunks.length} chunks, ${text.length} total chars)`);
+      
+      // Translate each chunk
+      const translatedChunks = await Promise.all(
+        chunks.map(async (chunk, index) => {
+          try {
+            const response = await axios.get(
+              `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=en|${langMap[targetLang]}`,
+              { 
+                timeout: 10000,
+                headers: { 'Accept': 'application/json' }
+              }
+            );
+            
+            const data = response.data;
+            if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
+              return data.responseData.translatedText;
+            } else {
+              console.warn(`Translation API returned invalid response for chunk ${index + 1}`);
+              return chunk;
+            }
+          } catch (chunkError) {
+            console.error(`Translation error for chunk ${index + 1}:`, chunkError);
+            return chunk;
+          }
+        })
       );
       
-      const data = response.data;
-      if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
-        return data.responseData.translatedText;
-      } else {
-        throw new Error('Translation failed');
-      }
+      // Combine translated chunks
+      const translatedText = translatedChunks.join('');
+      console.log(`Translation completed: ${text.length} chars -> ${translatedText.length} chars`);
+      return translatedText;
+      
     } catch (error) {
       console.error(`Translation error for ${targetLang}:`, error);
       return text;

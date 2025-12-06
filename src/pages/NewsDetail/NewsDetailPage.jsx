@@ -27,6 +27,7 @@ import ReportModal from '../../components/Report/ReportModal';
 import ImageViewer from '../../components/Media/ImageViewer';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import useReadTime from '../../hooks/useReadTime';
+import useViewTracking from '../../hooks/useViewTracking';
 import LoadingSpinner from '../../components/Common/LoadingSpinner';
 
 const NewsDetailPage = ({ newsId, onBack }) => {
@@ -37,6 +38,9 @@ const NewsDetailPage = ({ newsId, onBack }) => {
   
   // Fetch real-time data from Firebase
   const { data: postsObject, isLoading, error } = useRealtimeData('posts');
+  
+  // Initialize view tracking
+  useViewTracking(newsId, 'posts');
   
   // Initialize read time tracking
   useReadTime(newsId, user?.uid);
@@ -73,11 +77,11 @@ const NewsDetailPage = ({ newsId, onBack }) => {
         setNews(newsItem);
         setIsLiked(false); // Check from user's liked posts
         setIsSaved(false); // Check from user's saved posts
-        setViewCount(newsItem.views || Math.floor(Math.random() * 1000) + 100);
+        setViewCount(newsItem.analytics?.views || newsItem.views || 0);
         
         // Load related news
         const related = postsArray
-          .filter(item => item.id !== newsId && item.category === newsItem.category)
+          .filter(item => item.id !== newsId && item.category && newsItem.category && item.category === newsItem.category)
           .slice(0, 3);
         setRelatedNews(related);
         
@@ -310,11 +314,13 @@ const NewsDetailPage = ({ newsId, onBack }) => {
               )}
 
               {/* Category */}
-              <div className="mb-3">
-                <span className="bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 px-3 py-1 rounded-full text-sm font-medium">
-                  {news.category.charAt(0).toUpperCase() + news.category.slice(1)}
-                </span>
-              </div>
+              {news.category && (
+                <div className="mb-3">
+                  <span className="bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 px-3 py-1 rounded-full text-sm font-medium">
+                    {news.category.charAt(0).toUpperCase() + news.category.slice(1)}
+                  </span>
+                </div>
+              )}
 
               {/* Title */}
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">

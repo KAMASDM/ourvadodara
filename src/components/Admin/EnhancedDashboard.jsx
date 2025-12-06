@@ -131,6 +131,73 @@ const EnhancedDashboard = () => {
     // Engagement rate
     const totalEngagements = totalLikes + totalComments + totalShares;
     const engagementRate = totalViews > 0 ? ((totalEngagements / totalViews) * 100).toFixed(1) : 0;
+    
+    // Calculate previous period data for trends
+    const getPreviousPeriodPosts = () => {
+      const now = Date.now();
+      let periodLength = 7 * 24 * 60 * 60 * 1000; // default week
+      
+      switch (dateRange) {
+        case 'today':
+          periodLength = 24 * 60 * 60 * 1000;
+          break;
+        case 'week':
+          periodLength = 7 * 24 * 60 * 60 * 1000;
+          break;
+        case 'month':
+          periodLength = 30 * 24 * 60 * 60 * 1000;
+          break;
+        case 'year':
+          periodLength = 365 * 24 * 60 * 60 * 1000;
+          break;
+        default:
+          return posts; // For 'all', use same set
+      }
+      
+      const currentPeriodStart = now - periodLength;
+      const previousPeriodStart = currentPeriodStart - periodLength;
+      const previousPeriodEnd = currentPeriodStart;
+      
+      return posts.filter(post => {
+        const postDate = new Date(post.publishedAt || post.createdAt).getTime();
+        return postDate >= previousPeriodStart && postDate < previousPeriodEnd;
+      });
+    };
+    
+    const previousPosts = dateRange !== 'all' ? getPreviousPeriodPosts() : [];
+    
+    // Calculate previous period metrics
+    const prevViews = previousPosts.reduce((sum, post) => sum + (post.analytics?.views || post.views || 0), 0);
+    const prevLikes = previousPosts.reduce((sum, post) => sum + (post.analytics?.likes || post.likes || 0), 0);
+    const prevShares = previousPosts.reduce((sum, post) => sum + (post.analytics?.shares || post.shares || 0), 0);
+    
+    let prevComments = 0;
+    if (commentsData && previousPosts.length > 0) {
+      previousPosts.forEach(post => {
+        const postComments = commentsData[post.id];
+        if (postComments) {
+          prevComments += Object.keys(postComments).length;
+        }
+      });
+    }
+    
+    const prevEngagements = prevLikes + prevComments + prevShares;
+    const prevEngagementRate = prevViews > 0 ? ((prevEngagements / prevViews) * 100).toFixed(1) : 0;
+    
+    // Calculate percentage changes
+    const calculateTrend = (current, previous) => {
+      if (previous === 0) return current > 0 ? '+100%' : '0%';
+      const change = ((current - previous) / previous * 100).toFixed(1);
+      return change >= 0 ? `+${change}%` : `${change}%`;
+    };
+    
+    const trends = {
+      views: calculateTrend(totalViews, prevViews),
+      likes: calculateTrend(totalLikes, prevLikes),
+      comments: calculateTrend(totalComments, prevComments),
+      shares: calculateTrend(totalShares, prevShares),
+      engagement: calculateTrend(parseFloat(engagementRate), parseFloat(prevEngagementRate))
+    };
 
     // Active users (last 24 hours)
     const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
@@ -170,9 +237,10 @@ const EnhancedDashboard = () => {
       activeUsers,
       totalUsers: users.length,
       categoryStats,
-      topPosts
+      topPosts,
+      trends
     };
-  }, [filteredPosts, commentsData, users]);
+  }, [filteredPosts, commentsData, users, dateRange, posts]);
 
   const handleExportData = () => {
     const exportData = {
@@ -354,42 +422,41 @@ const EnhancedDashboard = () => {
             label="Total Posts"
             value={stats.totalPosts}
             color="blue"
-            trend="+12%"
           />
           <StatCard
             icon={Eye}
             label="Total Views"
             value={stats.totalViews.toLocaleString()}
             color="green"
-            trend="+25%"
+            trend={stats.trends?.views}
           />
           <StatCard
             icon={Heart}
             label="Total Likes"
             value={stats.totalLikes.toLocaleString()}
             color="red"
-            trend="+18%"
+            trend={stats.trends?.likes}
           />
           <StatCard
             icon={MessageSquare}
             label="Total Comments"
             value={stats.totalComments.toLocaleString()}
             color="purple"
-            trend="+8%"
+            trend={stats.trends?.comments}
           />
           <StatCard
             icon={Share2}
             label="Total Shares"
             value={stats.totalShares.toLocaleString()}
             color="orange"
-            trend="+15%"
+            trend={stats.trends?.shares}
           />
           <StatCard
             icon={TrendingUp}
             label="Engagement Rate"
             value={`${stats.engagementRate}%`}
             color="indigo"
-            trend="+5%"
+            trend={stats.trends?.engagement}
           />
           <StatCard
             icon={Users}
@@ -425,7 +492,10 @@ const EnhancedDashboard = () => {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 dark:text-white truncate">
-                      {typeof post.title === 'string' ? post.title : String(post.title || 'Untitled Post')}
+                      {typeof post.title === 'object' && post.title !== null 
+                        ? (post.title.en || post.title.hi || post.title.gu || 'Untitled Post')
+                        : (post.title || 'Untitled Post')
+                      }
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       {post.category || 'General'}
@@ -506,6 +576,8 @@ const StatCard = ({ icon: Icon, label, value, color, trend, subtitle }) => {
     cyan: 'from-cyan-500 to-cyan-600'
   };
 
+  const isPositiveTrend = trend && (trend.startsWith('+') || !trend.startsWith('-'));
+  
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all">
       <div className="flex items-center justify-between mb-4">
@@ -513,7 +585,11 @@ const StatCard = ({ icon: Icon, label, value, color, trend, subtitle }) => {
           <Icon className="w-6 h-6 text-white" />
         </div>
         {trend && (
-          <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+          <span className={`text-sm font-semibold ${
+            isPositiveTrend 
+              ? 'text-green-600 dark:text-green-400' 
+              : 'text-red-600 dark:text-red-400'
+          }`}>
             {trend}
           </span>
         )}

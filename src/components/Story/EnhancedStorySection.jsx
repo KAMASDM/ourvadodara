@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import useViewTracking from '../../hooks/useViewTracking';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import { Play, Clock, Heart, MessageCircle, Eye } from 'lucide-react';
 import MediaRenderer from '../Media/MediaRenderer';
@@ -194,6 +195,9 @@ const StoryViewer = ({ story, allStories, onClose, currentLanguage, onLike, onCo
   const currentStoryDuration = ((currentStory?.storySettings?.duration) || 15) * 1000;
   const isStoryType = currentStory?.type === POST_TYPES.STORY;
   const viewCount = currentStory?.analytics?.views ?? currentStory?.views ?? 0;
+  
+  // Track view for current story
+  useViewTracking(currentStoryId, 'stories');
 
   useEffect(() => {
     if (!currentStory || !isStoryType || isPaused) return;

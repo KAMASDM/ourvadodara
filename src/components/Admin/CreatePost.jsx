@@ -133,6 +133,7 @@ const CreatePost = () => {
 
   // Translation function using MyMemory Translation API (free)
   // Translates FROM Gujarati TO Hindi/English
+  // Handles text of any length by chunking into 500 character segments
   const translateText = async (text, targetLang) => {
     if (!text.trim()) return '';
     
@@ -142,27 +143,48 @@ const CreatePost = () => {
         en: 'en'
       };
       
-      console.log(`Translating "${text}" from Gujarati to ${targetLang}`);
+      // Split text into chunks of 500 characters (API limit)
+      const chunkSize = 500;
+      const chunks = [];
+      for (let i = 0; i < text.length; i += chunkSize) {
+        chunks.push(text.slice(i, i + chunkSize));
+      }
       
-      const response = await axios.get(
-        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=gu|${langMap[targetLang]}`,
-        {
-          timeout: 10000, // 10 second timeout
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
+      console.log(`Translating text from Gujarati to ${targetLang} (${chunks.length} chunks, ${text.length} total chars)`);
+      
+      // Translate each chunk
+      const translatedChunks = await Promise.all(
+        chunks.map(async (chunk, index) => {
+          try {
+            const response = await axios.get(
+              `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=gu|${langMap[targetLang]}`,
+              {
+                timeout: 10000,
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+            
+            const data = response.data;
+            if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
+              return data.responseData.translatedText;
+            } else {
+              console.warn(`Translation API returned invalid response for chunk ${index + 1}`);
+              return chunk; // Return original chunk if translation fails
+            }
+          } catch (chunkError) {
+            console.error(`Translation error for chunk ${index + 1}:`, chunkError);
+            return chunk; // Return original chunk if translation fails
+          }
+        })
       );
       
-      const data = response.data;
-      console.log('Translation response:', data);
+      // Combine translated chunks
+      const translatedText = translatedChunks.join('');
+      console.log(`Translation completed: ${text.length} chars -> ${translatedText.length} chars`);
+      return translatedText;
       
-      if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
-        return data.responseData.translatedText;
-      } else {
-        console.warn('Translation API returned invalid response');
-        throw new Error('Invalid translation response');
-      }
     } catch (error) {
       console.error('Translation error:', error);
       // Fallback: return original Gujarati text if translation fails
