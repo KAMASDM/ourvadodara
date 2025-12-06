@@ -57,9 +57,28 @@ export default defineConfig({
     force: true
   },
   build: {
+    chunkSizeWarningLimit: 1000,
+    sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: undefined
+        manualChunks(id) {
+          // Firebase modules
+          if (id.includes('firebase')) {
+            return 'firebase';
+          }
+          // React core
+          if (id.includes('node_modules/react') || 
+              id.includes('node_modules/react-dom') ||
+              id.includes('node_modules/react-router-dom')) {
+            return 'react-vendor';
+          }
+          // UI libraries
+          if (id.includes('lucide-react') || 
+              id.includes('@headlessui') || 
+              id.includes('@heroicons')) {
+            return 'ui-vendor';
+          }
+        }
       }
     }
   }
