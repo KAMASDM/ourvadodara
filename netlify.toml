@@ -3,7 +3,7 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "18.20.8"
+  NODE_VERSION = "20.19.0"
   NODE_OPTIONS = "--max-old-space-size=4096"
   CI = "true"
 
