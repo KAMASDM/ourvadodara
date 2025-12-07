@@ -340,14 +340,14 @@ const PostCard = ({ post, onPostClick }) => {
         {/* Media - Images and Videos */}
         {mediaUrl && !mediaError && (
           <div className="pb-2">
-            <div className="mb-2">
+            <div className="mb-2 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800">
               {isVideoMedia ? (
                 <video
                   src={mediaUrl}
                   poster={selectedMediaItem?.thumbnailUrl || ''}
                   preload="metadata"
                   controls
-                  className="w-full h-auto object-cover bg-gray-900"
+                  className="w-full h-auto max-h-[500px] object-contain bg-gray-900"
                   onError={() => {
                     console.error('Video failed to load:', mediaUrl);
                     setMediaError(true);
@@ -359,7 +359,7 @@ const PostCard = ({ post, onPostClick }) => {
                 <img
                   src={mediaUrl}
                   alt={titleText}
-                  className="w-full h-auto object-cover"
+                  className="w-full h-auto max-h-[500px] object-contain"
                   loading="lazy"
                   onError={() => {
                     console.error('PostCard image failed:', mediaUrl);
