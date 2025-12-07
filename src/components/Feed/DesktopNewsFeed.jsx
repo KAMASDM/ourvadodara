@@ -125,10 +125,10 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [shareData, setShareData] = useState(null);
 
-  // Fetch data
+  // Fetch data - only posts initially, carousels and reels are optional for performance
   const { data: postsData, loading: postsLoading } = useRealtimeData('posts');
-  const { data: carouselsData } = useRealtimeData('carousels');
-  const { data: reelsData } = useRealtimeData('reels');
+  const { data: carouselsData } = useRealtimeData(null); // Disabled for performance
+  const { data: reelsData } = useRealtimeData(null); // Disabled for performance
 
   // Combine and filter posts
   const allPosts = useMemo(() => {

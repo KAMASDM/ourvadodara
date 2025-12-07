@@ -54,9 +54,92 @@
     <meta name="twitter:image" content="/logo.png" />
     
     <title>Our Vadodara - Local News Hub</title>
+    <style>
+      /* Initial loading screen styles */
+      #loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100vh;
+        background: linear-gradient(to bottom, #fffcf0 0%, #fff9e6 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.3s ease-out;
+      }
+      #loading-screen.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .loading-logo-container {
+        width: 120px;
+        height: 120px;
+        background: white;
+        border-radius: 50%;
+        padding: 24px;
+        box-shadow: 0 10px 25px rgba(162, 146, 111, 0.2);
+        margin-bottom: 24px;
+        animation: pulse 2s ease-in-out infinite;
+      }
+      .loading-logo-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid rgba(168, 146, 111, 0.2);
+        border-top-color: #a8926f;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+      @media (prefers-color-scheme: dark) {
+        #loading-screen {
+          background: linear-gradient(to bottom, #18181b 0%, #27272a 100%);
+        }
+        .loading-logo-container {
+          background: #27272a;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+      }
+    </style>
   </head>
   <body>
+    <!-- Initial Loading Screen -->
+    <div id="loading-screen">
+      <div class="loading-logo-container">
+        <img src="/icons/icon-192x192.png" alt="Our Vadodara Logo" />
+      </div>
+      <div class="loading-spinner"></div>
+    </div>
+    
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    
+    <!-- Hide loading screen once React loads -->
+    <script>
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          const loadingScreen = document.getElementById('loading-screen');
+          if (loadingScreen) {
+            loadingScreen.classList.add('hidden');
+            setTimeout(function() {
+              loadingScreen.style.display = 'none';
+            }, 300);
+          }
+        }, 500);
+      });
+    </script>
   </body>
 </html>
