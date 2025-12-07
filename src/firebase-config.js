@@ -42,16 +42,23 @@ export const db = getDatabase(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
-// Initialize messaging for push notifications
+// Initialize messaging for push notifications - ONLY on mobile PWA
 let messaging = null;
 try {
-  // Only initialize messaging in supported environments
-  if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  // Check if running as PWA and on mobile device
+  const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                window.navigator.standalone === true;
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const hasServiceWorker = typeof window !== 'undefined' && 'serviceWorker' in navigator;
+  const isSecureContext = window.isSecureContext || window.location.hostname === 'localhost';
+  
+  // Only initialize if ALL conditions are met
+  if (isPWA && isMobile && hasServiceWorker && isSecureContext) {
     messaging = getMessaging(app);
   }
 } catch (error) {
-  // Messaging not available in this environment (e.g., desktop browser, HTTP)
-  console.log('Firebase Messaging not available:', error.message);
+  // Silent fail - messaging is optional feature
+  messaging = null;
 }
 
 export const fcmMessaging = messaging;
