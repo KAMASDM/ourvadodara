@@ -43,7 +43,8 @@ messaging.onBackgroundMessage((payload) => {
       url: data?.url || '/',
       postId: data?.postId,
       type: data?.type,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      incrementBadge: true
     },
     actions: [
       {
@@ -59,13 +60,36 @@ messaging.onBackgroundMessage((payload) => {
     ]
   };
 
-  // Show notification
+  // Show notification and update badge
   self.registration.showNotification(notificationTitle, notificationOptions);
+  
+  // Update app badge count
+  if (navigator.setAppBadge) {
+    // Get current badge count from IndexedDB or increment
+    getBadgeCount().then(count => {
+      const newCount = count + 1;
+      navigator.setAppBadge(newCount);
+      saveBadgeCount(newCount);
+    });
+  }
 });
 
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  
+  // Decrement badge count when notification is clicked
+  getBadgeCount().then(count => {
+    const newCount = Math.max(0, count - 1);
+    if (navigator.setAppBadge) {
+      if (newCount === 0) {
+        navigator.clearAppBadge();
+      } else {
+        navigator.setAppBadge(newCount);
+      }
+    }
+    saveBadgeCount(newCount);
+  });
 
   const { url, postId, type } = event.notification.data;
 
@@ -135,4 +159,77 @@ self.addEventListener('pushsubscriptionchange', (event) => {
       // Send new subscription to your server
     })
   );
+});
+
+// Badge count management using IndexedDB
+const DB_NAME = 'OurVadodaraBadgeDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'badges';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+  });
+}
+
+async function getBadgeCount() {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAME], 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get('count');
+      
+      request.onsuccess = () => resolve(request.result || 0);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('Error getting badge count:', error);
+    return 0;
+  }
+}
+
+async function saveBadgeCount(count) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.put(count, 'count');
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('Error saving badge count:', error);
+  }
+}
+
+async function clearBadgeCount() {
+  try {
+    if (navigator.clearAppBadge) {
+      await navigator.clearAppBadge();
+    }
+    await saveBadgeCount(0);
+    console.log('Badge count cleared');
+  } catch (error) {
+    console.error('Error clearing badge count:', error);
+  }
+}
+
+// Listen for messages from the app to clear badge
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'CLEAR_BADGE') {
+    clearBadgeCount();
+  }
 });

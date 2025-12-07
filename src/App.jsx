@@ -39,6 +39,7 @@ import { BloodSOSProvider, useBloodSOS } from './context/SOS/BloodSOSContext.jsx
 import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
 import { analytics } from './utils/analytics.js';
 import { performanceMonitor } from './utils/performance.js';
+import { initializeNotifications } from './utils/notificationManager.js';
 import './utils/i18n.js';
 
 function AppContent() {
@@ -138,6 +139,13 @@ function AppContent() {
     
     // Track app start
     analytics.track('app_start');
+    
+    // Initialize push notifications
+    initializeNotifications().then((initialized) => {
+      if (initialized) {
+        console.log('Push notifications enabled');
+      }
+    }).catch(err => console.error('Error initializing notifications:', err));
     
     // Listen for guest prompt event
     const handleShowGuestPrompt = () => {
