@@ -461,17 +461,15 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
                 <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-4">
                   {getPostDescription(post)}
                 </p>
-                <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800">
-                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>{formatTimeAgo(post.timestamp)}</span>
+                <div className="flex items-center gap-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>{post.views || 0}</span>
                   </div>
-                  {post.views && (
-                    <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>{post.views}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>{post.shares || 0}</span>
+                  </div>
                 </div>
               </div>
             </div>

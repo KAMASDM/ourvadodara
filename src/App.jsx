@@ -12,7 +12,6 @@ import ErrorBoundary from './components/Common/ErrorBoundary.jsx';
 import ResponsiveLayout from './components/Layout/ResponsiveLayout.jsx';
 import OfflineIndicator from './components/Common/OfflineIndicator.jsx';
 import NotificationCenter from './components/Notifications/NotificationCenter.jsx';
-import SplashScreen from './components/Common/SplashScreen.jsx';
 import InstallPrompt from './components/PWA/InstallPrompt.jsx';
 import Header from './components/Layout/Header.jsx';
 import Navigation from './components/Layout/Navigation.jsx';
@@ -47,7 +46,6 @@ function AppContent() {
   const [currentView, setCurrentView] = useState({ type: 'home', data: null });
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
-  const [showSplash, setShowSplash] = useState(true);
   const [showGuestPrompt, setShowGuestPrompt] = useState(false);
   const [showFirebaseSetup, setShowFirebaseSetup] = useState(false);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
@@ -214,10 +212,6 @@ function AppContent() {
     setCurrentView({ type: 'reels', data: { reelId } });
   };
 
-  const handleSplashComplete = () => {
-    setShowSplash(false);
-  };
-
   const handleTabChange = (tab) => {
     if (['profile', 'admin'].includes(tab) && !user) {
       setShowLogin(true);
@@ -357,14 +351,7 @@ function AppContent() {
   return (
     <ResponsiveLayout currentView={currentView} onNavigate={handleNavigation} isDesktop={isDesktop}>
       <div className="min-h-screen bg-surface-light dark:bg-surface-dark">
-        {/* Splash Screen */}
-        {showSplash && (
-          <SplashScreen onComplete={handleSplashComplete} />
-        )}
-        
-        {!showSplash && (
-          <>
-            <OfflineIndicator />
+        <OfflineIndicator />
             
             {/* Only show mobile header on mobile or for full-width views */}
             {!isDesktop && currentView.type !== 'news-detail' && !isFullWidthView && (
@@ -416,8 +403,6 @@ function AppContent() {
             isOpen={showFirebaseSetup}
             onClose={() => setShowFirebaseSetup(false)}
           />
-        </>
-      )}
       </div>
     </ResponsiveLayout>
   );

@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
+import { useAuth } from '../../context/Auth/AuthContext';
 import { Heart, MessageCircle, Share, Bookmark, MoreHorizontal } from 'lucide-react';
 import { ref, update } from 'firebase/database';
 import { db } from '../../firebase-config';
@@ -13,6 +14,7 @@ import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 const PostCard = ({ post, onPostClick }) => {
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
+  const { user } = useAuth();
   const [isLiked, setIsLiked] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
@@ -148,6 +150,14 @@ const PostCard = ({ post, onPostClick }) => {
         shares: currentShares + 1,
         lastInteraction: new Date().toISOString()
       });
+      
+      // Track user's total shares if logged in
+      if (user?.uid) {
+        const userRef = ref(db, `users/${user.uid}`);
+        await update(userRef, {
+          totalShares: (user.totalShares || 0) + 1
+        });
+      }
     } catch (error) {
       console.error('Error updating shares:', error);
     }

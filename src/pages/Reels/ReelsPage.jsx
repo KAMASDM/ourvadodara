@@ -414,6 +414,13 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         await update(ref(db, `reels/${reel.id}/analytics`), {
           shares: increment(1)
         });
+        
+        // Track user's total shares
+        if (user?.uid) {
+          await update(ref(db, `users/${user.uid}`), {
+            totalShares: increment(1)
+          });
+        }
       } else {
         // Fallback to copy link
         const url = window.location.origin + `/reel/${reel.id}`;
@@ -423,6 +430,13 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         await update(ref(db, `reels/${reel.id}/analytics`), {
           shares: increment(1)
         });
+        
+        // Track user's total shares
+        if (user?.uid) {
+          await update(ref(db, `users/${user.uid}`), {
+            totalShares: increment(1)
+          });
+        }
       }
     } catch (error) {
       if (error.name !== 'AbortError') {

@@ -7,7 +7,8 @@ import { useAuth } from '../../context/Auth/AuthContext';
 import { useTheme } from '../../context/Theme/ThemeContext';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { getUserProfile, updateUserProfile } from '../../utils/adminSetup';
-import { firebaseAuth } from '../../firebase-config';
+import { firebaseAuth, db } from '../../firebase-config';
+import { ref, get, onValue } from 'firebase/database';
 import BloodSOSButton from '../../components/SOS/BloodSOSButton.jsx';
 import ContactVerificationModal from '../../components/Profile/ContactVerificationModal';
 import {
@@ -35,7 +36,10 @@ import {
   Check,
   X,
   AlertCircle,
-  Shield
+  Shield,
+  ChevronDown,
+  ChevronUp,
+  Info
 } from 'lucide-react';
 
 const cloneProfile = (data) => JSON.parse(JSON.stringify(data));
@@ -90,13 +94,16 @@ const ProfilePage = () => {
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [verificationType, setVerificationType] = useState(null); // 'phone' or 'email'
   const [verificationValue, setVerificationValue] = useState('');
-
-  const userStats = {
-    postsLiked: 156,
-    postsSaved: 89,
-    commentsPosted: 234,
-    articlesShared: 67
-  };
+  const [expandedSection, setExpandedSection] = useState('personal'); // For accordion
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [verificationInfo, setVerificationInfo] = useState('');
+  const [userStats, setUserStats] = useState({
+    postsLiked: 0,
+    postsSaved: 0,
+    commentsPosted: 0,
+    articlesShared: 0
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
 
   const recentActivity = [
     { type: 'like', article: 'Vadodara Smart City Project Update', time: '2 hours ago' },
@@ -104,6 +111,82 @@ const ProfilePage = () => {
     { type: 'save', article: 'Cricket Tournament Announcement', time: '1 day ago' },
     { type: 'share', article: 'Local Weather Update', time: '2 days ago' }
   ];
+
+  // Handle mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Load user statistics from Firebase
+  useEffect(() => {
+    const loadUserStats = async () => {
+      if (!user?.uid) {
+        setLoadingStats(false);
+        return;
+      }
+
+      setLoadingStats(true);
+      try {
+        // Get likes count
+        const likesRef = ref(db, 'likes');
+        const likesSnapshot = await get(likesRef);
+        let likesCount = 0;
+        if (likesSnapshot.exists()) {
+          const likesData = likesSnapshot.val();
+          Object.values(likesData).forEach(postLikes => {
+            if (postLikes && postLikes[user.uid]) {
+              likesCount++;
+            }
+          });
+        }
+
+        // Get bookmarks/saves count
+        const bookmarksRef = ref(db, `bookmarks/${user.uid}`);
+        const bookmarksSnapshot = await get(bookmarksRef);
+        const savesCount = bookmarksSnapshot.exists() ? Object.keys(bookmarksSnapshot.val()).length : 0;
+
+        // Get comments count
+        const commentsRef = ref(db, 'comments');
+        const commentsSnapshot = await get(commentsRef);
+        let commentsCount = 0;
+        if (commentsSnapshot.exists()) {
+          const commentsData = commentsSnapshot.val();
+          Object.values(commentsData).forEach(postComments => {
+            if (postComments) {
+              Object.values(postComments).forEach(comment => {
+                if (comment.authorId === user.uid) {
+                  commentsCount++;
+                }
+              });
+            }
+          });
+        }
+
+        // Get shares count from user profile or interactions
+        const userProfileRef = ref(db, `users/${user.uid}`);
+        const userProfileSnapshot = await get(userProfileRef);
+        const sharesCount = userProfileSnapshot.exists() ? (userProfileSnapshot.val().totalShares || 0) : 0;
+
+        setUserStats({
+          postsLiked: likesCount,
+          postsSaved: savesCount,
+          commentsPosted: commentsCount,
+          articlesShared: sharesCount
+        });
+      } catch (error) {
+        console.error('Error loading user stats:', error);
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+
+    loadUserStats();
+  }, [user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -210,16 +293,18 @@ const ProfilePage = () => {
       errors.push('Either Phone Number or Email is required');
     }
     
+    if (errors.length > 0) {
+      setProfileError(errors.join(', '));
+      return;
+    }
+
     // Check if user is trying to add/change phone (for email/google users)
     if ((user.authMethod === 'email' || user.authMethod === 'google') && 
         hasPhone && 
         draftData.contact.primaryPhone !== profileData.contact.primaryPhone &&
         !user.phoneVerified) {
-      // Need to verify phone
-      setVerificationType('phone');
-      setVerificationValue(draftData.contact.primaryPhone);
-      setShowVerificationModal(true);
-      return;
+      // Show info but allow saving
+      setVerificationInfo('Phone number will need verification. You can verify later from your profile.');
     }
     
     // Check if user is trying to add/change email (for phone users)
@@ -227,18 +312,11 @@ const ProfilePage = () => {
         hasEmail && 
         draftData.contact.email !== profileData.contact.email &&
         !user.emailVerified) {
-      // Need to verify email
-      setVerificationType('email');
-      setVerificationValue(draftData.contact.email);
-      setShowVerificationModal(true);
-      return;
-    }
-    
-    if (errors.length > 0) {
-      setProfileError(errors.join(', '));
-      return;
+      // Show info but allow saving
+      setVerificationInfo('Email will need verification. You can verify later from your profile.');
     }
 
+    // Always save the profile data
     await saveProfileData();
   };
 
@@ -248,18 +326,31 @@ const ProfilePage = () => {
 
     try {
       const payload = cloneProfile(draftData);
+      
+      // Check if phone/email needs verification for profile completion
+      const hasUnverifiedPhone = draftData.contact.primaryPhone && !user.phoneVerified;
+      const hasUnverifiedEmail = draftData.contact.email && !user.emailVerified;
+      const needsVerification = hasUnverifiedPhone || hasUnverifiedEmail;
 
       await updateUserProfile(user.uid, {
         profile: payload,
         displayName: payload.personal.fullName || user.displayName || user.email || 'Member',
         email: payload.contact.email || user.email || '',
         phoneVerified: user.phoneVerified || false,
-        emailVerified: user.emailVerified || false
+        emailVerified: user.emailVerified || false,
+        profileComplete: !needsVerification // Mark incomplete if verification needed
       });
 
       setProfileData(cloneProfile(payload));
       setIsEditing(false);
-      setShowIncompleteAlert(false);
+      
+      // Show success message with verification reminder if needed
+      if (needsVerification) {
+        setShowIncompleteAlert(true);
+      } else {
+        setShowIncompleteAlert(false);
+        setVerificationInfo('');
+      }
       
       // Refresh profile completion status
       if (refreshProfileCompletion) {
@@ -581,24 +672,29 @@ const ProfilePage = () => {
             <div className="flex items-center gap-2">
               {isEditing ? (
                 <>
-                  <button
-                    type="button"
-                    onClick={handleCancelEditing}
-                    className={`inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 transition-colors ${savingProfile ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
-                    disabled={savingProfile}
-                  >
-                    <X className="h-4 w-4" />
-                    <span>{t('common.cancel', 'Cancel')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveProfile}
-                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-500/20 transition-colors ${savingProfile ? 'bg-primary-400 cursor-progress' : 'bg-primary-500 hover:bg-primary-600'}`}
-                    disabled={savingProfile}
-                  >
-                    <Check className="h-4 w-4" />
-                    <span>{savingProfile ? t('common.saving', 'Saving...') : t('common.saveChanges', 'Save Changes')}</span>
-                  </button>
+                  {/* Hide on mobile when editing (sticky button will be used instead) */}
+                  {!isMobile && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleCancelEditing}
+                        className={`inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 transition-colors ${savingProfile ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                        disabled={savingProfile}
+                      >
+                        <X className="h-4 w-4" />
+                        <span>{t('common.cancel', 'Cancel')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveProfile}
+                        className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-500/20 transition-colors ${savingProfile ? 'bg-primary-400 cursor-progress' : 'bg-primary-500 hover:bg-primary-600'}`}
+                        disabled={savingProfile}
+                      >
+                        <Check className="h-4 w-4" />
+                        <span>{savingProfile ? t('common.saving', 'Saving...') : t('common.saveChanges', 'Save Changes')}</span>
+                      </button>
+                    </>
+                  )}
                 </>
               ) : (
                 <button
@@ -621,55 +717,146 @@ const ProfilePage = () => {
         <div className="px-4 py-5">
           <div className="grid grid-cols-2 gap-4 text-center sm:grid-cols-4">
             <div className="rounded-2xl border border-gray-200/60 dark:border-gray-800/60 bg-gray-50/60 dark:bg-gray-900/60 p-4">
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{userStats.postsLiked}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {loadingStats ? (
+                  <span className="inline-block w-12 h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></span>
+                ) : userStats.postsLiked}
+              </p>
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Liked</p>
             </div>
             <div className="rounded-2xl border border-gray-200/60 dark:border-gray-800/60 bg-gray-50/60 dark:bg-gray-900/60 p-4">
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{userStats.postsSaved}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {loadingStats ? (
+                  <span className="inline-block w-12 h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></span>
+                ) : userStats.postsSaved}
+              </p>
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Saved</p>
             </div>
             <div className="rounded-2xl border border-gray-200/60 dark:border-gray-800/60 bg-gray-50/60 dark:bg-gray-900/60 p-4">
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{userStats.commentsPosted}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {loadingStats ? (
+                  <span className="inline-block w-12 h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></span>
+                ) : userStats.commentsPosted}
+              </p>
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Comments</p>
             </div>
             <div className="rounded-2xl border border-gray-200/60 dark:border-gray-800/60 bg-gray-50/60 dark:bg-gray-900/60 p-4">
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{userStats.articlesShared}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {loadingStats ? (
+                  <span className="inline-block w-12 h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></span>
+                ) : userStats.articlesShared}
+              </p>
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Shared</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Profile Sections */}
-      <div className="mt-6 px-4 space-y-5">
+      {/* Verification Info Alert */}
+      {verificationInfo && (
+        <div className="mx-4 mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl flex items-start gap-3">
+          <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm text-blue-900 dark:text-blue-100">{verificationInfo}</p>
+            <button
+              onClick={() => {
+                setShowVerificationModal(true);
+                setVerificationInfo('');
+              }}
+              className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Verify Now
+            </button>
+          </div>
+          <button
+            onClick={() => setVerificationInfo('')}
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Profile Sections - Accordion for Mobile, Regular for Desktop */}
+      <div className={`mt-6 px-4 space-y-5 ${isEditing && isMobile ? 'pb-32' : ''}`}>
         {profileSections.map((section) => {
           const Icon = section.icon;
+          const isExpanded = !isMobile || expandedSection === section.id;
+          
           return (
             <section
               key={section.id}
-              className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm p-6 shadow-sm shadow-gray-200/40 dark:shadow-black/30"
+              className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm shadow-sm shadow-gray-200/40 dark:shadow-black/30 overflow-hidden"
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="rounded-2xl bg-primary-500/10 p-3 text-primary-600 dark:bg-primary-500/20 dark:text-primary-200">
-                    <Icon className="h-5 w-5" />
+              {/* Section Header - Clickable on Mobile */}
+              <div 
+                className={`p-6 ${isMobile && isEditing ? 'cursor-pointer' : ''}`}
+                onClick={() => {
+                  if (isMobile && isEditing) {
+                    setExpandedSection(expandedSection === section.id ? null : section.id);
+                  }
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-2xl bg-primary-500/10 p-3 text-primary-600 dark:bg-primary-500/20 dark:text-primary-200">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{section.title}</h2>
+                      {section.description && !isMobile && (
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{section.description}</p>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{section.title}</h2>
-                    {section.description && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{section.description}</p>
-                    )}
-                  </div>
+                  {isMobile && isEditing && (
+                    <button className="p-2">
+                      {isExpanded ? (
+                        <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {section.fields.map((field) => renderField(section.id, field))}
-              </div>
+              {/* Section Fields - Collapsible on Mobile */}
+              {isExpanded && (
+                <div className="px-6 pb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {section.fields.map((field) => renderField(section.id, field))}
+                </div>
+              )}
             </section>
           );
         })}
       </div>
+      
+      {/* Sticky Save Button for Mobile */}
+      {isEditing && isMobile && (
+        <div className="fixed bottom-20 left-0 right-0 px-4 py-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 shadow-lg z-40">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCancelEditing}
+              className={`flex-1 inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-gray-700 px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-300 transition-colors ${savingProfile ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+              disabled={savingProfile}
+            >
+              <X className="h-4 w-4" />
+              <span>Cancel</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveProfile}
+              className={`flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-500/20 transition-colors ${savingProfile ? 'bg-primary-400 cursor-progress' : 'bg-primary-500 hover:bg-primary-600'}`}
+              disabled={savingProfile}
+            >
+              <Check className="h-4 w-4" />
+              <span>{savingProfile ? 'Saving...' : 'Save Changes'}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Settings */}
       <div className="mt-6 px-4">
@@ -755,7 +942,7 @@ const ProfilePage = () => {
         </button>
       </div>
 
-      <BloodSOSButton />
+      {/* <BloodSOSButton /> */}
       
       {/* Contact Verification Modal */}
       {showVerificationModal && verificationType && verificationValue && (

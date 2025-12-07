@@ -70,18 +70,18 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
   // Define available sections
   const sections = [
     {
-      id: 'weather',
-      name: t('weather', 'Weather'),
-      icon: Cloud,
-      color: 'bg-blue-500',
-      component: WeatherWidget
-    },
-    {
       id: 'trending',
       name: t('trending', 'Trending'),
       icon: TrendingUp,
       color: 'bg-red-500',
       component: TrendingTopics
+    },
+    {
+      id: 'weather',
+      name: t('weather', 'Weather'),
+      icon: Cloud,
+      color: 'bg-blue-500',
+      component: WeatherWidget
     },
     {
       id: 'events',
@@ -200,6 +200,18 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSectionClick('weather')}
+                      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-semibold shadow-sm transition-colors ${
+                        activeSection === 'weather'
+                          ? 'border-blue-300 bg-gradient-to-r from-blue-50 to-sky-50 text-blue-700 dark:border-blue-700 dark:from-blue-900/20 dark:to-sky-900/20 dark:text-blue-300'
+                          : 'border-blue-200 bg-gradient-to-r from-blue-50 to-sky-50 text-blue-600 hover:border-blue-300 hover:from-blue-100 hover:to-sky-100 dark:border-blue-800 dark:from-blue-900/20 dark:to-sky-900/20 dark:text-blue-400 dark:hover:border-blue-700'
+                      }`}
+                    >
+                      <span className="text-sm">☁️</span>
+                      {t('weather', 'Weather')}
+                    </button>
                     <button
                       type="button"
                       onClick={() => onShowReels()}

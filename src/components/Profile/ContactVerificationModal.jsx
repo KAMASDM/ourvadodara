@@ -108,7 +108,9 @@ const ContactVerificationModal = ({
       if (err.code === 'auth/invalid-verification-code') {
         setError('Invalid OTP. Please try again.');
       } else if (err.code === 'auth/credential-already-in-use') {
-        setError('This phone number is already linked to another account.');
+        setError('This phone number is already registered with another account. Please use a different number.');
+      } else if (err.code === 'auth/account-exists-with-different-credential') {
+        setError('This phone number is already registered with another account. Please use a different number or sign in with that account.');
       } else {
         setError('Verification failed. Please try again.');
       }
