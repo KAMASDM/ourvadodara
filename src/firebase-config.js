@@ -10,6 +10,7 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 import { getStorage } from "firebase/storage";
 import { getMessaging } from "firebase/messaging";
+import { getFunctions } from "firebase/functions";
 
 // Your web app's Firebase configuration
 // Configuration loaded from environment variables
@@ -39,13 +40,18 @@ const analytics = getAnalytics(app);
 export const firebaseAuth = getAuth(app);
 export const db = getDatabase(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app);
 
 // Initialize messaging for push notifications
 let messaging = null;
 try {
-  messaging = getMessaging(app);
+  // Only initialize messaging in supported environments
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    messaging = getMessaging(app);
+  }
 } catch (error) {
-  // Messaging not available in this environment
+  // Messaging not available in this environment (e.g., desktop browser, HTTP)
+  console.log('Firebase Messaging not available:', error.message);
 }
 
 export const fcmMessaging = messaging;
@@ -100,6 +106,11 @@ export {
   getToken,
   onMessage
 } from "firebase/messaging";
+
+// Export Firebase Functions
+export {
+  httpsCallable
+} from "firebase/functions";
 
 // Default export
 export default app;

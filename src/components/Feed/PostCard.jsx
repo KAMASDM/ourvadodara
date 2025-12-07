@@ -122,11 +122,21 @@ const PostCard = ({ post, onPostClick }) => {
     // Update likes count in Firebase
     try {
       const postRef = ref(db, `posts/${post.id}`);
+      const likesRef = ref(db, `likes/${post.id}/${user?.uid}`);
       const currentLikes = post.likes || 0;
-      await update(postRef, {
-        likes: newLikedState ? currentLikes + 1 : Math.max(0, currentLikes - 1),
-        lastInteraction: new Date().toISOString()
-      });
+      
+      const updates = {
+        [`posts/${post.id}/likes`]: newLikedState ? currentLikes + 1 : Math.max(0, currentLikes - 1),
+        [`posts/${post.id}/lastInteraction`]: new Date().toISOString(),
+        [`likes/${post.id}/${user?.uid}`]: newLikedState ? true : null
+      };
+      
+      // Update user's total likes count
+      if (user?.uid) {
+        updates[`users/${user.uid}/totalLikes`] = newLikedState ? (user.totalLikes || 0) + 1 : Math.max(0, (user.totalLikes || 1) - 1);
+      }
+      
+      await update(ref(db), updates);
     } catch (error) {
       console.error('Error updating likes:', error);
       // Revert the state if Firebase update fails

@@ -122,7 +122,7 @@ const ProfilePage = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load user statistics from Firebase
+  // Load user statistics from Firebase (optimized to not block main page)
   useEffect(() => {
     const loadUserStats = async () => {
       if (!user?.uid) {
@@ -132,51 +132,24 @@ const ProfilePage = () => {
 
       setLoadingStats(true);
       try {
-        // Get likes count
-        const likesRef = ref(db, 'likes');
-        const likesSnapshot = await get(likesRef);
-        let likesCount = 0;
-        if (likesSnapshot.exists()) {
-          const likesData = likesSnapshot.val();
-          Object.values(likesData).forEach(postLikes => {
-            if (postLikes && postLikes[user.uid]) {
-              likesCount++;
-            }
-          });
-        }
-
-        // Get bookmarks/saves count
-        const bookmarksRef = ref(db, `bookmarks/${user.uid}`);
-        const bookmarksSnapshot = await get(bookmarksRef);
-        const savesCount = bookmarksSnapshot.exists() ? Object.keys(bookmarksSnapshot.val()).length : 0;
-
-        // Get comments count
-        const commentsRef = ref(db, 'comments');
-        const commentsSnapshot = await get(commentsRef);
-        let commentsCount = 0;
-        if (commentsSnapshot.exists()) {
-          const commentsData = commentsSnapshot.val();
-          Object.values(commentsData).forEach(postComments => {
-            if (postComments) {
-              Object.values(postComments).forEach(comment => {
-                if (comment.authorId === user.uid) {
-                  commentsCount++;
-                }
-              });
-            }
-          });
-        }
-
-        // Get shares count from user profile or interactions
+        // Load all stats in parallel and use cached user stats where available
         const userProfileRef = ref(db, `users/${user.uid}`);
-        const userProfileSnapshot = await get(userProfileRef);
-        const sharesCount = userProfileSnapshot.exists() ? (userProfileSnapshot.val().totalShares || 0) : 0;
+        const bookmarksRef = ref(db, `bookmarks/${user.uid}`);
 
+        const [userProfileSnapshot, bookmarksSnapshot] = await Promise.all([
+          get(userProfileRef),
+          get(bookmarksRef)
+        ]);
+
+        const userData = userProfileSnapshot.val() || {};
+        
+        // Use cached counts from user profile if available (updated by cloud functions)
+        // This avoids querying entire likes/comments databases
         setUserStats({
-          postsLiked: likesCount,
-          postsSaved: savesCount,
-          commentsPosted: commentsCount,
-          articlesShared: sharesCount
+          postsLiked: userData.totalLikes || 0,
+          postsSaved: bookmarksSnapshot.exists() ? Object.keys(bookmarksSnapshot.val()).length : 0,
+          commentsPosted: userData.totalComments || 0,
+          articlesShared: userData.totalShares || 0
         });
       } catch (error) {
         console.error('Error loading user stats:', error);
@@ -185,7 +158,9 @@ const ProfilePage = () => {
       }
     };
 
-    loadUserStats();
+    // Defer stats loading to not block main content
+    const timer = setTimeout(loadUserStats, 100);
+    return () => clearTimeout(timer);
   }, [user]);
 
   useEffect(() => {

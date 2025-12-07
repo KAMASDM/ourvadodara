@@ -18,7 +18,11 @@ class NotificationManager {
 
   // Check if notifications are supported
   isSupported() {
+    // Check if we're in a secure context (HTTPS or localhost)
+    const isSecureContext = window.isSecureContext || window.location.hostname === 'localhost';
+    
     return (
+      isSecureContext &&
       'Notification' in window &&
       'serviceWorker' in navigator &&
       'PushManager' in window &&
@@ -28,7 +32,12 @@ class NotificationManager {
 
   // Initialize notifications on app install/first run
   async initialize() {
-    if (this.isInitialized || !this.isSupported()) {
+    if (this.isInitialized) {
+      return false;
+    }
+
+    if (!this.isSupported()) {
+      console.log('Push notifications not supported in this browser/environment');
       return false;
     }
 
