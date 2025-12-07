@@ -140,21 +140,26 @@ function AppContent() {
     // Track app start
     analytics.track('app_start');
     
-    // Initialize push notifications after service worker is ready
-    // Add delay to ensure service worker has time to register
-    setTimeout(() => {
-      initializeNotifications()
-        .then((initialized) => {
-          if (initialized) {
-            console.log('✅ Push notifications enabled');
-          } else {
-            console.log('ℹ️ Push notifications not available (mobile-only feature)');
-          }
-        })
-        .catch(err => {
-          console.log('ℹ️ Push notifications initialization skipped:', err.message);
-        });
-    }, 1000); // Wait 1 second for service worker to register
+    // Initialize push notifications ONLY on mobile PWA (non-blocking)
+    // Check if running as PWA (standalone mode) and on mobile
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                  window.navigator.standalone === true;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isPWA && isMobile) {
+      // Run in background without blocking UI
+      setTimeout(() => {
+        initializeNotifications()
+          .then((initialized) => {
+            if (initialized) {
+              console.log('✅ Push notifications enabled');
+            }
+          })
+          .catch(err => {
+            // Silent fail - don't log errors for desktop browsers
+          });
+      }, 3000); // Wait 3 seconds after app loads
+    }
     
     // Listen for guest prompt event
     const handleShowGuestPrompt = () => {

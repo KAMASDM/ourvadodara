@@ -18,14 +18,22 @@ class NotificationManager {
 
   // Check if notifications are supported
   isSupported() {
+    // Only support on mobile PWA installations
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                  window.navigator.standalone === true;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
     // Check if we're in a secure context (HTTPS or localhost)
     const isSecureContext = window.isSecureContext || window.location.hostname === 'localhost';
     
     return (
+      isPWA &&
+      isMobile &&
       isSecureContext &&
       'Notification' in window &&
       'serviceWorker' in navigator &&
       'PushManager' in window &&
+      'indexedDB' in window &&
       fcmMessaging !== null
     );
   }
@@ -36,8 +44,8 @@ class NotificationManager {
       return false;
     }
 
+    // Early return if not supported - don't log anything
     if (!this.isSupported()) {
-      console.log('Push notifications not supported in this browser/environment');
       return false;
     }
 
@@ -45,14 +53,12 @@ class NotificationManager {
       // Request permission
       const permission = await this.requestPermission();
       if (!permission) {
-        console.log('Notification permission denied');
         return false;
       }
 
       // Get FCM token
       this.token = await this.getToken();
       if (!this.token) {
-        console.log('Failed to get FCM token');
         return false;
       }
 
@@ -66,10 +72,10 @@ class NotificationManager {
       this.clearBadge();
 
       this.isInitialized = true;
-      console.log('Notifications initialized successfully');
+      console.log('✅ Notifications initialized successfully');
       return true;
     } catch (error) {
-      console.error('Error initializing notifications:', error);
+      // Silent fail - notifications are optional
       return false;
     }
   }
@@ -91,7 +97,14 @@ class NotificationManager {
 
   // Get FCM token
   async getToken() {
+    // Early return if not supported - avoid IndexedDB access
     if (!this.isSupported() || !fcmMessaging) {
+      return null;
+    }
+
+    // Additional check for IndexedDB availability
+    if (!window.indexedDB) {
+      console.log('IndexedDB not available');
       return null;
     }
 
@@ -99,7 +112,10 @@ class NotificationManager {
       // Wait for service worker to be ready before getting token
       if ('serviceWorker' in navigator) {
         const registration = await navigator.serviceWorker.ready;
-        console.log('Service Worker ready:', registration.active?.state);
+        if (!registration || !registration.active) {
+          console.log('No active service worker');
+          return null;
+        }
       }
 
       const currentToken = await getToken(fcmMessaging, {
@@ -122,7 +138,7 @@ class NotificationManager {
         return null;
       }
     } catch (error) {
-      console.error('Error getting FCM token:', error);
+      // Silent fail - notifications are optional feature
       return null;
     }
   }
