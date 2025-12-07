@@ -140,18 +140,21 @@ function AppContent() {
     // Track app start
     analytics.track('app_start');
     
-    // Initialize push notifications (only on supported platforms)
-    initializeNotifications()
-      .then((initialized) => {
-        if (initialized) {
-          console.log('✅ Push notifications enabled');
-        } else {
-          console.log('ℹ️ Push notifications not available (mobile-only feature)');
-        }
-      })
-      .catch(err => {
-        console.log('ℹ️ Push notifications initialization skipped:', err.message);
-      });
+    // Initialize push notifications after service worker is ready
+    // Add delay to ensure service worker has time to register
+    setTimeout(() => {
+      initializeNotifications()
+        .then((initialized) => {
+          if (initialized) {
+            console.log('✅ Push notifications enabled');
+          } else {
+            console.log('ℹ️ Push notifications not available (mobile-only feature)');
+          }
+        })
+        .catch(err => {
+          console.log('ℹ️ Push notifications initialization skipped:', err.message);
+        });
+    }, 1000); // Wait 1 second for service worker to register
     
     // Listen for guest prompt event
     const handleShowGuestPrompt = () => {
