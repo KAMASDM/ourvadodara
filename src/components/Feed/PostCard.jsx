@@ -1,11 +1,11 @@
 // =============================================
 // Updated src/components/Feed/PostCard.jsx (Make clickable)
 // =============================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useAuth } from '../../context/Auth/AuthContext';
-import { Heart, MessageCircle, Share, Bookmark, MoreHorizontal } from 'lucide-react';
+import { Heart, MessageCircle, Share, Bookmark, MoreHorizontal, Play, Pause } from 'lucide-react';
 import { ref, update } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { formatTime } from '../../utils/helpers';
@@ -19,6 +19,10 @@ const PostCard = ({ post, onPostClick }) => {
   const [isSaved, setIsSaved] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
   const [mediaError, setMediaError] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const videoRef = useRef(null);
+  const cardRef = useRef(null);
 
   const normalizeMediaCollection = (collection) => {
     if (!collection) return [];
@@ -108,11 +112,88 @@ const PostCard = ({ post, onPostClick }) => {
   }
   
   const mediaUrl = getUrlFromMediaItem(selectedMediaItem) || fallbackImageUrl || '';
-  const isVideoMedia = selectedMediaItem ? isVideoCandidate(selectedMediaItem, mediaUrl) : /(\.mp4|\.webm|\.mov|\.m4v)$/i.test(mediaUrl || '');
+  const isVideoMedia = selectedMediaItem ? isVideoCandidate(selectedMediaItem, mediaUrl) : /(\.\.mp4|\.webm|\.mov|\.m4v)$/i.test(mediaUrl || '');
+
+  // Auto-play/pause video based on visibility
+  useEffect(() => {
+    if (!isVideoMedia || !videoRef.current) return;
+
+    const video = videoRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          // Video is more than 50% visible
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            video.play().catch(() => {
+              // Auto-play prevented, user needs to interact first
+              setIsPlaying(false);
+            });
+          } else {
+            // Video is less than 50% visible or not visible
+            video.pause();
+            setIsPlaying(false);
+          }
+        });
+      },
+      { threshold: [0, 0.5, 1.0] }
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => {
+      if (cardRef.current) {
+        observer.unobserve(cardRef.current);
+      }
+    };
+  }, [isVideoMedia]);
+
+  // Track video progress
+  useEffect(() => {
+    if (!videoRef.current) return;
+
+    const video = videoRef.current;
+
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleTimeUpdate = () => {
+      if (video.duration) {
+        setProgress((video.currentTime / video.duration) * 100);
+      }
+    };
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setProgress(0);
+    };
+
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    video.addEventListener('ended', handleEnded);
+
+    return () => {
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener('ended', handleEnded);
+    };
+  }, [isVideoMedia]);
 
   useEffect(() => {
     setMediaError(false);
   }, [mediaUrl]);
+
+  const toggleVideoPlayback = useCallback((e) => {
+    e.stopPropagation();
+    if (!videoRef.current) return;
+
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+    } else {
+      videoRef.current.pause();
+    }
+  }, []);
 
   const handleLike = async (e) => {
     e.stopPropagation(); // Prevent triggering post click
@@ -276,7 +357,7 @@ const PostCard = ({ post, onPostClick }) => {
   const needsReadMore = contentText.length > 150;
 
   return (
-    <article className="bg-ivory-50 dark:bg-bg-card-dark border-y border-warmBrown-200 dark:border-border-dark shadow-sm hover:shadow-md transition-all duration-200 mb-0">
+    <article ref={cardRef} className="bg-ivory-50 dark:bg-bg-card-dark border-y border-warmBrown-200 dark:border-border-dark shadow-sm hover:shadow-md transition-all duration-200 mb-0">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 pb-2">
         <div className="flex items-center space-x-3">
@@ -340,21 +421,49 @@ const PostCard = ({ post, onPostClick }) => {
         {/* Media - Images and Videos */}
         {mediaUrl && !mediaError && (
           <div className="pb-2">
-            <div className="mb-2 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800">
+            <div className="mb-2 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 relative">
               {isVideoMedia ? (
-                <video
-                  src={mediaUrl}
-                  poster={selectedMediaItem?.thumbnailUrl || ''}
-                  preload="metadata"
-                  controls
-                  className="w-full h-auto max-h-[500px] object-contain bg-gray-900"
-                  onError={() => {
-                    console.error('Video failed to load:', mediaUrl);
-                    setMediaError(true);
-                  }}
-                >
-                  Your browser does not support the video tag.
-                </video>
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                  <video
+                    ref={videoRef}
+                    src={mediaUrl}
+                    poster={selectedMediaItem?.thumbnailUrl || ''}
+                    preload="metadata"
+                    playsInline
+                    className="w-full h-auto max-h-[500px] object-contain bg-gray-900"
+                    onError={() => {
+                      console.error('Video failed to load:', mediaUrl);
+                      setMediaError(true);
+                    }}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                  
+                  {/* Custom Play/Pause Button Overlay */}
+                  <button
+                    onClick={toggleVideoPlayback}
+                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200 group"
+                    aria-label={isPlaying ? 'Pause video' : 'Play video'}
+                  >
+                    <div className={`bg-black bg-opacity-60 rounded-full p-4 transform transition-all duration-200 ${
+                      isPlaying ? 'opacity-0 group-hover:opacity-100 scale-90' : 'opacity-100 scale-100'
+                    }`}>
+                      {isPlaying ? (
+                        <Pause className="w-8 h-8 text-white" />
+                      ) : (
+                        <Play className="w-8 h-8 text-white ml-1" />
+                      )}
+                    </div>
+                  </button>
+                  
+                  {/* Progress Bar */}
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700 bg-opacity-50">
+                    <div
+                      className="h-full bg-red-500 transition-all duration-100"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
               ) : (
                 <img
                   src={mediaUrl}
