@@ -29,6 +29,7 @@ import { useRealtimeData } from '../../hooks/useRealtimeData';
 import useReadTime from '../../hooks/useReadTime';
 import useViewTracking from '../../hooks/useViewTracking';
 import LoadingSpinner from '../../components/Common/LoadingSpinner';
+import { getRecommendedArticles, buildUserInteractionProfile } from '../../utils/recommendationEngine';
 
 const NewsDetailPage = ({ newsId, onBack }) => {
   const { t } = useTranslation();
@@ -38,6 +39,9 @@ const NewsDetailPage = ({ newsId, onBack }) => {
   
   // Fetch real-time data from Firebase
   const { data: postsObject, isLoading, error } = useRealtimeData('posts');
+  const { data: userLikesData } = useRealtimeData(`users/${user?.uid}/likes`);
+  const { data: userReadsData } = useRealtimeData(`users/${user?.uid}/reads`);
+  const { data: userSharesData } = useRealtimeData(`users/${user?.uid}/shares`);
   
   // Initialize view tracking
   useViewTracking(newsId, 'posts');
@@ -79,17 +83,37 @@ const NewsDetailPage = ({ newsId, onBack }) => {
         setIsSaved(false); // Check from user's saved posts
         setViewCount(newsItem.analytics?.views || newsItem.views || 0);
         
-        // Load related news
-        const related = postsArray
-          .filter(item => item.id !== newsId && item.category && newsItem.category && item.category === newsItem.category)
-          .slice(0, 3);
-        setRelatedNews(related);
+        // Build user interaction profile
+        const userInteractions = user?.uid 
+          ? buildUserInteractionProfile(user.uid, userLikesData, userReadsData, userSharesData)
+          : [];
+        
+        // Get smart recommendations using the recommendation engine
+        const recommended = getRecommendedArticles(
+          newsItem,
+          postsArray,
+          userInteractions,
+          {
+            maxResults: 6,
+            weights: {
+              tags: 0.25,        // Tag similarity weight
+              category: 0.15,    // Same category weight
+              location: 0.15,    // Location match weight
+              recency: 0.15,     // Recent articles weight
+              engagement: 0.15,  // Popular articles weight
+              userPreference: 0.15  // User's past behavior weight
+            },
+            diversityFactor: 0.2  // Promote content diversity
+          }
+        );
+        
+        setRelatedNews(recommended);
         
         // Load comments
         loadComments();
       }
     }
-  }, [postsObject, newsId]);
+  }, [postsObject, newsId, userLikesData, userReadsData, userSharesData, user]);
 
   const loadComments = () => {
     // Mock comments data

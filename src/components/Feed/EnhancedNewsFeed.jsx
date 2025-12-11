@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useAuth } from '../../context/Auth/AuthContext';
+import { useCity } from '../../context/CityContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { useDoubleTap } from '../../hooks/useDoubleTap';
@@ -34,6 +35,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
   const { user } = useAuth();
+  const { currentCity } = useCity();
   
   // Fetch different types of posts
   const { data: postsData, isLoading: postsLoading } = useRealtimeData('posts');
@@ -166,6 +168,18 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
   const filteredPosts = useMemo(() => {
     let posts = getAllPosts();
 
+    // Filter by city
+    if (currentCity && currentCity.id) {
+      posts = posts.filter(post => {
+        // Check if post has cities array and includes current city
+        if (post.cities && Array.isArray(post.cities)) {
+          return post.cities.includes(currentCity.id);
+        }
+        // Show posts without city data (backward compatibility)
+        return true;
+      });
+    }
+
     // Filter by feed type
     if (feedType === 'reels') {
       posts = posts.filter(post => post.type === POST_TYPES.REEL);
@@ -184,7 +198,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
       const dateB = new Date(b.publishedAt || b.createdAt);
       return dateB - dateA;
     });
-  }, [postsData, storiesData, reelsData, carouselsData, activeCategory, feedType]);
+  }, [postsData, storiesData, reelsData, carouselsData, activeCategory, feedType, currentCity]);
 
   // Apply infinite scroll pagination
   const { items: paginatedPosts, hasMore, isFetching, sentinelRef } = useInfiniteScroll(

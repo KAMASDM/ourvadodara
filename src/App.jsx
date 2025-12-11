@@ -40,6 +40,7 @@ import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
 import { analytics } from './utils/analytics.js';
 import { performanceMonitor } from './utils/performance.js';
 import { initializeNotifications } from './utils/notificationManager.js';
+import { pushNotificationService } from './utils/pushNotifications.js';
 import './utils/i18n.js';
 
 function AppContent() {
@@ -194,6 +195,24 @@ function AppContent() {
     // Track page views
     analytics.page(activeTab);
   }, [activeTab]);
+
+  // Initialize push notifications when user is authenticated
+  useEffect(() => {
+    if (user && !user.isAnonymous) {
+      console.log('Initializing push notifications for user:', user.uid);
+      pushNotificationService.init(user.uid)
+        .then(success => {
+          if (success) {
+            console.log('Push notifications initialized successfully');
+          } else {
+            console.log('Push notifications initialization failed or not supported');
+          }
+        })
+        .catch(error => {
+          console.error('Error initializing push notifications:', error);
+        });
+    }
+  }, [user]);
 
   useEffect(() => {
     const handleResize = () => {

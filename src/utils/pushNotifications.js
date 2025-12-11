@@ -70,37 +70,90 @@ class PushNotificationService {
         throw new Error('No FCM token available');
       }
 
-      // Subscribe to default topics
+      // Default topics that all users subscribe to
       const defaultTopics = [
-        'all-users',
-        'breaking-news',
-        'local-news'
+        'all-news',
+        'breaking-news'
       ];
 
-      const allTopics = [...defaultTopics, ...topics, `user-${userId}`];
+      const allTopics = [...defaultTopics, ...topics];
 
-      // Send subscription request to your backend
-      const response = await fetch('/api/fcm/subscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          token,
-          topics: allTopics,
-          userId
-        })
+      // Store FCM token in Firebase Database with user info
+      const { db } = await import('../firebase-config');
+      const { ref, set } = await import('firebase/database');
+      
+      await set(ref(db, `fcmTokens/${userId}`), {
+        token: token,
+        topics: allTopics,
+        userId: userId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        platform: 'web'
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to subscribe to topics');
-      }
+      console.log('Successfully stored FCM token with topics:', allTopics);
+      
+      // Call Netlify function to subscribe token to topics
+      try {
+        const response = await fetch('/.netlify/functions/subscribe-topics', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            token: token,
+            topics: allTopics,
+            userId: userId
+          })
+        });
 
-      console.log('Successfully subscribed to topics:', allTopics);
+        const result = await response.json();
+        console.log('Topic subscription result:', result);
+      } catch (netlifyError) {
+        console.error('Error calling Netlify function:', netlifyError);
+        // Continue even if Netlify function fails - token is still stored in Firebase
+      }
+      
       return allTopics;
     } catch (error) {
       console.error('Error subscribing to topics:', error);
       throw error;
+    }
+  }
+
+  async subscribeToCityTopic(cityId) {
+    try {
+      const token = this.token || await this.getRegistrationToken();
+      
+      if (!token || !cityId) {
+        return false;
+      }
+
+      const { db } = await import('../firebase-config');
+      const { ref, update } = await import('firebase/database');
+      const { getAuth } = await import('firebase/auth');
+      
+      const auth = getAuth();
+      const userId = auth.currentUser?.uid;
+      
+      if (!userId) {
+        console.warn('User not authenticated');
+        return false;
+      }
+
+      // Add city topic to user's subscriptions
+      const cityTopic = `city-${cityId}`;
+      
+      await update(ref(db, `fcmTokens/${userId}`), {
+        [`topics/${cityTopic}`]: true,
+        updatedAt: new Date().toISOString()
+      });
+
+      console.log('Successfully subscribed to city topic:', cityTopic);
+      return true;
+    } catch (error) {
+      console.error('Error subscribing to city topic:', error);
+      return false;
     }
   }
 

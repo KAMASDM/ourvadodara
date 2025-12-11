@@ -523,6 +523,32 @@ const MediaRenderer = ({
 
   // Reel Renderer
   if (type === POST_TYPES.REEL) {
+    // Auto-play logic for reels
+    useEffect(() => {
+      if (!videoRef.current) return;
+
+      const video = videoRef.current;
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+              video.play().catch((err) => {
+                console.log('Reel auto-play prevented:', err.message);
+                setIsPlaying(false);
+              });
+            } else {
+              video.pause();
+              setIsPlaying(false);
+            }
+          });
+        },
+        { threshold: [0, 0.5, 1.0] }
+      );
+
+      observer.observe(video);
+      return () => observer.disconnect();
+    }, [videoRef.current]);
+
     return (
       <div className={`relative bg-black rounded-lg overflow-hidden ${className}`} style={{ aspectRatio: '9/16', maxHeight: '100vh' }}>
         {/* Video */}
@@ -530,58 +556,38 @@ const MediaRenderer = ({
           ref={videoRef}
           src={currentItemSource}
           className="w-full h-full object-contain"
-          muted={isMuted}
+          muted
           loop
           playsInline
           poster={currentItem.thumbnailUrl}
-          onClick={togglePlayPause}
         />
 
         {/* Reel Overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60 pointer-events-none" />
 
-        {/* Play/Pause Button - Centered */}
-        {!isPlaying && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-20 h-20 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm rounded-full border-2 border-white">
-              <Play className="w-10 h-10 text-white ml-1" fill="white" />
-            </div>
+        {/* Custom Play/Pause Button Overlay */}
+        <div
+          onClick={togglePlayPause}
+          className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
+          style={{ pointerEvents: 'auto' }}
+        >
+          <div className={`bg-black bg-opacity-60 rounded-full p-4 transform transition-all duration-200 border-2 border-white ${
+            isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'
+          }`}>
+            {isPlaying ? (
+              <Pause className="w-10 h-10 text-white" strokeWidth={2.5} />
+            ) : (
+              <Play className="w-10 h-10 text-white" strokeWidth={2.5} fill="white" />
+            )}
           </div>
-        )}
+        </div>
 
-        {/* Progress Bar */}
-        <div className="absolute bottom-20 left-4 right-4">
-          {/* Time Display */}
-          <div className="flex justify-between text-white text-xs mb-1 px-1">
-            <span className="font-medium">{formatTime(currentTime)}</span>
-            <span className="opacity-70">{formatTime(duration)}</span>
-          </div>
-          
-          {/* Progress Track */}
-          <div 
-            ref={progressRef}
-            className="relative h-1 bg-white bg-opacity-30 rounded-full cursor-pointer group"
-            onClick={handleProgressClick}
-            onMouseDown={handleProgressDragStart}
-            onMouseMove={handleProgressDrag}
-            onMouseUp={handleProgressDragEnd}
-            onMouseLeave={handleProgressDragEnd}
-            onTouchStart={handleProgressDragStart}
-            onTouchMove={handleProgressDrag}
-            onTouchEnd={handleProgressDragEnd}
-          >
-            {/* Filled Progress */}
-            <div 
-              className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-100"
-              style={{ width: `${progress}%` }}
-            />
-            
-            {/* Scrubber Thumb */}
-            <div 
-              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-              style={{ left: `calc(${progress}% - 6px)` }}
-            />
-          </div>
+        {/* Progress Bar - Fixed at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-800 bg-opacity-70 z-20">
+          <div
+            className="h-full bg-red-500 transition-all duration-100"
+            style={{ width: `${progress}%` }}
+          />
         </div>
 
         {/* Reel Info */}
@@ -753,6 +759,34 @@ const MediaRenderer = ({
     );
   }
 
+  // Auto-play logic for single video (standard posts)
+  useEffect(() => {
+    if (!isVideo || !videoRef.current || type === POST_TYPES.REEL || type === POST_TYPES.STORY) {
+      return; // Only for standard post videos
+    }
+
+    const video = videoRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            video.play().catch((err) => {
+              console.log('Auto-play prevented:', err.message);
+              setIsPlaying(false);
+            });
+          } else {
+            video.pause();
+            setIsPlaying(false);
+          }
+        });
+      },
+      { threshold: [0, 0.5, 1.0] }
+    );
+
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [isVideo, type, videoRef.current]);
+
   // Single Image/Video Renderer
   return (
     <div className={`relative rounded-lg overflow-hidden ${className}`}>
@@ -764,15 +798,46 @@ const MediaRenderer = ({
             className="w-full h-full object-cover"
           />
         ) : currentItemSource ? (
-          <video
-            ref={videoRef}
-            src={currentItemSource}
-            className="w-full h-full object-cover"
-            controls={showControls}
-            muted={isMuted}
-            poster={currentItem.thumbnailUrl}
-            loop={settings.loop}
-          />
+          <>
+            <video
+              ref={videoRef}
+              src={currentItemSource}
+              className="w-full h-full object-cover bg-black"
+              muted
+              playsInline
+              poster={currentItem.thumbnailUrl}
+              loop={settings.loop}
+            />
+            
+            {/* Custom Play/Pause Button Overlay */}
+            {showControls && (
+              <div
+                onClick={togglePlayPause}
+                className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
+                style={{ pointerEvents: 'auto' }}
+              >
+                <div className={`bg-black bg-opacity-60 rounded-full p-4 transform transition-all duration-200 ${
+                  isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'
+                }`}>
+                  {isPlaying ? (
+                    <Pause className="w-10 h-10 text-white" strokeWidth={2.5} />
+                  ) : (
+                    <Play className="w-10 h-10 text-white" strokeWidth={2.5} fill="white" />
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Progress Bar - Fixed at bottom */}
+            {showControls && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-800 bg-opacity-70 z-20">
+                <div
+                  className="h-full bg-red-500 transition-all duration-100"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gray-200 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
             Media unavailable

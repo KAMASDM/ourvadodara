@@ -771,24 +771,91 @@ const CreatePost = () => {
       const postData = {
         ...formData,
         status: 'published',
+        isPublished: true,
+        cities: targetCities,
         authorId: user.uid,
         authorName: user.displayName || user.email,
         publishedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        timestamp: Date.now(),
         views: 0,
         likes: 0,
-        comments: 0
+        comments: 0,
+        analytics: {
+          views: 0,
+          likes: 0,
+          comments: 0,
+          shares: 0
+        }
       };
 
-      // Publish to all selected cities
+      // Publish to main posts collection
+      const mainPostsRef = ref(db, 'posts');
+      const newPostRef = await push(mainPostsRef, postData);
+      const newPostId = newPostRef.key;
+
+      // Also publish to city-specific paths
       for (const cityId of targetCities) {
-        const postsRef = ref(db, `cities/${cityId}/posts`);
-        await push(postsRef, postData);
+        const cityPostsRef = ref(db, `cities/${cityId}/posts`);
+        await push(cityPostsRef, { ...postData, mainPostId: newPostId });
       }
 
-      const cityNames = getCityNamesString(targetCities);
-      alert(`Post published successfully for: ${cityNames}!`);
+      // Send push notifications via Netlify Function
+      try {
+        // Get all FCM tokens from Firebase
+        const { ref: dbRef, get } = await import('firebase/database');
+        const tokensRef = dbRef(db, 'fcmTokens');
+        const tokensSnapshot = await get(tokensRef);
+        const fcmTokensData = tokensSnapshot.val() || {};
+        
+        // Filter tokens based on target cities and topics
+        const relevantTokens = Object.entries(fcmTokensData)
+          .map(([userId, data]) => data)
+          .filter(tokenData => {
+            if (!tokenData.token || !tokenData.topics) return false;
+            
+            // Check if user is subscribed to relevant topics
+            const topics = Array.isArray(tokenData.topics) ? tokenData.topics : [];
+            
+            // Check for all-news or breaking-news subscription
+            if (topics.includes('all-news') || (post.isBreaking && topics.includes('breaking-news'))) {
+              return true;
+            }
+            
+            // Check for city-specific subscriptions
+            return targetCities.some(cityId => topics.includes(`city-${cityId}`));
+          });
+
+        if (relevantTokens.length > 0) {
+          const notificationResponse = await fetch('/.netlify/functions/send-notification', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              post: { ...postData, id: newPostId },
+              fcmTokens: relevantTokens,
+              cityId: targetCities[0]
+            })
+          });
+
+          const notificationResult = await notificationResponse.json();
+          console.log('Notification result:', notificationResult);
+          
+          if (notificationResult.successCount > 0) {
+            alert(`Post published successfully! Notifications sent to ${notificationResult.successCount} users.`);
+          } else {
+            alert('Post published successfully! (No active subscribers for notifications)');
+          }
+        } else {
+          alert('Post published successfully! (No active subscribers)');
+        }
+      } catch (notificationError) {
+        console.error('Error sending notifications:', notificationError);
+        alert('Post published successfully! (Notifications failed to send)');
+      }
+
       // Reset form
       setFormData({
         title: { en: '', hi: '', gu: '' },
@@ -799,6 +866,7 @@ const CreatePost = () => {
         publishDate: '', scheduledTime: ''
       });
       setMediaFiles([]);
+      setSelectedCities([]);
     } catch (error) {
       console.error('Error publishing post:', error);
       alert('Error publishing post. Please try again.');

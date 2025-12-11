@@ -4,6 +4,7 @@
 // =============================================
 import React, { useState, useMemo } from 'react';
 import { useLanguage } from '../../context/Language/LanguageContext';
+import { useCity } from '../../context/CityContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { 
   Clock, 
@@ -121,6 +122,7 @@ const PostMedia = ({ src, alt, className, fallback = true, post }) => {
 
 const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => {
   const { currentLanguage } = useLanguage();
+  const { currentCity } = useCity();
   const [savedPosts, setSavedPosts] = useState(new Set());
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [shareData, setShareData] = useState(null);
@@ -168,11 +170,23 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
       posts = posts.filter(post => post.category === category);
     }
 
+    // Filter by selected city
+    if (currentCity && currentCity.id) {
+      posts = posts.filter(post => {
+        // If post has cities array, check if current city is included
+        if (post.cities && Array.isArray(post.cities)) {
+          return post.cities.includes(currentCity.id);
+        }
+        // If post has no cities field, show it (backward compatibility)
+        return true;
+      });
+    }
+
     // Sort by timestamp
     posts.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
     return posts;
-  }, [postsData, carouselsData, reelsData, category, feedType]);
+  }, [postsData, carouselsData, reelsData, category, feedType, currentCity]);
 
   // Use simple pagination instead of infinite scroll hook
   const [displayCount, setDisplayCount] = useState(15);

@@ -112,7 +112,7 @@ const PostCard = ({ post, onPostClick }) => {
   }
   
   const mediaUrl = getUrlFromMediaItem(selectedMediaItem) || fallbackImageUrl || '';
-  const isVideoMedia = selectedMediaItem ? isVideoCandidate(selectedMediaItem, mediaUrl) : /(\.\.mp4|\.webm|\.mov|\.m4v)$/i.test(mediaUrl || '');
+  const isVideoMedia = selectedMediaItem ? isVideoCandidate(selectedMediaItem, mediaUrl) : /(\.mp4|\.webm|\.mov|\.m4v)$/i.test(mediaUrl || '');
 
   // Auto-play/pause video based on visibility
   useEffect(() => {
@@ -124,8 +124,9 @@ const PostCard = ({ post, onPostClick }) => {
         entries.forEach((entry) => {
           // Video is more than 50% visible
           if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-            video.play().catch(() => {
+            video.play().catch((err) => {
               // Auto-play prevented, user needs to interact first
+              console.log('Auto-play prevented:', err.message);
               setIsPlaying(false);
             });
           } else {
@@ -138,14 +139,11 @@ const PostCard = ({ post, onPostClick }) => {
       { threshold: [0, 0.5, 1.0] }
     );
 
-    if (cardRef.current) {
-      observer.observe(cardRef.current);
-    }
+    // Observe the video element directly
+    observer.observe(video);
 
     return () => {
-      if (cardRef.current) {
-        observer.unobserve(cardRef.current);
-      }
+      observer.disconnect();
     };
   }, [isVideoMedia]);
 
@@ -421,16 +419,18 @@ const PostCard = ({ post, onPostClick }) => {
         {/* Media - Images and Videos */}
         {mediaUrl && !mediaError && (
           <div className="pb-2">
-            <div className="mb-2 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 relative">
+            <div className="mb-2 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800">
               {isVideoMedia ? (
-                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <div className="relative w-full">
                   <video
                     ref={videoRef}
                     src={mediaUrl}
                     poster={selectedMediaItem?.thumbnailUrl || ''}
                     preload="metadata"
                     playsInline
-                    className="w-full h-auto max-h-[500px] object-contain bg-gray-900"
+                    loop
+                    muted
+                    className="w-full h-auto max-h-[500px] object-contain bg-gray-900 block"
                     onError={() => {
                       console.error('Video failed to load:', mediaUrl);
                       setMediaError(true);
@@ -440,24 +440,24 @@ const PostCard = ({ post, onPostClick }) => {
                   </video>
                   
                   {/* Custom Play/Pause Button Overlay */}
-                  <button
+                  <div
                     onClick={toggleVideoPlayback}
-                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200 group"
-                    aria-label={isPlaying ? 'Pause video' : 'Play video'}
+                    className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
+                    style={{ pointerEvents: 'auto' }}
                   >
                     <div className={`bg-black bg-opacity-60 rounded-full p-4 transform transition-all duration-200 ${
-                      isPlaying ? 'opacity-0 group-hover:opacity-100 scale-90' : 'opacity-100 scale-100'
+                      isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'
                     }`}>
                       {isPlaying ? (
-                        <Pause className="w-8 h-8 text-white" />
+                        <Pause className="w-10 h-10 text-white" strokeWidth={2.5} />
                       ) : (
-                        <Play className="w-8 h-8 text-white ml-1" />
+                        <Play className="w-10 h-10 text-white" strokeWidth={2.5} fill="white" />
                       )}
                     </div>
-                  </button>
+                  </div>
                   
-                  {/* Progress Bar */}
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700 bg-opacity-50">
+                  {/* Progress Bar - Fixed at bottom */}
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-800 bg-opacity-70 z-20">
                     <div
                       className="h-full bg-red-500 transition-all duration-100"
                       style={{ width: `${progress}%` }}
