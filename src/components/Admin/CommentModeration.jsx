@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { getCommentsForModeration, moderateComment, DATABASE_PATHS } from '../../utils/databaseSchema';
-import { ref, onValue, get } from 'firebase/database';
+import { ref, onValue, get, update } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { 
   MessageSquare, 
@@ -64,29 +64,75 @@ const CommentModeration = () => {
         }
 
         // Load comments with real-time updates
-        const commentsRef = ref(db, DATABASE_PATHS.COMMENTS);
+        const commentsRef = ref(db, 'comments');
         const unsubscribe = onValue(commentsRef, async (snapshot) => {
           if (snapshot.exists()) {
             const commentsData = snapshot.val();
-            const commentsList = Object.keys(commentsData).map(key => ({
-              id: key,
-              ...commentsData[key]
-            }));
+            const commentsList = [];
+            
+            // Comments are stored as comments/{postId}/{commentId}
+            // We need to iterate through each post's comments
+            Object.entries(commentsData).forEach(([postId, postComments]) => {
+              if (postComments && typeof postComments === 'object') {
+                Object.entries(postComments).forEach(([commentId, comment]) => {
+                  // Skip replies (they are nested under comments)
+                  if (commentId !== 'replies' && typeof comment === 'object' && !comment.replies) {
+                    commentsList.push({
+                      id: commentId,
+                      postId: postId, // Add the postId from the path
+                      ...comment
+                    });
+                  }
+                });
+              }
+            });
+
+            console.log('Comments loaded:', commentsList.length);
+            console.log('Sample comment:', commentsList[0]);
 
             // Enhance comments with post information
             const enhancedComments = await Promise.all(
               commentsList.map(async (comment) => {
-                const post = postsListCache.find(p => p.id === comment.postId) || 
-                            postsDataMap?.[comment.postId];
+                let postTitle = 'Unknown Post';
+                let postCategory = 'uncategorized';
+                
+                // Try to find post in cache first
+                const cachedPost = postsListCache.find(p => p.id === comment.postId);
+                if (cachedPost) {
+                  postTitle = cachedPost.title?.en || cachedPost.title?.gu || cachedPost.title?.hi || 
+                              (typeof cachedPost.title === 'string' ? cachedPost.title : 'Unknown Post');
+                  postCategory = cachedPost.category || 'uncategorized';
+                } else if (comment.postId) {
+                  // If not in cache, fetch directly from Firebase
+                  try {
+                    const postRef = ref(db, `${DATABASE_PATHS.POSTS}/${comment.postId}`);
+                    const postSnapshot = await get(postRef);
+                    if (postSnapshot.exists()) {
+                      const post = postSnapshot.val();
+                      postTitle = post.title?.en || post.title?.gu || post.title?.hi || 
+                                 (typeof post.title === 'string' ? post.title : 'Unknown Post');
+                      postCategory = post.category || 'uncategorized';
+                    }
+                  } catch (error) {
+                    console.error('Error fetching post for comment:', error);
+                  }
+                }
+                
                 return {
                   ...comment,
-                  postTitle: post?.title?.en || post?.title || 'Unknown Post',
-                  postCategory: post?.category || 'uncategorized'
+                  postTitle,
+                  postCategory,
+                  // Ensure createdAt exists
+                  createdAt: comment.createdAt || comment.timestamp || new Date().toISOString()
                 };
               })
             );
 
-            setComments(enhancedComments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+            setComments(enhancedComments.sort((a, b) => {
+              const dateA = new Date(a.createdAt).getTime();
+              const dateB = new Date(b.createdAt).getTime();
+              return dateB - dateA;
+            }));
           } else {
             setComments([]);
           }
@@ -135,9 +181,16 @@ const CommentModeration = () => {
     setFilteredComments(filtered);
   }, [comments, filter, searchTerm, selectedPost]);
 
-  const handleModeration = async (commentId, action) => {
+  const handleModeration = async (commentId, postId, action) => {
     try {
-      await moderateComment(commentId, action, user.uid);
+      // Update comment in Firebase at correct path: comments/{postId}/{commentId}
+      const commentRef = ref(db, `comments/${postId}/${commentId}`);
+      await update(commentRef, {
+        approved: action === 'approve',
+        rejected: action === 'reject',
+        moderatedBy: user.uid,
+        moderatedAt: new Date().toISOString()
+      });
       
       // Update local state immediately for better UX
       setComments(prev => 
@@ -172,13 +225,26 @@ const CommentModeration = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    if (!dateString) return 'Invalid Date';
+    
+    try {
+      const date = new Date(dateString);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      
+      return date.toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid Date';
+    }
   };
 
   const pendingCount = comments.filter(c => !c.approved && !c.rejected).length;
@@ -401,14 +467,14 @@ const CommentModeration = () => {
                   {!comment.approved && !comment.rejected && (
                     <div className="ml-4 flex space-x-2">
                       <button
-                        onClick={() => handleModeration(comment.id, 'approve')}
+                        onClick={() => handleModeration(comment.id, comment.postId, 'approve')}
                         className={adminStyles.successButton}
                       >
                         <CheckCircle className="h-4 w-4 mr-1 inline" />
                         Approve
                       </button>
                       <button
-                        onClick={() => handleModeration(comment.id, 'reject')}
+                        onClick={() => handleModeration(comment.id, comment.postId, 'reject')}
                         className={adminStyles.dangerButton}
                       >
                         <XCircle className="h-4 w-4 mr-1 inline" />

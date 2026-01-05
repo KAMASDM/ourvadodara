@@ -131,18 +131,13 @@ const CreatePost = () => {
     };
   }, []);
 
-  // Translation function using MyMemory Translation API (free)
-  // Translates FROM Gujarati TO Hindi/English
+  // Translation function using Google Translate API (via public endpoint)
+  // Translates FROM any language TO target language with proper scripts
   // Handles text of any length by chunking into 500 character segments
-  const translateText = async (text, targetLang) => {
+  const translateText = async (text, targetLang, sourceLang = 'gu') => {
     if (!text.trim()) return '';
     
     try {
-      const langMap = {
-        hi: 'hi',
-        en: 'en'
-      };
-      
       // Split text into chunks of 500 characters (API limit)
       const chunkSize = 500;
       const chunks = [];
@@ -150,16 +145,24 @@ const CreatePost = () => {
         chunks.push(text.slice(i, i + chunkSize));
       }
       
-      console.log(`Translating text from Gujarati to ${targetLang} (${chunks.length} chunks, ${text.length} total chars)`);
+      console.log(`Translating text from ${sourceLang} to ${targetLang} (${chunks.length} chunks, ${text.length} total chars)`);
+      console.log(`First chunk preview: "${chunks[0].substring(0, 100)}..."`);
       
-      // Translate each chunk
+      // Translate each chunk using Google Translate API
       const translatedChunks = await Promise.all(
         chunks.map(async (chunk, index) => {
           try {
-            const response = await axios.get(
-              `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=gu|${langMap[targetLang]}`,
+            // Using Google Translate API via public endpoint
+            const response = await axios.post(
+              `https://translation.googleapis.com/language/translate/v2?key=AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw`,
               {
-                timeout: 10000,
+                q: chunk,
+                source: sourceLang,
+                target: targetLang,
+                format: 'text'
+              },
+              {
+                timeout: 15000,
                 headers: {
                   'Content-Type': 'application/json',
                 },
@@ -167,15 +170,51 @@ const CreatePost = () => {
             );
             
             const data = response.data;
-            if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
-              return data.responseData.translatedText;
+            console.log(`Google Translate API response for chunk ${index + 1}:`, data);
+            
+            if (data && data.data && data.data.translations && data.data.translations[0]) {
+              const translation = data.data.translations[0].translatedText;
+              console.log(`Chunk ${index + 1} translated successfully:`, translation.substring(0, 100));
+              
+              // Validate that translation is different from source (actual translation occurred)
+              if (translation.trim() === chunk.trim()) {
+                console.warn(`Translation returned same text for chunk ${index + 1} - may not have translated`);
+              }
+              
+              return translation;
             } else {
-              console.warn(`Translation API returned invalid response for chunk ${index + 1}`);
-              return chunk; // Return original chunk if translation fails
+              console.error(`Translation API returned invalid response for chunk ${index + 1}:`, data);
+              throw new Error('Invalid API response structure');
             }
           } catch (chunkError) {
-            console.error(`Translation error for chunk ${index + 1}:`, chunkError);
-            return chunk; // Return original chunk if translation fails
+            console.error(`Google Translate error for chunk ${index + 1}:`, chunkError.response?.data || chunkError.message);
+            
+            // Fallback to MyMemory API
+            try {
+              console.log(`Trying MyMemory fallback for chunk ${index + 1}...`);
+              const fallbackResponse = await axios.get(
+                `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=${sourceLang}|${targetLang}`,
+                {
+                  timeout: 10000,
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                }
+              );
+              
+              const fallbackData = fallbackResponse.data;
+              console.log(`MyMemory API response for chunk ${index + 1}:`, fallbackData);
+              
+              if (fallbackData.responseStatus === 200 && fallbackData.responseData && fallbackData.responseData.translatedText) {
+                console.log(`MyMemory fallback successful for chunk ${index + 1}`);
+                return fallbackData.responseData.translatedText;
+              } else {
+                throw new Error('MyMemory fallback failed');
+              }
+            } catch (fallbackError) {
+              console.error(`Both translation services failed for chunk ${index + 1}`);
+              throw new Error(`Translation failed for chunk ${index + 1}: ${fallbackError.message}`);
+            }
           }
         })
       );
@@ -187,8 +226,8 @@ const CreatePost = () => {
       
     } catch (error) {
       console.error('Translation error:', error);
-      // Fallback: return original Gujarati text if translation fails
-      console.warn(`Translation failed, using original Gujarati text as fallback for ${targetLang}`);
+      // Fallback: return original text if translation fails
+      console.warn(`Translation failed, using original text as fallback for ${targetLang}`);
       return text;
     }
   };
@@ -215,20 +254,34 @@ const CreatePost = () => {
     try {
       setTranslating(true);
       console.log('Auto-translating title from Gujarati:', gujaratiTitle);
+      console.log('Current title state before translation:', formData.title);
+      
       const [hiTranslation, enTranslation] = await Promise.all([
-        translateText(gujaratiTitle, 'hi'),
-        translateText(gujaratiTitle, 'en')
+        translateText(gujaratiTitle, 'hi', 'gu'),
+        translateText(gujaratiTitle, 'en', 'gu')
       ]);
       
-      setFormData(prev => ({
-        ...prev,
-        title: { 
-          ...prev.title, 
-          hi: hiTranslation, 
-          en: enTranslation 
-        }
-      }));
-      console.log('Title translations completed:', { hi: hiTranslation, en: enTranslation });
+      console.log('Translation results:', { hi: hiTranslation, en: enTranslation });
+      
+      // Only update if translations are not empty
+      if (!hiTranslation || !enTranslation) {
+        throw new Error('Translation returned empty strings');
+      }
+      
+      setFormData(prev => {
+        const newTitle = {
+          gu: prev.title.gu, // Explicitly preserve Gujarati
+          hi: hiTranslation,
+          en: enTranslation
+        };
+        console.log('Updating title state:', newTitle);
+        return {
+          ...prev,
+          title: newTitle
+        };
+      });
+      
+      console.log('Title translations completed successfully');
       alert('✅ Title auto-translated!\nશીર્ષક સ્વતઃ અનુવાદિત!');
     } catch (error) {
       console.error('Auto-translation failed:', error);
@@ -248,20 +301,34 @@ const CreatePost = () => {
     try {
       setTranslating(true);
       console.log('Auto-translating excerpt from Gujarati:', gujaratiExcerpt);
+      console.log('Current excerpt state before translation:', formData.excerpt);
+      
       const [hiTranslation, enTranslation] = await Promise.all([
-        translateText(gujaratiExcerpt, 'hi'),
-        translateText(gujaratiExcerpt, 'en')
+        translateText(gujaratiExcerpt, 'hi', 'gu'),
+        translateText(gujaratiExcerpt, 'en', 'gu')
       ]);
       
-      setFormData(prev => ({
-        ...prev,
-        excerpt: { 
-          ...prev.excerpt, 
-          hi: hiTranslation, 
-          en: enTranslation 
-        }
-      }));
-      console.log('Excerpt translations completed:', { hi: hiTranslation, en: enTranslation });
+      console.log('Translation results:', { hi: hiTranslation, en: enTranslation });
+      
+      // Only update if translations are not empty
+      if (!hiTranslation || !enTranslation) {
+        throw new Error('Translation returned empty strings');
+      }
+      
+      setFormData(prev => {
+        const newExcerpt = {
+          gu: prev.excerpt.gu, // Explicitly preserve Gujarati
+          hi: hiTranslation,
+          en: enTranslation
+        };
+        console.log('Updating excerpt state:', newExcerpt);
+        return {
+          ...prev,
+          excerpt: newExcerpt
+        };
+      });
+      
+      console.log('Excerpt translations completed successfully');
       alert('✅ Excerpt auto-translated!\nસારાંશ સ્વતઃ અનુવાદિત!');
     } catch (error) {
       console.error('Auto-translation failed:', error);
@@ -317,20 +384,37 @@ const CreatePost = () => {
     try {
       setTranslating(true);
       console.log('Auto-translating content from Gujarati:', gujaratiContent.substring(0, 50) + '...');
+      console.log('Current content state before translation:', { gu: gujaratiContent.substring(0, 50) });
+      
       const [hiTranslation, enTranslation] = await Promise.all([
-        translateText(gujaratiContent, 'hi'),
-        translateText(gujaratiContent, 'en')
+        translateText(gujaratiContent, 'hi', 'gu'),
+        translateText(gujaratiContent, 'en', 'gu')
       ]);
       
-      setFormData(prev => ({
-        ...prev,
-        content: { 
-          ...prev.content, 
-          hi: hiTranslation, 
-          en: enTranslation 
-        }
-      }));
-      console.log('Content translations completed');
+      console.log('Translation results:', { 
+        hi: hiTranslation?.substring(0, 50), 
+        en: enTranslation?.substring(0, 50) 
+      });
+      
+      // Only update if translations are not empty
+      if (!hiTranslation || !enTranslation) {
+        throw new Error('Translation returned empty strings');
+      }
+      
+      setFormData(prev => {
+        const newContent = {
+          gu: prev.content.gu, // Explicitly preserve Gujarati
+          hi: hiTranslation,
+          en: enTranslation
+        };
+        console.log('Updating content state with translations');
+        return {
+          ...prev,
+          content: newContent
+        };
+      });
+      
+      console.log('Content translations completed successfully');
       alert('✅ Content auto-translated!\nસામગ્રી સ્વતઃ અનુવાદિત!');
     } catch (error) {
       console.error('Auto-translation failed:', error);
@@ -359,8 +443,8 @@ const CreatePost = () => {
       if (gujaratiTitle && gujaratiTitle.length > 3) {
         translationPromises.push(
           Promise.all([
-            translateText(gujaratiTitle, 'hi'),
-            translateText(gujaratiTitle, 'en')
+            translateText(gujaratiTitle, 'hi', 'gu'),
+            translateText(gujaratiTitle, 'en', 'gu')
           ]).then(([hi, en]) => ({ type: 'title', hi, en }))
         );
       }
@@ -368,8 +452,8 @@ const CreatePost = () => {
       if (gujaratiExcerpt && gujaratiExcerpt.length > 3) {
         translationPromises.push(
           Promise.all([
-            translateText(gujaratiExcerpt, 'hi'),
-            translateText(gujaratiExcerpt, 'en')
+            translateText(gujaratiExcerpt, 'hi', 'gu'),
+            translateText(gujaratiExcerpt, 'en', 'gu')
           ]).then(([hi, en]) => ({ type: 'excerpt', hi, en }))
         );
       }
@@ -377,8 +461,8 @@ const CreatePost = () => {
       if (gujaratiContent && gujaratiContent.length > 10) {
         translationPromises.push(
           Promise.all([
-            translateText(gujaratiContent, 'hi'),
-            translateText(gujaratiContent, 'en')
+            translateText(gujaratiContent, 'hi', 'gu'),
+            translateText(gujaratiContent, 'en', 'gu')
           ]).then(([hi, en]) => ({ type: 'content', hi, en }))
         );
       }
@@ -419,8 +503,8 @@ const CreatePost = () => {
           setTranslating(true);
           console.log('Translating title:', englishTitle);
           const [hiTranslation, guTranslation] = await Promise.all([
-            translateText(englishTitle, 'hi'),
-            translateText(englishTitle, 'gu')
+            translateText(englishTitle, 'hi', 'en'),
+            translateText(englishTitle, 'gu', 'en')
           ]);
           
           setFormData(prev => ({
@@ -440,8 +524,8 @@ const CreatePost = () => {
         try {
           console.log('Translating excerpt:', englishExcerpt);
           const [hiTranslation, guTranslation] = await Promise.all([
-            translateText(englishExcerpt, 'hi'),
-            translateText(englishExcerpt, 'gu')
+            translateText(englishExcerpt, 'hi', 'en'),
+            translateText(englishExcerpt, 'gu', 'en')
           ]);
           
           setFormData(prev => ({
@@ -461,8 +545,8 @@ const CreatePost = () => {
         try {
           console.log('Translating content:', englishContent.substring(0, 50) + '...');
           const [hiTranslation, guTranslation] = await Promise.all([
-            translateText(englishContent, 'hi'),
-            translateText(englishContent, 'gu')
+            translateText(englishContent, 'hi', 'en'),
+            translateText(englishContent, 'gu', 'en')
           ]);
           
           setFormData(prev => ({
@@ -483,6 +567,160 @@ const CreatePost = () => {
     
     return () => clearTimeout(timeoutId);
   }, [formData.title.en, formData.excerpt.en, formData.content.en]);
+
+  // Auto-translate from Gujarati
+  useEffect(() => {
+    const timeoutId = setTimeout(async () => {
+      const gujaratiTitle = formData.title.gu.trim();
+      const gujaratiExcerpt = formData.excerpt.gu.trim();
+      const gujaratiContent = formData.content.gu.trim();
+      
+      if (gujaratiTitle && gujaratiTitle.length > 3 && (!formData.title.hi.trim() || !formData.title.en.trim())) {
+        try {
+          setTranslating(true);
+          console.log('Auto-translating title from Gujarati:', gujaratiTitle);
+          const [hiTranslation, enTranslation] = await Promise.all([
+            translateText(gujaratiTitle, 'hi', 'gu'),
+            translateText(gujaratiTitle, 'en', 'gu')
+          ]);
+          
+          setFormData(prev => ({
+            ...prev,
+            title: { 
+              ...prev.title, 
+              hi: prev.title.hi.trim() || hiTranslation, 
+              en: prev.title.en.trim() || enTranslation 
+            }
+          }));
+        } catch (error) {
+          console.error('Gujarati title translation failed:', error);
+        }
+      }
+      
+      if (gujaratiExcerpt && gujaratiExcerpt.length > 3 && (!formData.excerpt.hi.trim() || !formData.excerpt.en.trim())) {
+        try {
+          console.log('Auto-translating excerpt from Gujarati:', gujaratiExcerpt);
+          const [hiTranslation, enTranslation] = await Promise.all([
+            translateText(gujaratiExcerpt, 'hi', 'gu'),
+            translateText(gujaratiExcerpt, 'en', 'gu')
+          ]);
+          
+          setFormData(prev => ({
+            ...prev,
+            excerpt: { 
+              ...prev.excerpt, 
+              hi: prev.excerpt.hi.trim() || hiTranslation, 
+              en: prev.excerpt.en.trim() || enTranslation 
+            }
+          }));
+        } catch (error) {
+          console.error('Gujarati excerpt translation failed:', error);
+        }
+      }
+      
+      if (gujaratiContent && gujaratiContent.length > 10 && (!formData.content.hi.trim() || !formData.content.en.trim())) {
+        try {
+          console.log('Auto-translating content from Gujarati:', gujaratiContent.substring(0, 50) + '...');
+          const [hiTranslation, enTranslation] = await Promise.all([
+            translateText(gujaratiContent, 'hi', 'gu'),
+            translateText(gujaratiContent, 'en', 'gu')
+          ]);
+          
+          setFormData(prev => ({
+            ...prev,
+            content: { 
+              ...prev.content, 
+              hi: prev.content.hi.trim() || hiTranslation, 
+              en: prev.content.en.trim() || enTranslation 
+            }
+          }));
+        } catch (error) {
+          console.error('Gujarati content translation failed:', error);
+        }
+      }
+      
+      setTranslating(false);
+    }, 2000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [formData.title.gu, formData.excerpt.gu, formData.content.gu]);
+
+  // Auto-translate from Hindi
+  useEffect(() => {
+    const timeoutId = setTimeout(async () => {
+      const hindiTitle = formData.title.hi.trim();
+      const hindiExcerpt = formData.excerpt.hi.trim();
+      const hindiContent = formData.content.hi.trim();
+      
+      if (hindiTitle && hindiTitle.length > 3 && (!formData.title.gu.trim() || !formData.title.en.trim())) {
+        try {
+          setTranslating(true);
+          console.log('Auto-translating title from Hindi:', hindiTitle);
+          const [guTranslation, enTranslation] = await Promise.all([
+            translateText(hindiTitle, 'gu', 'hi'),
+            translateText(hindiTitle, 'en', 'hi')
+          ]);
+          
+          setFormData(prev => ({
+            ...prev,
+            title: { 
+              ...prev.title, 
+              gu: prev.title.gu.trim() || guTranslation, 
+              en: prev.title.en.trim() || enTranslation 
+            }
+          }));
+        } catch (error) {
+          console.error('Hindi title translation failed:', error);
+        }
+      }
+      
+      if (hindiExcerpt && hindiExcerpt.length > 3 && (!formData.excerpt.gu.trim() || !formData.excerpt.en.trim())) {
+        try {
+          console.log('Auto-translating excerpt from Hindi:', hindiExcerpt);
+          const [guTranslation, enTranslation] = await Promise.all([
+            translateText(hindiExcerpt, 'gu', 'hi'),
+            translateText(hindiExcerpt, 'en', 'hi')
+          ]);
+          
+          setFormData(prev => ({
+            ...prev,
+            excerpt: { 
+              ...prev.excerpt, 
+              gu: prev.excerpt.gu.trim() || guTranslation, 
+              en: prev.excerpt.en.trim() || enTranslation 
+            }
+          }));
+        } catch (error) {
+          console.error('Hindi excerpt translation failed:', error);
+        }
+      }
+      
+      if (hindiContent && hindiContent.length > 10 && (!formData.content.gu.trim() || !formData.content.en.trim())) {
+        try {
+          console.log('Auto-translating content from Hindi:', hindiContent.substring(0, 50) + '...');
+          const [guTranslation, enTranslation] = await Promise.all([
+            translateText(hindiContent, 'gu', 'hi'),
+            translateText(hindiContent, 'en', 'hi')
+          ]);
+          
+          setFormData(prev => ({
+            ...prev,
+            content: { 
+              ...prev.content, 
+              gu: prev.content.gu.trim() || guTranslation, 
+              en: prev.content.en.trim() || enTranslation 
+            }
+          }));
+        } catch (error) {
+          console.error('Hindi content translation failed:', error);
+        }
+      }
+      
+      setTranslating(false);
+    }, 2000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [formData.title.hi, formData.excerpt.hi, formData.content.hi]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));

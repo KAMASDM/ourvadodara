@@ -255,7 +255,7 @@ const InstagramCarousel = ({
       <div 
         ref={carouselRef}
         className="relative overflow-hidden rounded-lg bg-black"
-        style={{ aspectRatio: resolvedAspectRatio }}
+        style={{ height: '450px' }}
       >
         {typeof viewCount === 'number' && viewCount >= 0 && (
           <div className="absolute top-3 left-3 z-20 inline-flex items-center gap-1 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
@@ -296,9 +296,14 @@ const InstagramCarousel = ({
                 <img
                   src={src}
                   alt={altText}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
+                  style={{ display: 'block', maxWidth: '100%', maxHeight: '100%' }}
                   draggable={false}
                   loading={index === currentIndex ? 'eager' : 'lazy'}
+                  onError={(e) => {
+                    console.error('Image failed to load in carousel:', src);
+                    e.target.style.display = 'none';
+                  }}
                 />
                 
                 {/* Image overlay for better touch target */}

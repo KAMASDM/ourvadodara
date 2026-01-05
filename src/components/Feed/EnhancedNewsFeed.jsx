@@ -559,13 +559,11 @@ const PostCard = ({
       {hasMedia && (
         <div className="relative mt-5">
           <div 
-            className="overflow-hidden bg-black dark:bg-gray-900 cursor-pointer select-none"
-            onClick={handleDoubleTap}
-            onTouchStart={handleDoubleTap}
+            className="overflow-hidden bg-black dark:bg-gray-900 select-none"
           >
             <MediaRenderer
               post={post}
-              className="w-full"
+              className="w-full h-auto max-h-[80vh]"
               showControls={post.type === POST_TYPES.REEL}
               onInteraction={onMediaInteraction}
               showCarouselDots={!isCarouselPost}
@@ -579,7 +577,8 @@ const PostCard = ({
               {Array.from({ length: carouselTotal }).map((_, index) => (
                 <button
                   key={index}
-                  onClick={() => {
+                  onClick={(e) => {
+                      e.stopPropagation();
                       setCarouselIndex(prev => (prev === index ? prev : index));
                   }}
                   type="button"
@@ -701,7 +700,7 @@ const ReelCard = ({ post, onLike, onSave, onShare, isLiked, isSaved, currentLang
       <div className="relative aspect-[9/16]">
         <MediaRenderer
           post={post}
-          className="w-full h-full"
+          className="w-full h-auto max-h-[80vh]"
           showControls={true}
         />
         

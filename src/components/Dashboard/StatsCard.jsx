@@ -27,7 +27,20 @@ const StatsCard = ({
   };
 
   const getTrend = () => {
-    if (!previousValue || previousValue === 0) return null;
+    // Don't show trend if both current and previous are 0
+    if ((!value || value === 0) && (!previousValue || previousValue === 0)) {
+      return null;
+    }
+    
+    // If previous is 0 but current has value, show 100% increase
+    if ((!previousValue || previousValue === 0) && value > 0) {
+      return { direction: 'up', value: 100, color: 'text-green-600' };
+    }
+    
+    // If current is 0 but previous had value, show 100% decrease
+    if ((!value || value === 0) && previousValue > 0) {
+      return { direction: 'down', value: 100, color: 'text-red-600' };
+    }
     
     const change = ((value - previousValue) / previousValue) * 100;
     

@@ -357,25 +357,27 @@ const MediaRenderer = ({
   };
 
   // Handle legacy image field as fallback
-  if ((!effectiveItems || effectiveItems.length === 0) && post.image) {
+
+  // Use only validSlides for rendering
+  if ((!validSlides || validSlides.length === 0) && post.image) {
     return (
       <div className={`relative rounded-lg overflow-hidden ${className}`}>
-  <div className="relative w-full" style={{ aspectRatio: normalizeAspectRatio(settings.aspectRatio, '16/9') }}>
+        <div className="relative w-full">
           <img
             src={post.image}
             alt={post.title?.en || post.title || 'News image'}
-            className="w-full h-full object-cover"
+            className="w-full h-auto max-h-[80vh] object-contain"
           />
         </div>
       </div>
     );
   }
 
-  if (!effectiveItems || effectiveItems.length === 0) {
+  if (!validSlides || validSlides.length === 0) {
     return null; // Don't render anything if no media
   }
 
-  const currentItem = effectiveItems[currentIndex] || effectiveItems[0];
+  const currentItem = validSlides[currentIndex] || validSlides[0];
   const currentItemSource = resolveMediaUrl(currentItem);
   const inferredMime = typeof currentItem === 'object' ? currentItem?.mimeType || currentItem?.metadata?.format : '';
   const isVideo = (typeof currentItem === 'object' && currentItem.type === 'video')
@@ -413,7 +415,7 @@ const MediaRenderer = ({
             <video
               ref={videoRef}
               src={currentItemSource}
-              className="w-full h-full object-contain bg-black"
+              className="w-full h-auto max-h-[80vh] object-contain bg-black"
               muted={isMuted}
               loop={settings.loop}
               playsInline
@@ -423,7 +425,7 @@ const MediaRenderer = ({
             <img
               src={currentItemSource}
               alt={currentItem.caption?.en || ''}
-              className="w-full h-full object-contain bg-black"
+              className="w-full h-auto max-h-[80vh] object-contain bg-black"
             />
           )}
 
@@ -555,7 +557,7 @@ const MediaRenderer = ({
         <video
           ref={videoRef}
           src={currentItemSource}
-          className="w-full h-full object-contain"
+          className="w-full h-auto max-h-[80vh] object-contain"
           muted
           loop
           playsInline
@@ -598,7 +600,7 @@ const MediaRenderer = ({
                 <img
                   src={brandAvatar}
                   alt={brandName}
-                  className="w-full h-full rounded-full object-contain"
+                  className="w-full h-auto max-h-[80vh] rounded-full object-contain"
                 />
               </div>
               <span className="font-semibold">{post.author?.name || brandName}</span>
@@ -790,19 +792,20 @@ const MediaRenderer = ({
   // Single Image/Video Renderer
   return (
     <div className={`relative rounded-lg overflow-hidden ${className}`}>
-      <div className="relative w-full" style={{ aspectRatio: normalizeAspectRatio(settings.aspectRatio, '16/9') }}>
+      <div className="relative w-full">
         {!isVideo ? (
           <img
             src={currentItemSource || logoImage}
             alt={currentItem.caption?.en || ''}
-            className="w-full h-full object-cover"
+            className="w-full h-auto object-contain max-h-[80vh]"
+            style={{ display: 'block', margin: '0 auto' }}
           />
         ) : currentItemSource ? (
           <>
             <video
               ref={videoRef}
               src={currentItemSource}
-              className="w-full h-full object-cover bg-black"
+              className="w-full h-auto object-contain max-h-[80vh] bg-black"
               muted
               playsInline
               poster={currentItem.thumbnailUrl}
