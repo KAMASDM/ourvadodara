@@ -437,11 +437,18 @@ const ReelCard = ({
         ref={videoRef}
         src={videoUrl}
         poster={thumbnailUrl}
-        className="w-full object-contain"
+        className="w-full object-contain cursor-pointer"
         style={{ height: 'calc(100vh - 120px)', maxHeight: 'calc(100vh - 120px)' }}
         muted={isMuted}
         loop
         playsInline
+        onClick={handleVideoClick}
+      />
+
+      {/* Clickable overlay for video - prevents button clicks from triggering pause */}
+      <div 
+        className="absolute inset-0 z-10" 
+        style={{ pointerEvents: 'none' }}
         onClick={handleVideoClick}
       />
 
@@ -507,28 +514,40 @@ const ReelCard = ({
         )}
       </div>
 
-      {/* Action Buttons (Right Side) */}
-      <div className="absolute right-4 bottom-20 flex flex-col space-y-6">
+      {/* Action Buttons (Right Side) - Fixed to prevent video interaction */}
+      <div className="absolute right-4 bottom-20 flex flex-col space-y-6 z-30 pointer-events-auto">
         <ActionButton
           icon={Heart}
           label={reel.likes || 0}
           active={isLiked}
-          onClick={onLike}
+          onClick={(e) => {
+            e.stopPropagation();
+            onLike();
+          }}
         />
         <ActionButton
           icon={MessageCircle}
           label={reel.comments || 0}
-          onClick={onComment}
+          onClick={(e) => {
+            e.stopPropagation();
+            onComment();
+          }}
         />
         <ActionButton
           icon={Share2}
           label="Share"
-          onClick={onShare}
+          onClick={(e) => {
+            e.stopPropagation();
+            onShare();
+          }}
         />
         <ActionButton
           icon={Bookmark}
           active={isSaved}
-          onClick={onSave}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSave();
+          }}
         />
       </div>
     </div>
@@ -539,12 +558,13 @@ const ReelCard = ({
 const ActionButton = ({ icon: Icon, label, active, onClick }) => (
   <button
     onClick={onClick}
-    className="flex flex-col items-center space-y-1"
+    className="flex flex-col items-center space-y-1 relative z-40"
+    style={{ pointerEvents: 'auto' }}
   >
-    <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+    <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg ${
       active 
-        ? 'bg-primary-red text-white' 
-        : 'bg-black bg-opacity-40 text-white hover:bg-opacity-60'
+        ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white' 
+        : 'bg-black bg-opacity-40 text-white hover:bg-opacity-60 hover:scale-110'
     }`}>
       <Icon className={`w-6 h-6 ${active && Icon.displayName === 'Heart' ? 'fill-white' : ''}`} />
     </div>

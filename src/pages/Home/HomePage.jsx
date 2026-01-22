@@ -7,14 +7,17 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import PullToRefreshIndicator from '../../components/Common/PullToRefreshIndicator';
 import EnhancedStorySection from '../../components/Story/EnhancedStorySection';
 import CategoryFilter from '../../components/Category/CategoryFilter';
+import SwipeableCategoryFilter from '../../components/Category/SwipeableCategoryFilter';
 import EnhancedNewsFeed from '../../components/Feed/EnhancedNewsFeed';
 import DesktopNewsFeed from '../../components/Feed/DesktopNewsFeed';
 import WeatherWidget from '../../components/Weather/WeatherWidget';
 import LiveUpdates from '../../components/Live/LiveUpdates';
 import TrendingTopics from '../../components/Trending/TrendingTopics';
+import TrendingTopicsWidget from '../../components/Topics/TrendingTopicsWidget';
 import EventsCalendar from '../../components/Events/EventsCalendar';
 import PollWidget from '../../components/Polls/PollWidget';
 import AIPicksReal from '../../components/AI/AIPicksReal';
+import ReadingStreak from '../../components/Gamification/ReadingStreak';
 import {
   Cloud,
   TrendingUp,
@@ -34,6 +37,8 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
   const [isSectionSheetOpen, setSectionSheetOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+  const [feedTab, setFeedTab] = useState('for-you'); // 'for-you' | 'following' | 'all'
+  const [selectedTopic, setSelectedTopic] = useState(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -231,7 +236,33 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                   </div>
                 </div>
 
-                <CategoryFilter
+                {/* Feed Tabs */}
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={() => setFeedTab('for-you')}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                      feedTab === 'for-you'
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1">
+                      ✨ {t('for_you', 'For You')}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setFeedTab('all')}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                      feedTab === 'all'
+                        ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    {t('all', 'All')}
+                  </button>
+                </div>
+
+                <SwipeableCategoryFilter
                   activeCategory={activeCategory}
                   setActiveCategory={setActiveCategory}
                 />
@@ -248,9 +279,21 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
               </div>
             )}
 
+            {/* Widgets Section */}
+            <div className="px-2 sm:px-3 mt-3 space-y-3">
+              <TrendingTopicsWidget 
+                onTopicClick={(topic) => {
+                  setSelectedTopic(topic);
+                  console.log('Topic clicked:', topic);
+                }}
+              />
+              
+              <ReadingStreak compact={true} />
+            </div>
+
             <div className="mt-3">
               <EnhancedNewsFeed
-                key={refreshKey}
+                key={`${refreshKey}-${feedTab}-${selectedTopic}`}
                 activeCategory={activeCategory}
                 onPostClick={onPostClick}
                 feedType="all"

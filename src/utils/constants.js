@@ -27,3 +27,24 @@ export const THEMES = {
   LIGHT: 'light',
   DARK: 'dark',
 };
+
+export const REACTIONS = [
+  { id: 'like', emoji: '👍', label: 'Like' },
+  { id: 'love', emoji: '❤️', label: 'Love' },
+  { id: 'laugh', emoji: '😂', label: 'Laugh' },
+  { id: 'wow', emoji: '😮', label: 'Wow' },
+  { id: 'sad', emoji: '😢', label: 'Sad' },
+  { id: 'angry', emoji: '😡', label: 'Angry' },
+  { id: 'fire', emoji: '🔥', label: 'Fire' },
+  { id: 'celebrate', emoji: '🎉', label: 'Celebrate' },
+  { id: 'clap', emoji: '👏', label: 'Clap' },
+  { id: 'think', emoji: '🤔', label: 'Think' },
+  { id: 'pray', emoji: '🙏', label: 'Pray' },
+  { id: 'heart_eyes', emoji: '😍', label: 'Love It' },
+];
+
+export const FEED_TABS = {
+  FOR_YOU: 'for-you',
+  FOLLOWING: 'following',
+  ALL: 'all',
+};

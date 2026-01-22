@@ -27,6 +27,8 @@ import LoadingSpinner from '../Common/LoadingSpinner';
 import EmptyState from '../Common/EmptyState';
 import HeartAnimation from '../Common/HeartAnimation';
 import ShareSheet from '../Common/ShareSheet';
+import EmojiReactions from '../Common/EmojiReactions';
+import TopicChip from '../Topics/TopicChip';
 import { FeedSkeleton, ReelsGridSkeleton } from '../Common/SkeletonLoader';
 import { POST_TYPES } from '../../utils/mediaSchema';
 import { sampleNews } from '../../data/newsData';
@@ -553,6 +555,25 @@ const PostCard = ({
             )}
           </div>
         )}
+
+        {/* Topic Tags */}
+        {post.tags && post.tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {post.tags.slice(0, 4).map((tag, index) => (
+              <TopicChip
+                key={`${post.id}-tag-${index}`}
+                topic={tag}
+                size="sm"
+                showFollowButton={false}
+              />
+            ))}
+            {post.tags.length > 4 && (
+              <span className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1">
+                +{post.tags.length - 4}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Media Content */}
@@ -637,17 +658,12 @@ const PostCard = ({
       <div className="relative mt-6 border-t border-warmBrown-200 dark:border-gray-800 bg-ivory-50/70 dark:bg-gray-900/60 backdrop-blur-sm">
         <div className="flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-4 text-sm">
-            <button
-              onClick={onLike}
-              className={`flex items-center gap-2 rounded-full px-3 py-2 transition-colors ${
-                isLiked 
-                  ? 'bg-red-500/10 text-red-500 dark:bg-red-500/20' 
-                  : 'text-warmBrown-700 dark:text-gray-300 hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-red-500/20'
-              }`}
-            >
-              <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-              <span className="font-medium">Like</span>
-            </button>
+            <EmojiReactions 
+              postId={post.id} 
+              postType="posts"
+              compact={true}
+              showCount={true}
+            />
 
             <button
               onClick={isClickable ? () => onPostClick(post.id) : undefined}

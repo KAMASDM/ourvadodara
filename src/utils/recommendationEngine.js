@@ -10,7 +10,98 @@
  * 3. Recency boost (recent articles get higher scores)
  * 4. Engagement metrics (likes, views, comments)
  * 5. Diversity factor (avoid showing too similar content)
+ * 6. For You algorithm (personalized feed based on user history)
  */
+
+/**
+ * Generate personalized "For You" feed
+ * Combines user preferences with trending content
+ */
+export const generateForYouFeed = (articles, userInteractions, options = {}) => {
+  const {
+    maxResults = 20,
+    diversityFactor = 0.3,
+    trendingWeight = 0.3,
+    personalWeight = 0.7
+  } = options;
+
+  if (!articles || articles.length === 0) return [];
+  if (!userInteractions || userInteractions.length === 0) {
+    // Return trending content for new users
+    return articles
+      .sort((a, b) => calculateEngagementScore(b.analytics) - calculateEngagementScore(a.analytics))
+      .slice(0, maxResults);
+  }
+
+  // Score each article
+  const scoredArticles = articles.map(article => {
+    const personalScore = calculateUserPreferenceScore(article, userInteractions);
+    const trendingScore = calculateEngagementScore(article.analytics);
+    const recencyScore = calculateRecencyScore(article.publishedAt || article.createdAt);
+    
+    // Weighted combination
+    const finalScore = (
+      personalScore * personalWeight +
+      trendingScore * trendingWeight +
+      recencyScore * 0.2
+    );
+
+    return {
+      ...article,
+      recommendationScore: finalScore,
+      _personalScore: personalScore,
+      _trendingScore: trendingScore,
+      _recencyScore: recencyScore
+    };
+  });
+
+  // Sort by score
+  scoredArticles.sort((a, b) => b.recommendationScore - a.recommendationScore);
+
+  // Apply diversity filter
+  const diverseResults = applyDiversityFilter(scoredArticles, diversityFactor, maxResults);
+
+  return diverseResults;
+};
+
+/**
+ * Apply diversity filter to avoid too similar content
+ */
+const applyDiversityFilter = (articles, diversityFactor, maxResults) => {
+  const selected = [];
+  const usedCategories = new Map();
+  const usedTags = new Set();
+
+  for (const article of articles) {
+    if (selected.length >= maxResults) break;
+
+    // Check category diversity
+    const categoryCount = usedCategories.get(article.category) || 0;
+    const categoryPenalty = categoryCount * diversityFactor;
+
+    // Check tag diversity
+    let tagOverlap = 0;
+    if (article.tags) {
+      tagOverlap = article.tags.filter(tag => usedTags.has(tag)).length;
+    }
+    const tagPenalty = tagOverlap * diversityFactor * 0.5;
+
+    // Adjust score with penalties
+    const adjustedScore = article.recommendationScore - categoryPenalty - tagPenalty;
+
+    if (adjustedScore > 0 || selected.length < 5) {
+      selected.push(article);
+      
+      // Update diversity trackers
+      usedCategories.set(article.category, categoryCount + 1);
+      if (article.tags) {
+        article.tags.forEach(tag => usedTags.add(tag));
+      }
+    }
+  }
+
+  return selected;
+};
 
 /**
  * Calculate similarity score between two articles based on tags

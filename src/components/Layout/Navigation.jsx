@@ -35,11 +35,11 @@ const Navigation = ({ activeTab, setActiveTab, hasActiveSOS = false }) => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl bg-white/90 dark:bg-gray-950/85 border-t border-white/70 dark:border-gray-800/70 shadow-[0_-10px_30px_-20px_rgba(15,23,42,0.6)]">
-      <div className="max-w-md mx-auto">
-        <div className="flex items-center justify-between px-6 py-3">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl bg-white/90 dark:bg-gray-950/85 border-t border-white/70 dark:border-gray-800/70 shadow-[0_-10px_30px_-20px_rgba(15,23,42,0.6)] overflow-x-hidden">
+      <div className="max-w-md mx-auto overflow-x-hidden">
+        <div className="flex items-center justify-between px-4 py-3 min-w-0">
           {/* Left Navigation Items */}
-          <div className="flex gap-4">
+          <div className="flex gap-2 flex-shrink-0">
             {leftNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -48,14 +48,14 @@ const Navigation = ({ activeTab, setActiveTab, hasActiveSOS = false }) => {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-all duration-200 ${
+                  className={`flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 transition-all duration-200 ${
                     isActive
                       ? 'text-accent bg-accent/15 dark:bg-accent/20 shadow-inner'
                       : 'text-gray-600 dark:text-gray-400 hover:text-text-dark dark:hover:text-text-light hover:bg-gray-100/80 dark:hover:bg-gray-800/80'
                   }`}
                 >
-                  <Icon className={`h-5 w-5 ${isActive ? 'animate-pulse' : ''}`} />
-                  <span className="text-[11px] font-medium uppercase tracking-wide">{item.label}</span>
+                  <Icon className={`h-4 w-4 ${isActive ? 'animate-pulse' : ''}`} />
+                  <span className="text-[10px] font-medium uppercase tracking-wide">{item.label}</span>
                 </button>
               );
             })}
@@ -65,9 +65,9 @@ const Navigation = ({ activeTab, setActiveTab, hasActiveSOS = false }) => {
           <div className="flex-shrink-0">
             <button
               onClick={() => setActiveTab('home')}
-              className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-accent/90 to-orange-500 text-white shadow-lg shadow-orange-500/40 transition-transform duration-200 hover:-translate-y-1"
+              className="relative flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-accent/90 to-orange-500 text-white shadow-lg shadow-orange-500/40 transition-transform duration-200 hover:-translate-y-1"
             >
-              <div className="absolute inset-1 rounded-full bg-white dark:bg-white p-1.5">
+              <div className="absolute inset-1 rounded-full bg-white dark:bg-white p-1">
                 <img
                   src={logoImage}
                   alt="Our Vadodara"
@@ -84,7 +84,7 @@ const Navigation = ({ activeTab, setActiveTab, hasActiveSOS = false }) => {
           </div>
 
           {/* Right Navigation Items */}
-          <div className="flex gap-3">
+          <div className="flex gap-2 flex-shrink-0">
             {rightNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -94,14 +94,14 @@ const Navigation = ({ activeTab, setActiveTab, hasActiveSOS = false }) => {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`relative flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-all duration-200 ${
+                  className={`relative flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 transition-all duration-200 ${
                     isActive
                       ? 'text-accent bg-accent/15 dark:bg-accent/20 shadow-inner'
                       : 'text-gray-600 dark:text-gray-400 hover:text-text-dark dark:hover:text-text-light hover:bg-gray-100/80 dark:hover:bg-gray-800/80'
                   }`}
                 >
-                  <Icon className={`h-5 w-5 ${item.id === 'breaking' ? 'animate-pulse text-accent' : ''}`} />
-                  <span className="text-[11px] font-medium uppercase tracking-wide">{item.label}</span>
+                  <Icon className={`h-4 w-4 ${item.id === 'breaking' ? 'animate-pulse text-accent' : ''}`} />
+                  <span className="text-[10px] font-medium uppercase tracking-wide">{item.label}</span>
                   {showBadge && (
                     <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-bold text-white">
                       {unreadCount > 9 ? '9+' : unreadCount}

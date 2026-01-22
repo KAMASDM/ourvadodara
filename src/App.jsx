@@ -36,6 +36,7 @@ import BreakingNewsManager from './components/Breaking/BreakingNewsManager.jsx';
 import BreakingNewsView from './components/Breaking/BreakingNewsView.jsx';
 import BloodSOSBanner from './components/SOS/BloodSOSBanner.jsx';
 import { BloodSOSProvider, useBloodSOS } from './context/SOS/BloodSOSContext.jsx';
+import { TopicFollowingProvider } from './context/Topics/TopicFollowingContext.jsx';
 import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
 import { analytics } from './utils/analytics.js';
 import { performanceMonitor } from './utils/performance.js';
@@ -458,9 +459,11 @@ function App() {
             <LanguageProvider>
               <CityProvider>
                 <BloodSOSProvider>
-                  <ToastProvider>
-                    <AppContent />
-                  </ToastProvider>
+                  <TopicFollowingProvider>
+                    <ToastProvider>
+                      <AppContent />
+                    </ToastProvider>
+                  </TopicFollowingProvider>
                 </BloodSOSProvider>
               </CityProvider>
             </LanguageProvider>

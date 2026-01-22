@@ -83,6 +83,9 @@ const NewsDetailPage = ({ newsId, onBack }) => {
         setIsSaved(false); // Check from user's saved posts
         setViewCount(newsItem.analytics?.views || newsItem.views || 0);
         
+        // Trigger article read event for streak tracking
+        document.dispatchEvent(new Event('articleRead'));
+        
         // Build user interaction profile
         const userInteractions = user?.uid 
           ? buildUserInteractionProfile(user.uid, userLikesData, userReadsData, userSharesData)

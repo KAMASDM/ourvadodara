@@ -11,18 +11,41 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Modern Red, Black & White Theme
+        // GenZ Vibrant Theme - Purple & Blue Accents
         primary: {
-          50: '#fef2f2',   // Very light red
-          100: '#fee2e2',  // Light red
-          200: '#fecaca',  // Lighter red
-          300: '#fca5a5',  // Medium light red
-          400: '#f87171',  // Medium red
-          500: '#ef4444',  // Main red (primary)
-          600: '#dc2626',  // Darker red
-          700: '#b91c1c',  // Dark red
-          800: '#991b1b',  // Very dark red
-          900: '#7f1d1d',  // Darkest red
+          50: '#f5f3ff',   // Very light purple
+          100: '#ede9fe',  // Light purple
+          200: '#ddd6fe',  // Lighter purple
+          300: '#c4b5fd',  // Medium light purple
+          400: '#a78bfa',  // Medium purple
+          500: '#8b5cf6',  // Main purple (primary)
+          600: '#7c3aed',  // Darker purple
+          700: '#6d28d9',  // Dark purple
+          800: '#5b21b6',  // Very dark purple
+          900: '#4c1d95',  // Darkest purple
+        },
+        // Vibrant accent colors
+        accent: {
+          blue: {
+            light: '#60a5fa',
+            DEFAULT: '#3b82f6',
+            dark: '#2563eb',
+          },
+          pink: {
+            light: '#f472b6',
+            DEFAULT: '#ec4899',
+            dark: '#db2777',
+          },
+          orange: {
+            light: '#fb923c',
+            DEFAULT: '#f97316',
+            dark: '#ea580c',
+          },
+          green: {
+            light: '#4ade80',
+            DEFAULT: '#22c55e',
+            dark: '#16a34a',
+          },
         },
         // Ivory Color Palette for Light Mode
         ivory: {
@@ -62,19 +85,19 @@ module.exports = {
           800: '#27272a',  // Very dark gray
           900: '#18181b',  // Almost black
         },
-        // Semantic colors using red, black, white theme
+        // Semantic colors using GenZ vibrant theme
         'text-light': '#fafafa',     // White text for dark backgrounds
         'text-dark': '#18181b',      // Black text for light backgrounds
         'bg-light': '#ffffff',       // Pure white background
-        'bg-dark': '#18181b',        // Pure black background
+        'bg-dark': '#0f0f1a',        // Deep dark purple-tinted background
         'bg-card-light': '#fafafa',  // Light gray for cards on white
-        'bg-card-dark': '#27272a',   // Dark gray for cards on black
+        'bg-card-dark': '#1a1a2e',   // Dark purple-tinted cards
         'border-light': '#e4e4e7',   // Light border
         'border-dark': '#3f3f46',    // Dark border
-        'accent': '#ef4444',         // Primary red accent
-        'accent-hover': '#dc2626',   // Darker red for hover states
+        'accent': '#8b5cf6',         // Primary purple accent
+        'accent-hover': '#7c3aed',   // Darker purple for hover states
         'surface-light': '#f4f4f5',  // Light surface color
-        'surface-dark': '#27272a',   // Dark surface color
+        'surface-dark': '#1a1a2e',   // Dark purple-tinted surface
       },
       fontFamily: {
         // You can add custom fonts here if needed

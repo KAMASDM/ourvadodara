@@ -13,6 +13,7 @@ import { LANGUAGES } from '../../utils/constants';
 import { Globe, Bell, LogIn, MapPin, AlertCircle } from 'lucide-react';
 import Logo from '../Shared/Logo';
 import PWAInstallButton from '../PWA/PWAInstallButton';
+import ReadingStreak from '../Gamification/ReadingStreak';
 
 const Header = ({ onNotificationClick, onLoginClick, onProfileClick }) => {
   const { t } = useTranslation();
@@ -33,13 +34,15 @@ const Header = ({ onNotificationClick, onLoginClick, onProfileClick }) => {
   const showIncompleteProfileBadge = user && !user.isAnonymous && !user.profileComplete && profileCompletion && !profileCompletion.isComplete;
 
   return (
-    <header className="sticky top-0 z-50 bg-ivory-50/95 dark:bg-gray-950/80 backdrop-blur-xl border-b border-warmBrown-200 dark:border-gray-800/70 shadow-ivory">
-      <div className="max-w-md mx-auto px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <Logo onClick={() => window.location.reload()} />
+    <header className="sticky top-0 z-50 bg-ivory-50/95 dark:bg-gray-950/80 backdrop-blur-xl border-b border-warmBrown-200 dark:border-gray-800/70 shadow-ivory overflow-x-hidden">
+      <div className="max-w-md mx-auto px-4 py-3 overflow-x-hidden">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex-shrink-0">
+            <Logo onClick={() => window.location.reload()} />
+          </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+            <div className="relative flex-shrink-0">
               <select
                 value={currentCity.id}
                 onChange={(e) => {
@@ -48,7 +51,7 @@ const Header = ({ onNotificationClick, onLoginClick, onProfileClick }) => {
                     setCurrentCity(newCity);
                   }
                 }}
-                className="appearance-none bg-ivory-100 dark:bg-gray-900/70 text-warmBrown-900 dark:text-text-light text-sm border border-warmBrown-200 dark:border-gray-700 rounded-xl px-3 py-2 pr-7 shadow-sm focus:outline-none focus:ring-2 focus:ring-warmBrown-400"
+                className="appearance-none bg-ivory-100 dark:bg-gray-900/70 text-warmBrown-900 dark:text-text-light text-xs border border-warmBrown-200 dark:border-gray-700 rounded-lg px-2 py-1.5 pr-6 shadow-sm focus:outline-none focus:ring-2 focus:ring-warmBrown-400 max-w-[80px] truncate"
                 aria-label="Select city"
               >
                 {cities.map((city) => (
@@ -60,11 +63,11 @@ const Header = ({ onNotificationClick, onLoginClick, onProfileClick }) => {
               <MapPin className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warmBrown-600" />
             </div>
 
-            <div className="relative">
+            <div className="relative flex-shrink-0">
               <select
                 value={currentLanguage}
                 onChange={(e) => changeLanguage(e.target.value)}
-                className="appearance-none bg-ivory-100 dark:bg-gray-900/70 text-warmBrown-900 dark:text-text-light text-sm border border-warmBrown-200 dark:border-gray-700 rounded-xl px-3 py-2 pr-7 shadow-sm focus:outline-none focus:ring-2 focus:ring-warmBrown-400"
+                className="appearance-none bg-ivory-100 dark:bg-gray-900/70 text-warmBrown-900 dark:text-text-light text-xs border border-warmBrown-200 dark:border-gray-700 rounded-lg px-2 py-1.5 pr-6 shadow-sm focus:outline-none focus:ring-2 focus:ring-warmBrown-400 max-w-[70px] truncate"
                 aria-label="Select language"
               >
                 {LANGUAGES.map((lang) => (
@@ -78,10 +81,10 @@ const Header = ({ onNotificationClick, onLoginClick, onProfileClick }) => {
 
             <button
               onClick={onNotificationClick}
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-transparent bg-ivory-100 text-warmBrown-900 shadow-sm transition-colors duration-200 hover:border-warmBrown-300 hover:text-warmBrown-700 dark:bg-gray-900/70 dark:text-text-light dark:hover:border-gray-700"
+              className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-transparent bg-ivory-100 text-warmBrown-900 shadow-sm transition-colors duration-200 hover:border-warmBrown-300 hover:text-warmBrown-700 dark:bg-gray-900/70 dark:text-text-light dark:hover:border-gray-700 flex-shrink-0"
               aria-label={t('notifications', 'Notifications')}
             >
-              <Bell className="w-5 h-5" />
+              <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
                 <>
                   <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white shadow-md">
@@ -94,22 +97,26 @@ const Header = ({ onNotificationClick, onLoginClick, onProfileClick }) => {
 
             <PWAInstallButton />
 
+            {user && !user.isAnonymous && (
+              <ReadingStreak showInHeader={true} />
+            )}
+
             {!user ? (
               <button
                 onClick={onLoginClick}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-transparent bg-ivory-100 text-warmBrown-900 shadow-sm transition-colors duration-200 hover:border-warmBrown-300 hover:text-warmBrown-700 dark:bg-gray-900/70 dark:text-text-light dark:hover:border-gray-700"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent bg-ivory-100 text-warmBrown-900 shadow-sm transition-colors duration-200 hover:border-warmBrown-300 hover:text-warmBrown-700 dark:bg-gray-900/70 dark:text-text-light dark:hover:border-gray-700 flex-shrink-0"
                 title={t('login', 'Login')}
               >
-                <LogIn className="w-5 h-5" />
+                <LogIn className="w-4 h-4" />
               </button>
             ) : (
               showIncompleteProfileBadge && (
                 <button
                   onClick={onProfileClick}
-                  className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 shadow-sm transition-colors duration-200 hover:bg-yellow-100 dark:hover:bg-yellow-900/50"
+                  className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 shadow-sm transition-colors duration-200 hover:bg-yellow-100 dark:hover:bg-yellow-900/50 flex-shrink-0"
                   title="Complete your profile"
                 >
-                  <AlertCircle className="w-5 h-5" />
+                  <AlertCircle className="w-4 h-4" />
                   <span className="absolute -top-1 -right-1 flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
