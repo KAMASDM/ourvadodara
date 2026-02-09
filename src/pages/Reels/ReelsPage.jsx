@@ -2,7 +2,7 @@
 // src/pages/Reels/ReelsPage.jsx
 // Dedicated Reels Page with TikTok/Instagram-like Experience
 // =============================================
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import useViewTracking from '../../hooks/useViewTracking';
@@ -38,61 +38,115 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const [showComments, setShowComments] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [likedReels, setLikedReels] = useState(new Set());
   const [savedReels, setSavedReels] = useState(new Set());
   const [showLikeAnimation, setShowLikeAnimation] = useState(false);
   const [showPlayPauseIcon, setShowPlayPauseIcon] = useState(false);
   const [showHints, setShowHints] = useState(true);
-  const [isTransitioning, setIsTransitioning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [buffered, setBuffered] = useState(0);
   
   const containerRef = useRef(null);
-  const videoRef = useRef(null);
+  const videoRefs = useRef({});
   const touchStartY = useRef(0);
   const touchEndY = useRef(0);
   const touchStartX = useRef(0);
   const progressInterval = useRef(null);
+  const preloadedVideos = useRef(new Set());
+  const isNavigating = useRef(false);
 
-  // Process reels data
-  const reels = reelsData 
-    ? Object.entries(reelsData)
-        .map(([id, reel]) => ({ id, ...reel }))
-        .filter(reel => reel.isPublished && reel.type === POST_TYPES.REEL)
-        .sort((a, b) => new Date(b.publishedAt || b.createdAt || 0) - new Date(a.publishedAt || a.createdAt || 0))
-    : [];
+  // Process reels data - memoized for performance
+  const reels = useMemo(() => {
+    if (!reelsData) return [];
+    return Object.entries(reelsData)
+      .map(([id, reel]) => ({ id, ...reel }))
+      .filter(reel => reel.isPublished && reel.type === POST_TYPES.REEL)
+      .sort((a, b) => new Date(b.publishedAt || b.createdAt || 0) - new Date(a.publishedAt || a.createdAt || 0));
+  }, [reelsData]);
 
   const currentReel = reels[currentReelIndex];
+  const prevReel = currentReelIndex > 0 ? reels[currentReelIndex - 1] : null;
+  const nextReel = currentReelIndex < reels.length - 1 ? reels[currentReelIndex + 1] : null;
 
   // Track view for current reel
   useViewTracking(currentReel?.id, 'reels');
 
-  // Load user's likes and saves
+  // Preload videos for current and adjacent reels
   useEffect(() => {
-    if (!user) return;
+    const preloadVideo = (reel) => {
+      if (!reel || preloadedVideos.current.has(reel.id)) return;
+      
+      const videoUrl = reel.mediaContent?.items?.[0]?.url || reel.videoUrl;
+      if (!videoUrl) return;
+
+      const video = document.createElement('video');
+      video.preload = 'auto';
+      video.src = videoUrl;
+      video.muted = true;
+      
+      // Store reference
+      if (!videoRefs.current[reel.id]) {
+        videoRefs.current[reel.id] = video;
+      }
+      
+      preloadedVideos.current.add(reel.id);
+    };
+
+    // Preload current, previous, and next videos
+    if (currentReel) preloadVideo(currentReel);
+    if (prevReel) preloadVideo(prevReel);
+    if (nextReel) preloadVideo(nextReel);
+
+    // Cleanup old video refs (keep only nearby reels)
+    const keepIds = new Set([
+      currentReel?.id,
+      prevReel?.id,
+      nextReel?.id
+    ].filter(Boolean));
+
+    Object.keys(videoRefs.current).forEach(id => {
+      if (!keepIds.has(id)) {
+        const video = videoRefs.current[id];
+        if (video) {
+          video.pause();
+          video.src = '';
+          video.load();
+        }
+        delete videoRefs.current[id];
+        preloadedVideos.current.delete(id);
+      }
+    });
+  }, [currentReel, prevReel, nextReel]);
+
+  // Load user's likes and saves - optimized with lazy loading
+  useEffect(() => {
+    if (!user || !reels.length) return;
 
     const loadUserInteractions = async () => {
       try {
-        // Load likes
-        const likesRef = ref(db, `likes`);
-        const likesSnapshot = await get(likesRef);
-        if (likesSnapshot.exists()) {
-          const likesData = likesSnapshot.val();
-          const userLikes = new Set();
-          Object.entries(likesData).forEach(([postId, likes]) => {
-            if (likes[user.uid]) {
-              userLikes.add(postId);
-            }
-          });
-          setLikedReels(userLikes);
-        }
+        const reelIds = reels.map(r => r.id);
+        
+        // Load only likes for current reels
+        const likesPromises = reelIds.map(async (id) => {
+          const likeRef = ref(db, `likes/${id}/${user.uid}`);
+          const snapshot = await get(likeRef);
+          return { id, liked: snapshot.exists() };
+        });
+
+        const likesResults = await Promise.all(likesPromises);
+        const userLikes = new Set(likesResults.filter(r => r.liked).map(r => r.id));
+        setLikedReels(userLikes);
 
         // Load bookmarks
         const bookmarksRef = ref(db, `bookmarks/${user.uid}`);
         const bookmarksSnapshot = await get(bookmarksRef);
         if (bookmarksSnapshot.exists()) {
           const bookmarksData = bookmarksSnapshot.val();
-          const userSaves = new Set(Object.keys(bookmarksData));
+          const userSaves = new Set(
+            Object.keys(bookmarksData).filter(id => reelIds.includes(id))
+          );
           setSavedReels(userSaves);
         }
       } catch (error) {
@@ -101,39 +155,74 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     };
 
     loadUserInteractions();
-  }, [user]);
+  }, [user, reels]);
 
-  // Control video playback
+  // Control video playback - optimized with buffer check
   useEffect(() => {
-    const video = videoRef.current;
+    const video = videoRefs.current[currentReel?.id];
     if (!video) return;
 
+    const playVideo = async () => {
+      try {
+        // Check if video has buffered enough
+        if (video.readyState >= 3) { // HAVE_FUTURE_DATA
+          await video.play();
+        } else {
+          // Wait for enough data to be buffered
+          const handleCanPlay = async () => {
+            try {
+              await video.play();
+            } catch (err) {
+              console.log('Play failed:', err);
+            }
+          };
+          video.addEventListener('canplay', handleCanPlay, { once: true });
+          
+          // Timeout fallback
+          setTimeout(async () => {
+            video.removeEventListener('canplay', handleCanPlay);
+            try {
+              await video.play();
+            } catch (err) {
+              console.log('Play failed:', err);
+            }
+          }, 500);
+        }
+      } catch (err) {
+        console.log('Play failed:', err);
+      }
+    };
+
     if (isPlaying) {
-      video.play().catch(err => console.log('Play failed:', err));
+      playVideo();
     } else {
       video.pause();
     }
-  }, [isPlaying, currentReelIndex]);
+  }, [isPlaying, currentReelIndex, currentReel]);
 
-  // Track video progress
+  // Track video progress - optimized with RAF
   useEffect(() => {
-    const video = videoRef.current;
+    const video = videoRefs.current[currentReel?.id];
     if (!video) return;
 
+    let rafId;
+    
     const updateProgress = () => {
       if (video.duration) {
         const currentProgress = (video.currentTime / video.duration) * 100;
+        const bufferedProgress = video.buffered.length > 0 
+          ? (video.buffered.end(0) / video.duration) * 100 
+          : 0;
+        
         setProgress(currentProgress);
+        setBuffered(bufferedProgress);
       }
+      rafId = requestAnimationFrame(updateProgress);
     };
 
     const handleLoadedMetadata = () => {
       setDuration(video.duration);
       setProgress(0);
-    };
-
-    const handleTimeUpdate = () => {
-      updateProgress();
     };
 
     const handleEnded = () => {
@@ -146,23 +235,24 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     };
 
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('ended', handleEnded);
+    
+    rafId = requestAnimationFrame(updateProgress);
 
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('ended', handleEnded);
     };
-  }, [currentReelIndex, reels.length]);
+  }, [currentReelIndex, reels.length, currentReel]);
 
   // Control video mute
   useEffect(() => {
-    const video = videoRef.current;
+    const video = videoRefs.current[currentReel?.id];
     if (video) {
       video.muted = isMuted;
     }
-  }, [isMuted]);
+  }, [isMuted, currentReel]);
 
   useEffect(() => {
     if (!initialReelId || reels.length === 0) {
@@ -179,7 +269,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowHints(false);
-    }, 4000);
+    }, 2500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -211,59 +301,73 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentReelIndex]);
+  }, [goToNext, goToPrevious, togglePlay, toggleMute]);
 
-  const goToNext = () => {
-    if (currentReelIndex < reels.length - 1 && !isTransitioning) {
-      setIsTransitioning(true);
-      setIsPlaying(false);
-      setTimeout(() => {
-        setCurrentReelIndex(prev => prev + 1);
-        setTimeout(() => {
-          setIsPlaying(true);
-          setIsTransitioning(false);
-        }, 100);
-      }, 200);
+  const goToNext = useCallback(() => {
+    if (currentReelIndex < reels.length - 1 && !isNavigating.current) {
+      isNavigating.current = true;
+      
+      // Pause current video immediately
+      const currentVideo = videoRefs.current[currentReel?.id];
+      if (currentVideo) currentVideo.pause();
+      
+      setCurrentReelIndex(prev => prev + 1);
+      setIsPlaying(true);
+      
+      // Reset navigation lock after a short delay
+      requestAnimationFrame(() => {
+        isNavigating.current = false;
+      });
     }
-  };
+  }, [currentReelIndex, reels.length, currentReel]);
 
-  const goToPrevious = () => {
-    if (currentReelIndex > 0 && !isTransitioning) {
-      setIsTransitioning(true);
-      setIsPlaying(false);
-      setTimeout(() => {
-        setCurrentReelIndex(prev => prev - 1);
-        setTimeout(() => {
-          setIsPlaying(true);
-          setIsTransitioning(false);
-        }, 100);
-      }, 200);
+  const goToPrevious = useCallback(() => {
+    if (currentReelIndex > 0 && !isNavigating.current) {
+      isNavigating.current = true;
+      
+      // Pause current video immediately
+      const currentVideo = videoRefs.current[currentReel?.id];
+      if (currentVideo) currentVideo.pause();
+      
+      setCurrentReelIndex(prev => prev - 1);
+      setIsPlaying(true);
+      
+      // Reset navigation lock after a short delay
+      requestAnimationFrame(() => {
+        isNavigating.current = false;
+      });
     }
-  };
+  }, [currentReelIndex, currentReel]);
 
 
 
-  // Enhanced touch gestures for mobile
+  // Enhanced touch gestures for mobile - optimized
   useEffect(() => {
+    let isScrolling = false;
+    let scrollTimeout;
+
     const handleTouchStart = (e) => {
       touchStartY.current = e.touches[0].clientY;
       touchStartX.current = e.touches[0].clientX;
+      isScrolling = false;
     };
 
     const handleTouchMove = (e) => {
-      // Calculate swipe direction
       const currentY = e.touches[0].clientY;
       const currentX = e.touches[0].clientX;
       const diffY = Math.abs(currentY - touchStartY.current);
       const diffX = Math.abs(currentX - touchStartX.current);
       
-      // Only prevent default if it's a vertical swipe (not horizontal)
-      if (diffY > diffX && diffY > 10) {
+      // Only prevent default if it's a clear vertical swipe
+      if (diffY > diffX && diffY > 20) {
         e.preventDefault();
+        isScrolling = true;
       }
     };
 
     const handleTouchEnd = (e) => {
+      if (!isScrolling) return;
+      
       touchEndY.current = e.changedTouches[0].clientY;
       const swipeDistance = touchStartY.current - touchEndY.current;
       const minSwipeDistance = 50;
@@ -277,6 +381,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           goToPrevious();
         }
       }
+      
+      isScrolling = false;
     };
 
     const container = containerRef.current;
@@ -291,17 +397,17 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         container.removeEventListener('touchend', handleTouchEnd);
       };
     }
-  }, []);
+  }, [goToNext, goToPrevious]);
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     setIsPlaying(prev => !prev);
     setShowPlayPauseIcon(true);
     setTimeout(() => setShowPlayPauseIcon(false), 500);
-  };
+  }, []);
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     setIsMuted(prev => !prev);
-  };
+  }, []);
 
   const handleLike = async (reelId) => {
     if (!user) {
@@ -498,13 +604,19 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   return (
     <div 
       ref={containerRef}
-      className={`${isDesktop ? 'relative w-full h-screen' : 'fixed inset-0'} bg-black overflow-hidden select-none`}
-      style={{ touchAction: 'none' }}
+      className={`reel-container ${isDesktop ? 'relative w-full h-screen' : 'fixed inset-0'} bg-black overflow-hidden select-none`}
+      style={{ touchAction: 'pan-y' }}
     >
-      {/* Progress Bar - Subtle Modern Design */}
+      {/* Progress Bar - Subtle Modern Design with Buffer Indicator */}
       <div className="absolute top-0 left-0 right-0 z-[60] h-1 bg-white/10">
+        {/* Buffered progress */}
         <div 
-          className="h-full bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 transition-all duration-300 ease-linear shadow-lg"
+          className="absolute h-full bg-white/30 reel-progress"
+          style={{ width: `${buffered}%` }}
+        />
+        {/* Current progress */}
+        <div 
+          className="absolute h-full bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 reel-progress shadow-lg"
           style={{ width: `${progress}%` }}
         />
       </div>
@@ -529,48 +641,16 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           </button>
         </div>
         
-        {/* Navigation Hints */}
+        {/* Navigation Hints - Compact */}
         {showHints && (
-          <div className="mt-4 bg-black/50 backdrop-blur-sm rounded-lg p-3 animate-fade-in">
-            <div className="text-white text-xs space-y-1">
+          <div className="mt-3 bg-black/60 backdrop-blur-md rounded-full px-4 py-2 animate-fade-in">
+            <div className="text-white text-xs text-center">
               {isDesktop ? (
-                <>
-                  <div className="flex items-center space-x-2">
-                    <ChevronUp className="w-4 h-4" />
-                    <span>Press ↑ for previous reel</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <ChevronDown className="w-4 h-4" />
-                    <span>Press ↓ for next reel</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-mono">Space</span>
-                    <span>to play/pause</span>
-                  </div>
-                </>
+                <span>↑↓ Navigate • Space = Play/Pause</span>
               ) : (
-                <>
-                  <div className="flex items-center space-x-2">
-                    <ChevronUp className="w-4 h-4" />
-                    <span>Swipe down for previous reel</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <ChevronDown className="w-4 h-4" />
-                    <span>Swipe up for next reel</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span>👆</span>
-                    <span>Tap video to play/pause</span>
-                  </div>
-                </>
+                <span>Swipe ↑↓ • Tap to pause</span>
               )}
             </div>
-            <button 
-              onClick={() => setShowHints(false)}
-              className="mt-2 text-xs text-gray-300 hover:text-white underline"
-            >
-              Got it!
-            </button>
           </div>
         )}
       </div>
@@ -582,18 +662,25 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           <div className={`relative ${isDesktop ? 'w-full max-w-md h-full' : 'w-full h-full'}`}>
             {/* Reel Video */}
             <video
-              ref={videoRef}
+              ref={(el) => {
+                if (el && currentReel) {
+                  videoRefs.current[currentReel.id] = el;
+                }
+              }}
+              key={currentReel.id}
+              data-reel="true"
               src={currentReel.mediaContent?.items?.[0]?.url || currentReel.videoUrl}
               poster={currentReel.mediaContent?.items?.[0]?.thumbnailUrl || currentReel.thumbnail}
-              className={`w-full h-full ${isDesktop ? 'object-contain' : 'object-cover'} cursor-pointer transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
+              className={`w-full h-full ${isDesktop ? 'object-contain' : 'object-cover'} cursor-pointer reel-video-transition`}
               loop
               playsInline
+              preload="auto"
               muted={isMuted}
               onClick={togglePlay}
             />
 
           {/* Bottom Gradient Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/80 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/80 pointer-events-none reel-overlay" />
 
           {/* Like Animation */}
           {showLikeAnimation && (
@@ -625,7 +712,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           </div>
 
           {/* Author Info & Content */}
-          <div className="absolute bottom-20 left-4 right-20 text-white z-20">
+          <div className="absolute bottom-20 left-4 right-20 text-white z-20 reel-content">
             {/* Title & Description */}
             {currentReel.title?.en && (
               <h2 className="font-semibold text-base mb-1 drop-shadow-lg line-clamp-2">
@@ -665,48 +752,16 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           </div>
 
           {/* Action Buttons - Right Side */}
-          <div className="absolute bottom-24 right-4 flex flex-col space-y-5 z-20">
-            {/* Navigation Arrows */}
-            <div className="flex flex-col space-y-3 mb-4">
-              {/* Previous Reel */}
-              {currentReelIndex > 0 && (
-                <button
-                  onClick={goToPrevious}
-                  className={`${isDesktop ? 'w-14 h-14' : 'w-11 h-11'} flex items-center justify-center bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/30 hover:scale-110 transition-all shadow-xl`}
-                  title="Previous reel (↑ or swipe down)"
-                >
-                  <ChevronUp className={`${isDesktop ? 'w-8 h-8' : 'w-6 h-6'}`} />
-                </button>
-              )}
-              
-              {/* Reel Counter */}
-              <div className="flex items-center justify-center">
-                <div className={`bg-white/20 backdrop-blur-md text-white ${isDesktop ? 'px-4 py-2 text-sm' : 'px-2.5 py-1 text-xs'} rounded-full font-bold shadow-lg`}>
-                  {currentReelIndex + 1} / {reels.length}
-                </div>
-              </div>
-              
-              {/* Next Reel */}
-              {currentReelIndex < reels.length - 1 && (
-                <button
-                  onClick={goToNext}
-                  className={`${isDesktop ? 'w-14 h-14' : 'w-11 h-11'} flex items-center justify-center bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/30 hover:scale-110 transition-all shadow-xl`}
-                  title="Next reel (↓ or swipe up)"
-                >
-                  <ChevronDown className={`${isDesktop ? 'w-8 h-8' : 'w-6 h-6'}`} />
-                </button>
-              )}
-            </div>
-
-            {/* Like Button */}
+          <div className="absolute bottom-24 right-4 flex flex-col space-y-4 z-20">
+            {/* Like Button - Primary */}
             <button
               onClick={() => handleLike(currentReel.id)}
-              className="flex flex-col items-center space-y-1"
+              className="flex flex-col items-center space-y-1 reel-action-button"
             >
-              <div className={`w-11 h-11 flex items-center justify-center rounded-full transition-all ${
+              <div className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${
                 likedReels.has(currentReel.id)
-                  ? 'bg-red-500 text-white scale-110'
-                  : 'bg-gray-900/40 backdrop-blur-sm text-white hover:bg-gray-900/60'
+                  ? 'bg-red-500 text-white'
+                  : 'bg-gray-900/50 backdrop-blur-sm text-white hover:bg-gray-900/70'
               }`}>
                 <Heart className={`w-6 h-6 ${likedReels.has(currentReel.id) ? 'fill-current' : ''}`} />
               </div>
@@ -717,12 +772,12 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
               )}
             </button>
 
-            {/* Comment Button */}
+            {/* Comment Button - Primary */}
             <button
               onClick={() => setShowComments(true)}
-              className="flex flex-col items-center space-y-1"
+              className="flex flex-col items-center space-y-1 reel-action-button"
             >
-              <div className="w-11 h-11 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm text-white rounded-full hover:bg-gray-900/60 transition-all">
+              <div className="w-12 h-12 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm text-white rounded-full hover:bg-gray-900/70 transition-all">
                 <MessageCircle className="w-6 h-6" />
               </div>
               {currentReel.analytics?.comments > 0 && (
@@ -732,36 +787,58 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
               )}
             </button>
 
-            {/* Share Button */}
-            <button
-              onClick={() => handleShare(currentReel)}
-              className="flex flex-col items-center space-y-1"
-            >
-              <div className="w-11 h-11 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm text-white rounded-full hover:bg-gray-900/60 transition-all">
-                <Share2 className="w-6 h-6" />
-              </div>
-              {currentReel.analytics?.shares > 0 && (
-                <span className="text-white text-xs font-semibold drop-shadow-lg">
-                  {formatNumber(currentReel.analytics.shares)}
-                </span>
+            {/* More Menu - Secondary Actions */}
+            <div className="relative flex flex-col items-center">
+              <button
+                onClick={() => setShowActionsMenu(!showActionsMenu)}
+                className="flex flex-col items-center space-y-1 reel-action-button"
+              >
+                <div className="w-12 h-12 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm text-white rounded-full hover:bg-gray-900/70 transition-all">
+                  <MoreVertical className="w-6 h-6" />
+                </div>
+              </button>
+
+              {/* Actions Menu */}
+              {showActionsMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-30" 
+                    onClick={() => setShowActionsMenu(false)}
+                  />
+                  <div className="absolute right-full mr-3 bottom-0 w-48 bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 py-2 z-40 overflow-hidden">
+                    <button
+                      onClick={() => {
+                        handleShare(currentReel);
+                        setShowActionsMenu(false);
+                      }}
+                      className="w-full px-4 py-3 flex items-center space-x-3 hover:bg-white/10 transition-colors text-left"
+                    >
+                      <Share2 className="w-5 h-5 text-white" />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-white">Share</div>
+                        {currentReel.analytics?.shares > 0 && (
+                          <div className="text-xs text-white/60">{formatNumber(currentReel.analytics.shares)} shares</div>
+                        )}
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleSave(currentReel.id);
+                        setShowActionsMenu(false);
+                      }}
+                      className="w-full px-4 py-3 flex items-center space-x-3 hover:bg-white/10 transition-colors text-left"
+                    >
+                      <Bookmark className={`w-5 h-5 ${savedReels.has(currentReel.id) ? 'fill-current text-yellow-400' : 'text-white'}`} />
+                      <div className="text-sm font-medium text-white">
+                        {savedReels.has(currentReel.id) ? 'Saved' : 'Save'}
+                      </div>
+                    </button>
+                  </div>
+                </>
               )}
-            </button>
+            </div>
 
-            {/* Save Button */}
-            <button
-              onClick={() => handleSave(currentReel.id)}
-              className="flex flex-col items-center"
-            >
-              <div className={`w-11 h-11 flex items-center justify-center rounded-full transition-all ${
-                savedReels.has(currentReel.id)
-                  ? 'bg-yellow-500 text-white scale-110'
-                  : 'bg-gray-900/40 backdrop-blur-sm text-white hover:bg-gray-900/60'
-              }`}>
-                <Bookmark className={`w-6 h-6 ${savedReels.has(currentReel.id) ? 'fill-current' : ''}`} />
-              </div>
-            </button>
-
-            {/* Author Avatar with Follow */}
+            {/* Author Avatar */}
             <div className="flex flex-col items-center mt-2">
               <div className="relative">
                 <button className="w-11 h-11 rounded-full border-2 border-white bg-white p-0.5 flex items-center justify-center">
@@ -771,9 +848,6 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
                     className="w-full h-full rounded-full object-cover"
                   />
                 </button>
-                <div className="absolute -bottom-1.5 left-1/2 transform -translate-x-1/2 w-5 h-5 bg-primary-red rounded-full flex items-center justify-center border-2 border-black">
-                  <Plus className="w-3 h-3 text-white" />
-                </div>
               </div>
             </div>
           </div>

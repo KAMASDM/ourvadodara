@@ -21,6 +21,7 @@ const PostCard = ({ post, onPostClick }) => {
   const [mediaError, setMediaError] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
   const videoRef = useRef(null);
   const cardRef = useRef(null);
 
@@ -506,47 +507,81 @@ const PostCard = ({ post, onPostClick }) => {
       )}
 
       {/* Actions */}
-      <div className="px-3 py-3">
+      <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-800">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-5">
+            {/* Like - Primary */}
             <button
               onClick={handleLike}
-              className={`flex items-center space-x-1 transition-colors ${
+              className={`flex items-center space-x-1.5 transition-transform active:scale-95 ${
                 isLiked
                   ? 'text-red-500'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-red-500'
+                  : 'text-gray-600 dark:text-gray-400'
               }`}
             >
               <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-              <span className="text-sm">{post.likes + (isLiked ? 1 : 0)}</span>
+              {post.likes > 0 && (
+                <span className="text-sm font-medium">{post.likes + (isLiked ? 1 : 0)}</span>
+              )}
             </button>
             
+            {/* Comment - Primary */}
             <button 
               onClick={handlePostClick}
-              className="flex items-center space-x-1 text-gray-600 dark:text-gray-400 hover:text-blue-500 transition-colors"
+              className="flex items-center space-x-1.5 text-gray-600 dark:text-gray-400 transition-transform active:scale-95"
             >
               <MessageCircle className="w-5 h-5" />
-              <span className="text-sm">{post.comments}</span>
+              {post.comments > 0 && (
+                <span className="text-sm font-medium">{post.comments}</span>
+              )}
             </button>
             
+            {/* Share - Primary */}
             <button
               onClick={handleShare}
-              className="flex items-center space-x-1 text-gray-600 dark:text-gray-400 hover:text-green-500 transition-colors"
+              className="flex items-center text-gray-600 dark:text-gray-400 transition-transform active:scale-95"
             >
               <Share className="w-5 h-5" />
             </button>
           </div>
           
-          <button
-            onClick={handleSave}
-            className={`transition-colors ${
-              isSaved
-                ? 'text-yellow-500'
-                : 'text-gray-600 dark:text-gray-400 hover:text-yellow-500'
-            }`}
-          >
-            <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
-          </button>
+          {/* Save - Secondary in menu */}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMenu(!showMenu);
+              }}
+              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-600 dark:text-gray-400"
+            >
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
+            
+            {/* Quick Actions Menu */}
+            {showMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowMenu(false)}
+                />
+                <div className="absolute right-0 bottom-full mb-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 z-50 overflow-hidden">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSave(e);
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2.5 flex items-center space-x-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                  >
+                    <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current text-yellow-500' : 'text-gray-600 dark:text-gray-400'}`} />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {isSaved ? 'Saved' : 'Save'}
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </article>

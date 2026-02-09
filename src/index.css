@@ -21,6 +21,7 @@
 html {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  height: 100%;
 }
 
 * {
@@ -31,7 +32,9 @@ html {
 body, #root {
   overscroll-behavior-y: contain;
   overflow-x: hidden;
+  overflow-y: auto;
   max-width: 100vw;
+  height: 100%;
 }
 
 /* Base styles for light mode with ivory theme */
@@ -593,4 +596,134 @@ body {
   @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full;
   @apply bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-bold;
   @apply animate-pulse;
+}
+/* =============================================
+// Reels Page Performance Optimizations
+// ============================================= */
+
+/* GPU acceleration for smooth scrolling and animations */
+video[data-reel] {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
+  will-change: transform;
+}
+
+/* Optimize touch interactions */
+.reel-container {
+  -webkit-overflow-scrolling: touch;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  touch-action: pan-y;
+  overscroll-behavior: none;
+}
+
+/* Smoother video transitions */
+.reel-video-transition {
+  transition: opacity 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hardware-accelerated animations */
+.reel-action-button {
+  transform: translateZ(0);
+  will-change: transform;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.reel-action-button:active {
+  transform: scale(0.9) translateZ(0);
+}
+
+/* Optimize progress bar updates */
+.reel-progress {
+  will-change: width;
+  transition: width 0.15s linear;
+}
+
+/* Prevent flickering during transitions */
+.reel-content {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Optimize overlay rendering */
+.reel-overlay {
+  will-change: opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* =============================================
+// UI Declutter & Menu Animations
+// ============================================= */
+
+/* Smooth menu animations */
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes slideInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInFromRight 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animate-slide-in-bottom {
+  animation: slideInFromBottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Compact action buttons */
+.action-button-compact {
+  @apply transition-all duration-200;
+  @apply active:scale-95;
+}
+
+.action-button-compact:hover {
+  @apply transform -translate-y-0.5;
+}
+
+/* Menu backdrop blur */
+.menu-backdrop {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Smooth touch feedback */
+.touch-feedback {
+  -webkit-tap-highlight-color: transparent;
+  @apply active:opacity-70;
+  @apply transition-opacity duration-150;
 }
