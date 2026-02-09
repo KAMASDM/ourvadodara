@@ -36,7 +36,7 @@ const Header = ({ onNotificationClick, onLoginClick, onProfileClick }) => {
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-ivory-50/95 dark:bg-gray-950/80 backdrop-blur-xl border-b border-warmBrown-200 dark:border-gray-800/70 shadow-ivory overflow-x-hidden">
+      <header className="relative z-50 bg-ivory-50/95 dark:bg-gray-950/80 backdrop-blur-xl border-b border-warmBrown-200 dark:border-gray-800/70 shadow-ivory overflow-x-hidden">
         <div className="max-w-md mx-auto px-4 py-3 overflow-x-hidden">
           <div className="flex items-center justify-between gap-3 min-w-0">
             <div className="flex-shrink-0">
