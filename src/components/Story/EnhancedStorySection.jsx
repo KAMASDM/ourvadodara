@@ -74,7 +74,7 @@ const EnhancedStorySection = ({ onViewStory, onLikeStory = () => {}, onCommentSt
             </h2>
           </div>
           
-          <div className="flex space-x-3 overflow-x-auto scrollbar-hide pb-1">
+          <div className="flex space-x-3 overflow-x-auto horizontal-scroll pb-1">
             {allStories.map((story) => (
               <StoryCard 
                 key={story.id} 

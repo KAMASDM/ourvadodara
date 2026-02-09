@@ -27,7 +27,7 @@ const StorySection = () => {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
           {t('breaking')}
         </h2>
-        <div className="flex space-x-3 overflow-x-auto scrollbar-hide">
+        <div className="flex space-x-3 overflow-x-auto horizontal-scroll">
           {stories.map((story) => (
             <StoryCard key={story.id} story={story} />
           ))}

@@ -105,7 +105,7 @@ const SwipeableCategoryFilter = ({ activeCategory, setActiveCategory }) => {
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth swipe-container"
+        className="flex gap-2 overflow-x-auto horizontal-scroll"
         style={{ scrollSnapType: 'x proximity' }}
       >
         {CATEGORIES.map((category) => {

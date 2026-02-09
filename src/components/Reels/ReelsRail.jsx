@@ -77,7 +77,7 @@ const ReelsRail = ({ onSelectReel }) => {
         </button>
       </div>
 
-      <div className="flex space-x-3 overflow-x-auto scrollbar-hide pb-1">
+      <div className="flex space-x-3 overflow-x-auto horizontal-scroll pb-1">
         {reels.map((reel) => {
           const thumbnail = resolveThumbnail(reel);
           const viewsLabel = formatViews(reel.analytics?.views);

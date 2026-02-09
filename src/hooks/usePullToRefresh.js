@@ -29,7 +29,8 @@ export const usePullToRefresh = (onRefresh, options = {}) => {
     if (!enabled || refreshing) return;
 
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    canPull.current = scrollTop === 0;
+    // More strict check: only enable if very close to top (within 3px)
+    canPull.current = scrollTop <= 3;
 
     if (canPull.current) {
       touchStartY.current = e.touches[0].clientY;
@@ -43,8 +44,9 @@ export const usePullToRefresh = (onRefresh, options = {}) => {
     const touchY = e.touches[0].clientY;
     const distance = touchY - touchStartY.current;
 
-    if (distance > 0) {
-      // Prevent default scroll behavior when pulling down
+    // Only engage pull-to-refresh if pulling down at least 15px
+    if (distance > 15) {
+      // Prevent default scroll behavior when clearly pulling down
       e.preventDefault();
       
       // Apply resistance for natural feel
@@ -54,6 +56,10 @@ export const usePullToRefresh = (onRefresh, options = {}) => {
       );
       
       setPullDistance(resistedDistance);
+    } else if (distance > 0 && distance <= 15) {
+      // Small movement - allow normal scrolling
+      isDragging.current = false;
+      canPull.current = false;
     }
   }, [refreshing, resistance, maxPullDistance]);
 

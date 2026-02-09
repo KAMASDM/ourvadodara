@@ -9,7 +9,7 @@ const CategoryFilter = ({ activeCategory, setActiveCategory }) => {
   const { currentLanguage } = useLanguage();
 
   return (
-    <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+    <div className="flex gap-2 overflow-x-auto horizontal-scroll">
       {CATEGORIES.map((category) => {
         const isActive = activeCategory === category.id;
 
