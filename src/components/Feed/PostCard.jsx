@@ -356,233 +356,204 @@ const PostCard = ({ post, onPostClick }) => {
   const needsReadMore = contentText.length > 150;
 
   return (
-    <article ref={cardRef} className="bg-ivory-50 dark:bg-bg-card-dark border-y border-warmBrown-200 dark:border-border-dark shadow-sm hover:shadow-md transition-all duration-200 mb-0">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 pb-2">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full bg-white dark:bg-white shadow-sm border border-warmBrown-200 dark:border-border-dark p-1 flex items-center justify-center">
-            <img 
-              src={logoImage} 
-              alt="Our Vadodara" 
-              className="w-full h-full object-contain"
+    <article
+      ref={cardRef}
+      className="bg-white dark:bg-neutral-900 border-b border-neutral-100 dark:border-neutral-800 transition-colors duration-150"
+    >
+      {/* ── Post header ───────────────────────────── */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-full bg-white border border-neutral-200 dark:border-neutral-700 p-1 flex items-center justify-center flex-shrink-0">
+            <img
+              src={logoImage}
+              alt="Our Vadodara"
+              className="h-full w-full object-contain"
             />
           </div>
-          <div>
-            <p className="font-semibold text-warmBrown-900 dark:text-text-light text-sm">
-              {typeof post.author === 'object' ? (post.author?.name || post.author?.email) : (post.author || post.authorName || 'Our Vadodara')}
+          <div className="leading-tight">
+            <p className="text-[13px] font-semibold text-neutral-800 dark:text-neutral-100">
+              {typeof post.author === 'object'
+                ? (post.author?.name || post.author?.email)
+                : (post.author || post.authorName || 'Our Vadodara')}
             </p>
-            <p className="text-warmBrown-600 dark:text-gray-400 text-xs">
+            <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
               {formatTime(post.publishedAt)}
             </p>
           </div>
         </div>
-        <button 
+        <button
           onClick={(e) => e.stopPropagation()}
-          className="p-1 text-warmBrown-600 dark:text-gray-400 hover:bg-ivory-200 dark:hover:bg-surface-dark rounded-full transition-colors duration-200"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
         >
-          <MoreHorizontal className="w-5 h-5" />
+          <MoreHorizontal className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Clickable Content Area */}
+      {/* ── Clickable body ────────────────────────── */}
       <div onClick={handlePostClick} className="cursor-pointer">
-        {/* Breaking News Badge */}
+
+        {/* Breaking badge */}
         {post.isBreaking && (
-          <div className="px-4 pb-2">
-            <span className="bg-accent text-white px-2 py-1 rounded text-xs font-bold animate-pulse shadow-lg">
-              🚨 BREAKING
+          <div className="px-4 pb-1.5">
+            <span className="inline-flex items-center gap-1 rounded-sm bg-danger px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">
+              🚨 Breaking
             </span>
           </div>
         )}
 
-        {/* Content */}
-        <div className="px-4 pb-2">
-          <h2 className="text-lg font-semibold text-warmBrown-900 dark:text-text-light mb-2">
-            {titleText}
-          </h2>
-          <p className="text-warmBrown-700 dark:text-gray-300 text-sm leading-relaxed">
-            {showFullContent ? contentText : contentPreview}
-            {needsReadMore && !showFullContent && '...'}
-          </p>
-          {needsReadMore && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowFullContent(!showFullContent);
-              }}
-              className="text-warmBrown-500 text-sm font-medium mt-1 hover:underline"
-            >
-              {showFullContent ? 'Show less' : t('readMore')}
-            </button>
-          )}
-        </div>
-
-        {/* Media - Images and Videos */}
+        {/* Media — full-bleed, 16:9 */}
         {mediaUrl && !mediaError && (
-          <div className="pb-2">
-            <div className="mb-2 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800">
-              {isVideoMedia ? (
-                <div className="relative w-full">
-                  <video
-                    ref={videoRef}
-                    src={mediaUrl}
-                    poster={selectedMediaItem?.thumbnailUrl || ''}
-                    preload="metadata"
-                    playsInline
-                    loop
-                    muted
-                    className="w-full h-auto max-h-[500px] object-contain bg-gray-900 block"
-                    onError={() => {
-                      console.error('Video failed to load:', mediaUrl);
-                      setMediaError(true);
-                    }}
-                  >
-                    Your browser does not support the video tag.
-                  </video>
-                  
-                  {/* Custom Play/Pause Button Overlay */}
-                  <div
-                    onClick={toggleVideoPlayback}
-                    className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
-                    style={{ pointerEvents: 'auto' }}
-                  >
-                    <div className={`bg-black bg-opacity-60 rounded-full p-4 transform transition-all duration-200 ${
-                      isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'
-                    }`}>
-                      {isPlaying ? (
-                        <Pause className="w-10 h-10 text-white" strokeWidth={2.5} />
-                      ) : (
-                        <Play className="w-10 h-10 text-white" strokeWidth={2.5} fill="white" />
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Progress Bar - Fixed at bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-800 bg-opacity-70 z-20">
-                    <div
-                      className="h-full bg-red-500 transition-all duration-100"
-                      style={{ width: `${progress}%` }}
-                    />
+          <div className="mb-2">
+            {isVideoMedia ? (
+              <div className="relative w-full aspect-video bg-neutral-900">
+                <video
+                  ref={videoRef}
+                  src={mediaUrl}
+                  poster={selectedMediaItem?.thumbnailUrl || ''}
+                  preload="metadata"
+                  playsInline
+                  loop
+                  muted
+                  className="w-full h-full object-cover"
+                  onError={() => setMediaError(true)}
+                />
+                {/* Play/pause overlay */}
+                <div
+                  onClick={toggleVideoPlayback}
+                  className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
+                >
+                  <div className={`rounded-full bg-black/50 p-3 backdrop-blur-sm transition-opacity duration-200 ${
+                    isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'
+                  }`}>
+                    {isPlaying
+                      ? <Pause className="w-7 h-7 text-white" strokeWidth={2.5} />
+                      : <Play className="w-7 h-7 text-white" strokeWidth={2.5} fill="white" />
+                    }
                   </div>
                 </div>
-              ) : (
-                <img
-                  src={mediaUrl}
-                  alt={titleText}
-                  className="w-full h-auto max-h-[500px] object-contain"
-                  loading="lazy"
-                  onError={() => {
-                    console.error('PostCard image failed:', mediaUrl);
-                    setMediaError(true);
-                  }}
-                />
-              )}
-            </div>
+                {/* Progress bar */}
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-black/30">
+                  <div
+                    className="h-full bg-accent transition-all duration-100"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <img
+                src={mediaUrl}
+                alt={titleText}
+                className="w-full aspect-video object-cover"
+                loading="lazy"
+                onError={() => setMediaError(true)}
+              />
+            )}
           </div>
         )}
 
         {mediaError && (
-          <div className="px-4 pb-2">
-            <div className="w-full h-48 rounded-xl bg-gray-100 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
-              {t('imageUnavailable', 'Image preview unavailable')}
-            </div>
+          <div className="mx-4 mb-2 h-40 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-400 text-sm">
+            {t('imageUnavailable', 'Image unavailable')}
           </div>
         )}
-      </div>
 
-      {/* Tags */}
-      {post.tags && post.tags.length > 0 && (
-        <div className="px-4 pb-2">
-          <div className="flex flex-wrap gap-1">
-            {post.tags.map((tag, index) => (
+        {/* Category chip */}
+        {post.category && (
+          <div className="px-4 pb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-primary-600 dark:text-primary-400">
+              {post.category}
+            </span>
+          </div>
+        )}
+
+        {/* Title */}
+        <div className="px-4 pb-1">
+          <h2 className="text-[16px] font-bold leading-snug text-neutral-900 dark:text-neutral-50 line-clamp-3">
+            {titleText}
+          </h2>
+        </div>
+
+        {/* Summary / content preview */}
+        {contentPreview && (
+          <div className="px-4 pb-2">
+            <p className="text-[13px] leading-relaxed text-neutral-500 dark:text-neutral-400 line-clamp-2">
+              {showFullContent ? contentText : contentPreview}
+              {needsReadMore && !showFullContent && '…'}
+            </p>
+            {needsReadMore && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowFullContent(!showFullContent);
+                }}
+                className="text-primary-600 dark:text-primary-400 text-[12px] font-medium mt-0.5 hover:underline"
+              >
+                {showFullContent ? 'Show less' : t('readMore')}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Tags */}
+        {post.tags && post.tags.length > 0 && (
+          <div className="px-4 pb-2 flex flex-wrap gap-1">
+            {post.tags.slice(0, 4).map((tag, i) => (
               <span
-                key={index}
-                className="text-xs bg-ivory-200 dark:bg-gray-800 text-warmBrown-700 dark:text-gray-300 px-2 py-1 rounded-full border border-warmBrown-300 dark:border-gray-700"
+                key={i}
+                className="text-[11px] text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 rounded-full px-2 py-0.5"
               >
                 #{tag}
               </span>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Actions */}
-      <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-5">
-            {/* Like - Primary */}
-            <button
-              onClick={handleLike}
-              className={`flex items-center space-x-1.5 transition-transform active:scale-95 ${
-                isLiked
-                  ? 'text-red-500'
-                  : 'text-gray-600 dark:text-gray-400'
-              }`}
-            >
-              <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-              {post.likes > 0 && (
-                <span className="text-sm font-medium">{post.likes + (isLiked ? 1 : 0)}</span>
-              )}
-            </button>
-            
-            {/* Comment - Primary */}
-            <button 
-              onClick={handlePostClick}
-              className="flex items-center space-x-1.5 text-gray-600 dark:text-gray-400 transition-transform active:scale-95"
-            >
-              <MessageCircle className="w-5 h-5" />
-              {post.comments > 0 && (
-                <span className="text-sm font-medium">{post.comments}</span>
-              )}
-            </button>
-            
-            {/* Share - Primary */}
-            <button
-              onClick={handleShare}
-              className="flex items-center text-gray-600 dark:text-gray-400 transition-transform active:scale-95"
-            >
-              <Share className="w-5 h-5" />
-            </button>
-          </div>
-          
-          {/* Save - Secondary in menu */}
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowMenu(!showMenu);
-              }}
-              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-600 dark:text-gray-400"
-            >
-              <MoreHorizontal className="w-5 h-5" />
-            </button>
-            
-            {/* Quick Actions Menu */}
-            {showMenu && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setShowMenu(false)}
-                />
-                <div className="absolute right-0 bottom-full mb-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 z-50 overflow-hidden">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSave(e);
-                      setShowMenu(false);
-                    }}
-                    className="w-full px-4 py-2.5 flex items-center space-x-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
-                  >
-                    <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current text-yellow-500' : 'text-gray-600 dark:text-gray-400'}`} />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {isSaved ? 'Saved' : 'Save'}
-                    </span>
-                  </button>
-                </div>
-              </>
+      {/* ── Action bar ────────────────────────────── */}
+      <div className="flex items-center justify-between px-4 py-2 border-t border-neutral-100 dark:border-neutral-800">
+        <div className="flex items-center gap-5">
+          {/* Like */}
+          <button
+            onClick={handleLike}
+            className={`flex items-center gap-1.5 transition-transform active:scale-90 ${
+              isLiked ? 'text-red-500' : 'text-neutral-400 dark:text-neutral-500'
+            }`}
+          >
+            <Heart className={`w-[19px] h-[19px] ${isLiked ? 'fill-current' : ''}`} strokeWidth={isLiked ? 0 : 1.8} />
+            {(post.likes || 0) + (isLiked ? 1 : 0) > 0 && (
+              <span className="text-[12px] font-medium">{(post.likes || 0) + (isLiked ? 1 : 0)}</span>
             )}
-          </div>
+          </button>
+
+          {/* Comment */}
+          <button
+            onClick={handlePostClick}
+            className="flex items-center gap-1.5 text-neutral-400 dark:text-neutral-500 transition-transform active:scale-90"
+          >
+            <MessageCircle className="w-[19px] h-[19px]" strokeWidth={1.8} />
+            {post.comments > 0 && (
+              <span className="text-[12px] font-medium">{post.comments}</span>
+            )}
+          </button>
+
+          {/* Share */}
+          <button
+            onClick={handleShare}
+            className="flex items-center text-neutral-400 dark:text-neutral-500 transition-transform active:scale-90"
+          >
+            <Share className="w-[19px] h-[19px]" strokeWidth={1.8} />
+          </button>
         </div>
+
+        {/* Save */}
+        <button
+          onClick={handleSave}
+          className={`flex items-center transition-transform active:scale-90 ${
+            isSaved ? 'text-primary-600' : 'text-neutral-400 dark:text-neutral-500'
+          }`}
+        >
+          <Bookmark className={`w-[19px] h-[19px] ${isSaved ? 'fill-current' : ''}`} strokeWidth={isSaved ? 0 : 1.8} />
+        </button>
       </div>
     </article>
   );

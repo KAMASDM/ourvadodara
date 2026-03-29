@@ -698,89 +698,91 @@ const UnifiedPostCreator = () => {
   
   // Render post type selector
   const renderPostTypeSelector = () => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm mb-6">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-        Select Post Type
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {postTypes.map((type) => {
-          const Icon = type.icon;
-          return (
-            <button
-              key={type.value}
-              type="button"
-              onClick={() => setPostType(type.value)}
-              className={`p-4 rounded-lg border-2 transition-all ${
-                postType === type.value
-                  ? 'border-primary-red bg-red-50 dark:bg-red-900/20'
-                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-              }`}
-            >
-              <Icon className={`w-8 h-8 mx-auto mb-2 ${
-                postType === type.value ? 'text-primary-red' : 'text-gray-500 dark:text-gray-400'
-              }`} />
-              <div className="text-center">
-                <div className={`font-semibold mb-1 ${
-                  postType === type.value ? 'text-primary-red' : 'text-gray-900 dark:text-white'
-                }`}>
-                  {type.label}
-                </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400">
-                  {type.description}
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      {postTypes.map((type) => {
+        const Icon = type.icon;
+        const active = postType === type.value;
+        return (
+          <button
+            key={type.value}
+            type="button"
+            onClick={() => setPostType(type.value)}
+            className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2 ${
+              active
+                ? 'border-primary-600 bg-primary-50 dark:bg-primary-600/10 shadow-md'
+                : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:border-primary-300 dark:hover:border-primary-700 hover:shadow-sm'
+            }`}
+          >
+            {active && (
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary-600" />
+            )}
+            <Icon className={`w-7 h-7 ${active ? 'text-primary-600' : 'text-neutral-400 dark:text-neutral-500'}`} />
+            <span className={`text-sm font-semibold leading-tight text-center ${active ? 'text-primary-700 dark:text-primary-400' : 'text-neutral-700 dark:text-neutral-300'}`}>
+              {type.label}
+            </span>
+            <span className="text-xs text-neutral-500 dark:text-neutral-400 text-center leading-snug hidden sm:block">
+              {type.description}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
   
   // Render basic fields (title, content, category, etc.)
   const renderBasicFields = () => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Basic Information
-        </h3>
+    <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-sm mb-6">
+      {/* Section header */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2">
+          <FileText className="w-5 h-5 text-primary-600" />
+          <h3 className="text-base font-semibold text-neutral-900 dark:text-white">Content</h3>
+        </div>
         <button
           type="button"
           onClick={handleAutoTranslate}
           disabled={translating || (!formData.title.en && !formData.title.hi && !formData.title.gu)}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {translating ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
           ) : (
-            <Languages className="w-4 h-4" />
+            <Languages className="w-3.5 h-3.5" />
           )}
-          <span>{translating ? 'Translating...' : 'Auto Translate'}</span>
+          <span>{translating ? 'Translating…' : 'Auto Translate'}</span>
         </button>
       </div>
       
       {/* Language Tabs */}
-      <div className="flex space-x-2 mb-4 border-b border-gray-200 dark:border-gray-700">
-        {Object.entries(languageLabels).map(([lang, label]) => (
-          <button
-            key={lang}
-            type="button"
-            onClick={() => setActiveLanguage(lang)}
-            className={`px-4 py-2 font-medium transition-colors ${
-              activeLanguage === lang
-                ? 'text-primary-red border-b-2 border-primary-red'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="flex gap-1 mb-5 p-1 bg-neutral-100 dark:bg-neutral-700/50 rounded-lg w-fit">
+        {Object.entries(languageLabels).map(([lang, label]) => {
+          const hasContent = formData.title[lang]?.trim() || formData.content[lang]?.trim();
+          return (
+            <button
+              key={lang}
+              type="button"
+              onClick={() => setActiveLanguage(lang)}
+              className={`relative px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                activeLanguage === lang
+                  ? 'bg-white dark:bg-neutral-800 text-primary-700 dark:text-primary-400 shadow-sm'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+              }`}
+            >
+              {label}
+              {hasContent && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500" />
+              )}
+            </button>
+          );
+        })}
       </div>
-      
+
       {/* Title */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Title ({languageLabels[activeLanguage]}) <span className="text-red-500">*</span>
-          <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">(required in at least one language)</span>
+      <div className="mb-5">
+        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+          Title — {languageLabels[activeLanguage]}
+          <span className="text-danger ml-1">*</span>
+          <span className="text-xs text-neutral-400 ml-2 font-normal">required in at least one language</span>
         </label>
         <input
           type="text"
@@ -789,123 +791,136 @@ const UnifiedPostCreator = () => {
             ...prev,
             title: { ...prev.title, [activeLanguage]: e.target.value }
           }))}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-red focus:border-transparent dark:bg-gray-700 dark:text-white"
+          className="w-full px-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
           placeholder={`Enter title in ${languageLabels[activeLanguage]}`}
         />
-        {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
+        <div className="flex items-center justify-between mt-1">
+          {errors.title ? (
+            <p className="text-danger text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.title}</p>
+          ) : <span />}
+          <span className="text-xs text-neutral-400">{formData.title[activeLanguage]?.length || 0} chars</span>
+        </div>
       </div>
-      
+
       {/* Content - Only for regular posts */}
       {postType === POST_TYPES.STANDARD && (
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Content ({languageLabels[activeLanguage]}) <span className="text-red-500">*</span>
-            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">(required in at least one language)</span>
+        <div className="mb-5">
+          <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+            Content — {languageLabels[activeLanguage]}
+            <span className="text-danger ml-1">*</span>
           </label>
-          <RichTextEditor
-            content={formData.content[activeLanguage]}
-            onChange={(html) => setFormData(prev => ({
-              ...prev,
-              content: { ...prev.content, [activeLanguage]: html }
-            }))}
-            placeholder={`Enter content in ${languageLabels[activeLanguage]}`}
-            minHeight="300px"
-          />
-          {errors.content && <p className="text-red-500 text-sm mt-1">{errors.content}</p>}
+          <div className="rounded-lg overflow-hidden border border-neutral-300 dark:border-neutral-600 focus-within:ring-2 focus-within:ring-primary-500">
+            <RichTextEditor
+              content={formData.content[activeLanguage]}
+              onChange={(html) => setFormData(prev => ({
+                ...prev,
+                content: { ...prev.content, [activeLanguage]: html }
+              }))}
+              placeholder={`Enter content in ${languageLabels[activeLanguage]}`}
+              minHeight="300px"
+            />
+          </div>
+          {errors.content && <p className="text-danger text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.content}</p>}
         </div>
       )}
-      
+
       {/* Excerpt/Description */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          {postType === POST_TYPES.STANDARD ? 'Excerpt' : 'Description'} ({languageLabels[activeLanguage]})
+      <div className="mb-5">
+        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+          {postType === POST_TYPES.STANDARD ? 'Excerpt' : 'Description'} — {languageLabels[activeLanguage]}
+          <span className="text-xs text-neutral-400 ml-2 font-normal">optional summary</span>
         </label>
-        <RichTextEditor
-          content={formData.excerpt[activeLanguage]}
-          onChange={(html) => setFormData(prev => ({
-            ...prev,
-            excerpt: { ...prev.excerpt, [activeLanguage]: html }
-          }))}
-          placeholder={`Enter ${postType === POST_TYPES.STANDARD ? 'excerpt' : 'description'} in ${languageLabels[activeLanguage]}`}
-          minHeight="150px"
-        />
+        <div className="rounded-lg overflow-hidden border border-neutral-300 dark:border-neutral-600 focus-within:ring-2 focus-within:ring-primary-500">
+          <RichTextEditor
+            content={formData.excerpt[activeLanguage]}
+            onChange={(html) => setFormData(prev => ({
+              ...prev,
+              excerpt: { ...prev.excerpt, [activeLanguage]: html }
+            }))}
+            placeholder={`Enter ${postType === POST_TYPES.STANDARD ? 'excerpt' : 'description'} in ${languageLabels[activeLanguage]}`}
+            minHeight="120px"
+          />
+        </div>
       </div>
-      
+
       {/* Category and Location */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Category *
+          <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+            Category <span className="text-danger">*</span>
           </label>
           <select
             value={formData.category}
             onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value, subcategory: '' }))}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-red focus:border-transparent dark:bg-gray-700 dark:text-white"
+            className="w-full px-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
           >
             <option value="">Select Category</option>
             {Object.keys(categoryData).map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
-          {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category}</p>}
+          {errors.category && <p className="text-danger text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.category}</p>}
         </div>
-        
+
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
             Location
           </label>
-          <input
-            type="text"
-            value={formData.location}
-            onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-red focus:border-transparent dark:bg-gray-700 dark:text-white"
-            placeholder="e.g., Alkapuri, Vadodara"
-          />
+          <div className="relative">
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
+            <input
+              type="text"
+              value={formData.location}
+              onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+              className="w-full pl-9 pr-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+              placeholder="e.g., Alkapuri, Vadodara"
+            />
+          </div>
         </div>
       </div>
-      
+
       {/* Cities Multi-Select */}
-      <div className="mb-4">
+      <div className="mb-5">
         <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            <MapPin className="inline w-4 h-4 mr-1" />
-            Target Cities
+          <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
+            <MapPin className="w-4 h-4 text-primary-500" />
+            Target Cities <span className="text-danger">*</span>
           </label>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {validSelectedCities.length}/{availableCities.length || 0} selected
+          <span className="text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-700 px-2 py-0.5 rounded-full">
+            {validSelectedCities.length}/{availableCities.length || 0}
           </span>
         </div>
-        <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="p-4 bg-neutral-50 dark:bg-neutral-700/40 rounded-xl border border-neutral-200 dark:border-neutral-600 space-y-3">
           {availableCities.length > 0 ? (
             <>
-              <div className="flex flex-wrap gap-2 text-xs">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={handleSelectCurrentCity}
                   disabled={!currentCity?.id}
-                  className={`px-3 py-1.5 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${
+                  className={`px-3 py-1 text-xs rounded-full border transition focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                     currentCity?.id && validSelectedCities.length === 1 && validSelectedCities[0] === currentCity.id
-                      ? 'bg-blue-600 text-white border-blue-600 focus:ring-blue-500'
-                      : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:border-blue-500 disabled:opacity-60 disabled:cursor-not-allowed'
+                      ? 'bg-primary-600 text-white border-primary-600'
+                      : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:border-primary-400 disabled:opacity-50 disabled:cursor-not-allowed'
                   }`}
                 >
-                  Use {currentCity?.name || 'current city'}
+                  My city
                 </button>
                 <button
                   type="button"
                   onClick={handleSelectAllCities}
                   disabled={availableCities.length === 0 || availableCities.length === validSelectedCities.length}
-                  className="px-3 py-1.5 rounded-full border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 hover:border-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-xs rounded-full border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:border-primary-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
-                  Select all ({availableCities.length})
+                  All ({availableCities.length})
                 </button>
                 <button
                   type="button"
                   onClick={handleClearCities}
                   disabled={validSelectedCities.length === 0}
-                  className="px-3 py-1.5 rounded-full border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 hover:border-red-400 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-xs rounded-full border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:border-danger disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
-                  Clear selection
+                  Clear
                 </button>
               </div>
 
@@ -918,14 +933,14 @@ const UnifiedPostCreator = () => {
                       key={city.id}
                       type="button"
                       onClick={() => handleCityToggle(city.id)}
-                      className={`flex items-center px-3 py-1.5 text-sm rounded-full border transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${
+                      className={`flex items-center gap-1 px-3 py-1.5 text-xs rounded-full border transition focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                         isSelected
-                          ? 'bg-blue-600 text-white border-blue-600 focus:ring-blue-500 shadow-sm'
-                          : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:border-blue-500'
+                          ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                          : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:border-primary-400'
                       }`}
                     >
-                      <Check className={`w-3.5 h-3.5 mr-1.5 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
-                      <span>{cityLabel}</span>
+                      <Check className={`w-3 h-3 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+                      {cityLabel}
                     </button>
                   );
                 })}
@@ -935,68 +950,49 @@ const UnifiedPostCreator = () => {
                 <button
                   type="button"
                   onClick={() => setShowAllCities(prev => !prev)}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
                 >
-                  {showAllCities ? 'Show fewer cities' : `Show all ${availableCities.length} cities`}
+                  {showAllCities ? 'Show fewer' : `+${availableCities.length - MAX_VISIBLE_CITY_PILLS} more cities`}
                 </button>
               )}
-
-              <div className="text-xs text-gray-600 dark:text-gray-400">
-                {selectedCityNames.length > 0 ? (
-                  <span>Selected: {selectedCityNames.join(', ')}</span>
-                ) : (
-                  <span>No cities selected yet.</span>
-                )}
-              </div>
             </>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">Loading cities...</p>
+            <p className="text-sm text-neutral-500">Loading cities…</p>
           )}
-
           {citySelectionError && (
-            <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
-              <AlertCircle className="w-4 h-4" />
-              <span>{citySelectionError}</span>
-            </div>
+            <p className="text-danger text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3" />{citySelectionError}</p>
           )}
         </div>
       </div>
-      
+
       {/* Tags */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Tags
+      <div className="mb-5">
+        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+          <Tag className="inline w-3.5 h-3.5 mr-1" />Tags
         </label>
-        <div className="flex space-x-2 mb-2">
+        <div className="flex gap-2 mb-2">
           <input
             type="text"
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-red focus:border-transparent dark:bg-gray-700 dark:text-white"
-            placeholder="Add tag and press Enter"
+            className="flex-1 px-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+            placeholder="Type a tag and press Enter"
           />
           <button
             type="button"
             onClick={handleAddTag}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            className="px-3 py-2.5 bg-neutral-200 dark:bg-neutral-600 text-neutral-700 dark:text-neutral-200 rounded-lg hover:bg-neutral-300 dark:hover:bg-neutral-500 transition"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
           </button>
         </div>
         {formData.tags.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {formData.tags.map((tag, index) => (
-              <span
-                key={index}
-                className="inline-flex items-center px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm"
-              >
+              <span key={index} className="inline-flex items-center gap-1 px-3 py-1 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 rounded-full text-xs border border-primary-200 dark:border-primary-700">
                 #{tag}
-                <button
-                  type="button"
-                  onClick={() => removeTag(tag)}
-                  className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                >
+                <button type="button" onClick={() => removeTag(tag)} className="text-primary-400 hover:text-primary-700 dark:hover:text-primary-100">
                   <X className="w-3 h-3" />
                 </button>
               </span>
@@ -1004,37 +1000,39 @@ const UnifiedPostCreator = () => {
           </div>
         )}
       </div>
-      
-      {/* Flags for regular posts */}
+
+      {/* Publishing Flags (Standard posts only) */}
       {postType === POST_TYPES.STANDARD && (
-        <div className="flex flex-wrap gap-4">
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={formData.isBreaking}
-              onChange={(e) => setFormData(prev => ({ ...prev, isBreaking: e.target.checked }))}
-              className="rounded border-gray-300 text-primary-red focus:ring-primary-red"
-            />
-            <span className="text-sm text-gray-700 dark:text-gray-300">Breaking News</span>
-          </label>
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={formData.isUrgent}
-              onChange={(e) => setFormData(prev => ({ ...prev, isUrgent: e.target.checked }))}
-              className="rounded border-gray-300 text-primary-red focus:ring-primary-red"
-            />
-            <span className="text-sm text-gray-700 dark:text-gray-300">Urgent</span>
-          </label>
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={formData.isFeatured}
-              onChange={(e) => setFormData(prev => ({ ...prev, isFeatured: e.target.checked }))}
-              className="rounded border-gray-300 text-primary-red focus:ring-primary-red"
-            />
-            <span className="text-sm text-gray-700 dark:text-gray-300">Featured</span>
-          </label>
+        <div className="pt-4 border-t border-neutral-200 dark:border-neutral-700">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 mb-3">Publish Options</p>
+          <div className="flex flex-wrap gap-3">
+            {[
+              { key: 'isBreaking', label: 'Breaking News', color: 'danger' },
+              { key: 'isUrgent', label: 'Urgent', color: 'accent' },
+              { key: 'isFeatured', label: 'Featured', color: 'primary' },
+            ].map(({ key, label, color }) => (
+              <label key={key} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg border-2 cursor-pointer transition select-none ${
+                formData[key]
+                  ? color === 'danger' ? 'border-danger bg-red-50 dark:bg-red-900/20 text-danger'
+                    : color === 'accent' ? 'border-accent-500 bg-orange-50 dark:bg-orange-900/20 text-accent-600 dark:text-accent-400'
+                    : 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
+                  : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={formData[key]}
+                  onChange={(e) => setFormData(prev => ({ ...prev, [key]: e.target.checked }))}
+                  className="sr-only"
+                />
+                <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                  formData[key] ? 'bg-current border-current' : 'border-neutral-300 dark:border-neutral-600'
+                }`}>
+                  {formData[key] && <Check className="w-2.5 h-2.5 text-white" />}
+                </span>
+                <span className="text-sm font-medium">{label}</span>
+              </label>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -1042,116 +1040,113 @@ const UnifiedPostCreator = () => {
   
   // Render media upload section
   const renderMediaUpload = () => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm mb-6">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-        Media {postType !== POST_TYPES.STANDARD && '*'}
-      </h3>
-      
-      {/* Upload buttons */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        {(postType === POST_TYPES.STANDARD || postType === POST_TYPES.STORY || postType === POST_TYPES.CAROUSEL) && (
-          <button
-            type="button"
-            onClick={() => multipleImageInputRef.current?.click()}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <Image className="w-5 h-5" />
-            <span>Add Images</span>
-          </button>
-        )}
-        
-        {(postType === POST_TYPES.STANDARD || postType === POST_TYPES.STORY || postType === POST_TYPES.REEL) && (
-          <button
-            type="button"
-            onClick={() => videoInputRef.current?.click()}
-            className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-          >
-            <Video className="w-5 h-5" />
-            <span>Add Video</span>
-          </button>
-        )}
+    <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-sm mb-6">
+      {/* Section header */}
+      <div className="flex items-center gap-2 mb-5">
+        <Upload className="w-5 h-5 text-primary-600" />
+        <h3 className="text-base font-semibold text-neutral-900 dark:text-white">
+          Media {postType !== POST_TYPES.STANDARD && <span className="text-danger">*</span>}
+        </h3>
       </div>
-      
-      {errors.media && <p className="text-red-500 text-sm mb-4">{errors.media}</p>}
-      
-      {/* Hidden file inputs */}
-      <input
-        ref={multipleImageInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={(e) => handleMediaSelect(e, 'image')}
-        className="hidden"
-      />
-      <input
-        ref={videoInputRef}
-        type="file"
-        accept="video/*"
-        onChange={(e) => handleMediaSelect(e, 'video')}
-        className="hidden"
-      />
-      
-      {/* Media preview */}
-      {mediaFiles.length > 0 && (
-        <div className="space-y-3">
-          {mediaFiles.map((media, index) => (
-            <div
-              key={index}
-              className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
+
+      {/* Drop zone */}
+      <div
+        className="relative flex flex-col items-center justify-center gap-3 p-8 mb-4 rounded-xl border-2 border-dashed border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-700/30 hover:border-primary-400 dark:hover:border-primary-500 transition-colors cursor-pointer group"
+        onClick={() => multipleImageInputRef.current?.click()}
+      >
+        <div className="w-12 h-12 rounded-full bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30 transition-colors">
+          <Upload className="w-6 h-6 text-primary-600" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            Drop files here or <span className="text-primary-600">browse</span>
+          </p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5">Images &amp; Videos supported</p>
+        </div>
+        <div className="flex gap-2">
+          {(postType === POST_TYPES.STANDARD || postType === POST_TYPES.STORY || postType === POST_TYPES.CAROUSEL) && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); multipleImageInputRef.current?.click(); }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
             >
-              {/* Preview */}
-              <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-600 flex-shrink-0">
+              <Image className="w-3.5 h-3.5" />
+              Add Images
+            </button>
+          )}
+          {(postType === POST_TYPES.STANDARD || postType === POST_TYPES.STORY || postType === POST_TYPES.REEL) && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); videoInputRef.current?.click(); }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-neutral-700 dark:bg-neutral-600 text-white rounded-lg hover:bg-neutral-800 dark:hover:bg-neutral-500 transition-colors"
+            >
+              <Video className="w-3.5 h-3.5" />
+              Add Video
+            </button>
+          )}
+        </div>
+      </div>
+
+      {errors.media && (
+        <p className="text-danger text-xs mb-4 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.media}</p>
+      )}
+
+      {/* Hidden file inputs */}
+      <input ref={multipleImageInputRef} type="file" accept="image/*" multiple onChange={(e) => handleMediaSelect(e, 'image')} className="hidden" />
+      <input ref={videoInputRef} type="file" accept="video/*" onChange={(e) => handleMediaSelect(e, 'video')} className="hidden" />
+
+      {/* Media previews */}
+      {mediaFiles.length > 0 && (
+        <div className="space-y-2">
+          {mediaFiles.map((media, index) => (
+            <div key={index} className="flex items-center gap-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl border border-neutral-200 dark:border-neutral-700">
+              {/* Thumbnail */}
+              <div className="w-16 h-16 rounded-lg overflow-hidden bg-neutral-200 dark:bg-neutral-600 flex-shrink-0">
                 {media.type === 'video' ? (
                   <video src={media.previewUrl} className="w-full h-full object-cover" />
                 ) : (
                   <img src={media.previewUrl} alt="" className="w-full h-full object-cover" />
                 )}
               </div>
-              
-              {/* Info */}
+
+              {/* Info + progress */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  {media.name}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {formatFileSize(media.size)} • {media.type}
-                  {media.width && media.height && ` • ${media.width}x${media.height}`}
+                <p className="text-sm font-medium text-neutral-900 dark:text-white truncate">{media.name}</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                  {formatFileSize(media.size)} · {media.type}
+                  {media.width && media.height && ` · ${media.width}×${media.height}`}
                 </p>
                 {uploadProgress[index] !== undefined && uploadProgress[index] < 100 && (
-                  <div className="mt-2 w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                    <div 
-                      className="bg-primary-red h-2 rounded-full transition-all"
-                      style={{ width: `${uploadProgress[index]}%` }}
-                    />
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between text-xs text-neutral-500">
+                      <span>Uploading…</span><span>{uploadProgress[index]}%</span>
+                    </div>
+                    <div className="w-full bg-neutral-200 dark:bg-neutral-600 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-primary-600 h-1.5 rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress[index]}%` }}
+                      />
+                    </div>
                   </div>
                 )}
+                {uploadProgress[index] === 100 && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1"><Check className="w-3 h-3" />Uploaded</p>
+                )}
               </div>
-              
-              {/* Actions */}
-              <div className="flex items-center space-x-2">
+
+              {/* Reorder + remove */}
+              <div className="flex items-center gap-1 flex-shrink-0">
                 {index > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => moveMediaFile(index, 'up')}
-                    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                  >
+                  <button type="button" onClick={() => moveMediaFile(index, 'up')} className="p-1.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-600 transition">
                     <ArrowUp className="w-4 h-4" />
                   </button>
                 )}
                 {index < mediaFiles.length - 1 && (
-                  <button
-                    type="button"
-                    onClick={() => moveMediaFile(index, 'down')}
-                    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                  >
+                  <button type="button" onClick={() => moveMediaFile(index, 'down')} className="p-1.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-600 transition">
                     <ArrowDown className="w-4 h-4" />
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => removeMediaFile(index)}
-                  className="p-2 text-red-500 hover:text-red-700"
-                >
+                <button type="button" onClick={() => removeMediaFile(index)} className="p-1.5 text-danger hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -1161,40 +1156,41 @@ const UnifiedPostCreator = () => {
       )}
     </div>
   );
-  
   // Render type-specific settings
   const renderTypeSettings = () => {
     if (postType === POST_TYPES.STANDARD) return null;
-    
+
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          {postType} Settings
-        </h3>
-        
+      <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 p-6 shadow-sm mb-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Settings className="w-5 h-5 text-primary-600" />
+          <h3 className="text-base font-semibold text-neutral-900 dark:text-white capitalize">
+            {postType.toLowerCase()} Settings
+          </h3>
+        </div>
+
         {/* Story Settings */}
         {postType === POST_TYPES.STORY && (
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Duration (seconds)
-              </label>
-              <input
-                type="number"
-                value={formData.storySettings.duration}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  storySettings: { ...prev.storySettings, duration: parseInt(e.target.value) }
-                }))}
-                min="5"
-                max="60"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-red focus:border-transparent dark:bg-gray-700 dark:text-white"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                  Duration (seconds)
+                </label>
+                <input
+                  type="number"
+                  value={formData.storySettings.duration}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    storySettings: { ...prev.storySettings, duration: parseInt(e.target.value) }
+                  }))}
+                  min="5"
+                  max="60"
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
                   Background Color
                 </label>
                 <input
@@ -1204,12 +1200,11 @@ const UnifiedPostCreator = () => {
                     ...prev,
                     storySettings: { ...prev.storySettings, backgroundColor: e.target.value }
                   }))}
-                  className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-600"
+                  className="w-full h-10 rounded-lg border border-neutral-300 dark:border-neutral-600 cursor-pointer"
                 />
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
                   Text Color
                 </label>
                 <input
@@ -1219,109 +1214,99 @@ const UnifiedPostCreator = () => {
                     ...prev,
                     storySettings: { ...prev.storySettings, textColor: e.target.value }
                   }))}
-                  className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-600"
+                  className="w-full h-10 rounded-lg border border-neutral-300 dark:border-neutral-600 cursor-pointer"
                 />
               </div>
             </div>
           </div>
         )}
-        
+
         {/* Reel Settings */}
         {postType === POST_TYPES.REEL && (
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Music Title
-              </label>
-              <input
-                type="text"
-                value={formData.reelSettings.musicTitle}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  reelSettings: { ...prev.reelSettings, musicTitle: e.target.value }
-                }))}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-red focus:border-transparent dark:bg-gray-700 dark:text-white"
-                placeholder="Song name"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                  Music Title
+                </label>
+                <div className="relative">
+                  <Music className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={formData.reelSettings.musicTitle}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      reelSettings: { ...prev.reelSettings, musicTitle: e.target.value }
+                    }))}
+                    className="w-full pl-9 pr-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                    placeholder="Song name"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                  Artist Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.reelSettings.musicArtist}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    reelSettings: { ...prev.reelSettings, musicArtist: e.target.value }
+                  }))}
+                  className="w-full px-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                  placeholder="Artist name"
+                />
+              </div>
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Artist Name
-              </label>
-              <input
-                type="text"
-                value={formData.reelSettings.musicArtist}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  reelSettings: { ...prev.reelSettings, musicArtist: e.target.value }
-                }))}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-red focus:border-transparent dark:bg-gray-700 dark:text-white"
-                placeholder="Artist name"
-              />
-            </div>
-            
-            <div className="flex flex-wrap gap-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={formData.reelSettings.allowDownload}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    reelSettings: { ...prev.reelSettings, allowDownload: e.target.checked }
-                  }))}
-                  className="rounded border-gray-300 text-primary-red focus:ring-primary-red"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Allow Download</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={formData.reelSettings.allowDuet}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    reelSettings: { ...prev.reelSettings, allowDuet: e.target.checked }
-                  }))}
-                  className="rounded border-gray-300 text-primary-red focus:ring-primary-red"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Allow Duet</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={formData.reelSettings.allowComments}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    reelSettings: { ...prev.reelSettings, allowComments: e.target.checked }
-                  }))}
-                  className="rounded border-gray-300 text-primary-red focus:ring-primary-red"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Allow Comments</span>
-              </label>
+            <div className="flex flex-wrap gap-3">
+              {[
+                { key: 'allowDownload', label: 'Allow Download' },
+                { key: 'allowDuet', label: 'Allow Duet' },
+                { key: 'allowComments', label: 'Allow Comments' },
+              ].map(({ key, label }) => (
+                <label key={key} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg border-2 cursor-pointer transition select-none ${
+                  formData.reelSettings[key]
+                    ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
+                    : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400'
+                }`}>
+                  <input type="checkbox" checked={formData.reelSettings[key]} onChange={(e) => setFormData(prev => ({ ...prev, reelSettings: { ...prev.reelSettings, [key]: e.target.checked } }))} className="sr-only" />
+                  <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${formData.reelSettings[key] ? 'bg-primary-600 border-primary-600' : 'border-neutral-300 dark:border-neutral-600'}`}>
+                    {formData.reelSettings[key] && <Check className="w-2.5 h-2.5 text-white" />}
+                  </span>
+                  <span className="text-sm font-medium">{label}</span>
+                </label>
+              ))}
             </div>
           </div>
         )}
-        
+
         {/* Carousel Settings */}
         {postType === POST_TYPES.CAROUSEL && (
           <div className="space-y-4">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={formData.carouselSettings.autoPlay}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  carouselSettings: { ...prev.carouselSettings, autoPlay: e.target.checked }
-                }))}
-                className="rounded border-gray-300 text-primary-red focus:ring-primary-red"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">Auto Play</span>
-            </label>
-            
+            <div className="flex flex-wrap gap-3">
+              {[
+                { key: 'autoPlay', label: 'Auto Play', obj: 'carouselSettings' },
+                { key: 'showIndicators', label: 'Show Indicators', obj: 'carouselSettings' },
+                { key: 'showArrows', label: 'Show Arrows', obj: 'carouselSettings' },
+              ].map(({ key, label }) => (
+                <label key={key} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg border-2 cursor-pointer transition select-none ${
+                  formData.carouselSettings[key]
+                    ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
+                    : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400'
+                }`}>
+                  <input type="checkbox" checked={formData.carouselSettings[key]} onChange={(e) => setFormData(prev => ({ ...prev, carouselSettings: { ...prev.carouselSettings, [key]: e.target.checked } }))} className="sr-only" />
+                  <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${formData.carouselSettings[key] ? 'bg-primary-600 border-primary-600' : 'border-neutral-300 dark:border-neutral-600'}`}>
+                    {formData.carouselSettings[key] && <Check className="w-2.5 h-2.5 text-white" />}
+                  </span>
+                  <span className="text-sm font-medium">{label}</span>
+                </label>
+              ))}
+            </div>
             {formData.carouselSettings.autoPlay && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Interval (milliseconds)
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                  Interval (ms)
                 </label>
                 <input
                   type="number"
@@ -1333,124 +1318,136 @@ const UnifiedPostCreator = () => {
                   min="1000"
                   max="10000"
                   step="500"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-red focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full sm:w-48 px-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
                 />
               </div>
             )}
-            
-            <div className="flex flex-wrap gap-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={formData.carouselSettings.showIndicators}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    carouselSettings: { ...prev.carouselSettings, showIndicators: e.target.checked }
-                  }))}
-                  className="rounded border-gray-300 text-primary-red focus:ring-primary-red"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Show Indicators</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={formData.carouselSettings.showArrows}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    carouselSettings: { ...prev.carouselSettings, showArrows: e.target.checked }
-                  }))}
-                  className="rounded border-gray-300 text-primary-red focus:ring-primary-red"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Show Arrows</span>
-              </label>
-            </div>
           </div>
         )}
       </div>
     );
   };
-  
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-6">
-      <div className="max-w-5xl mx-auto px-4">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Create Post
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Create news posts, stories, reels, and carousels all from one place
-          </p>
-        </div>
-        
-        <form onSubmit={handleSubmit}>
-          {renderPostTypeSelector()}
-          {renderBasicFields()}
-          {renderMediaUpload()}
-          {renderTypeSettings()}
-          
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end space-x-4">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900">
+      {/* Page header */}
+      <div className="sticky top-0 z-10 bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 px-4 sm:px-6 py-3">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold text-neutral-900 dark:text-white leading-tight">Create Post</h1>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 hidden sm:block">News · Story · Reel · Carousel</p>
+          </div>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={resetForm}
               disabled={loading}
-              className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+              className="px-3 py-2 text-sm text-neutral-600 dark:text-neutral-400 border border-neutral-300 dark:border-neutral-600 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 disabled:opacity-40 transition"
             >
               Reset
             </button>
             <button
-              type="submit"
+              type="button"
+              form="unified-post-form"
+              onClick={(e) => { e.preventDefault(); document.getElementById('unified-post-form').requestSubmit(); }}
               disabled={loading}
-              className="flex items-center space-x-2 px-6 py-3 bg-primary-red text-white rounded-lg hover:bg-secondary-red disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
             >
               {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Publishing...</span>
-                </>
+                <><Loader2 className="w-4 h-4 animate-spin" /><span>Publishing…</span></>
               ) : (
-                <>
-                  <Send className="w-5 h-5" />
-                  <span>Publish {postType}</span>
-                </>
+                <><Send className="w-4 h-4" /><span>Publish</span></>
               )}
             </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        <form id="unified-post-form" onSubmit={handleSubmit}>
+          {/* Step 1: Post Type */}
+          <div className="mb-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 mb-3">Step 1 — Choose Type</p>
+          </div>
+          {renderPostTypeSelector()}
+
+          {/* Step 2: Content */}
+          <div className="mb-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 mb-3">Step 2 — Write Content</p>
+          </div>
+          {renderBasicFields()}
+
+          {/* Step 3: Media */}
+          <div className="mb-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 mb-3">Step 3 — Attach Media</p>
+          </div>
+          {renderMediaUpload()}
+
+          {/* Step 4: Type-specific settings */}
+          {postType !== POST_TYPES.STANDARD && (
+            <div className="mb-2">
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 mb-3">Step 4 — Format Settings</p>
+            </div>
+          )}
+          {renderTypeSettings()}
+
+          {/* Bottom publish bar */}
+          <div className="flex items-center justify-between gap-4 p-4 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm mt-2">
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 hidden sm:block">
+              Ready to go? Hit publish when content is ready.
+            </p>
+            <div className="flex items-center gap-3 ml-auto">
+              <button
+                type="button"
+                onClick={resetForm}
+                disabled={loading}
+                className="px-4 py-2.5 text-sm border border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 disabled:opacity-40 transition"
+              >
+                Reset Form
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
+              >
+                {loading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /><span>Publishing…</span></>
+                ) : (
+                  <><Send className="w-4 h-4" /><span>Publish {postType.charAt(0) + postType.slice(1).toLowerCase()}</span></>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
 
       {/* Upload Progress Overlay */}
       {loading && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-800 rounded-2xl p-8 max-w-md w-full shadow-2xl">
             <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-red/10 rounded-full mb-4">
-                <Loader2 className="w-8 h-8 text-primary-red animate-spin" />
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-50 dark:bg-primary-900/20 rounded-full mb-4">
+                <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                Publishing Your {postType}
+              <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-1">
+                Publishing your {postType.charAt(0) + postType.slice(1).toLowerCase()}
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Please wait while we upload your content...
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Please wait while we upload your content…
               </p>
             </div>
 
-            {/* Upload Progress for Media Files */}
             {Object.keys(uploadProgress).length > 0 && (
               <div className="space-y-3 mb-4">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Uploading media files:
-                </p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Uploading files</p>
                 {Object.entries(uploadProgress).map(([index, progress]) => (
                   <div key={index} className="space-y-1">
-                    <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                    <div className="flex justify-between text-xs text-neutral-500">
                       <span>File {parseInt(index) + 1}</span>
                       <span>{progress}%</span>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="bg-gradient-to-r from-primary-red to-orange-500 h-2 rounded-full transition-all duration-300"
+                    <div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-primary-600 h-1.5 rounded-full transition-all duration-300"
                         style={{ width: `${progress}%` }}
                       />
                     </div>
@@ -1459,10 +1456,9 @@ const UnifiedPostCreator = () => {
               </div>
             )}
 
-            <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-              <Clock className="w-4 h-4" />
-              <span>This may take a few moments...</span>
-            </div>
+            <p className="text-xs text-neutral-400 dark:text-neutral-500 text-center flex items-center justify-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" />This may take a few moments
+            </p>
           </div>
         </div>
       )}
@@ -1471,3 +1467,4 @@ const UnifiedPostCreator = () => {
 };
 
 export default UnifiedPostCreator;
+

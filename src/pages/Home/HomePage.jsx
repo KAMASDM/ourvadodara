@@ -155,7 +155,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
         <div className="relative flex flex-col">
           <div
             className="sticky z-30 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.28)]"
-            style={{ top: '4.5rem' }}
+            style={{ top: '3.5rem' }}
           >
             {activeSection && ActiveSectionComponent && (
               <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">

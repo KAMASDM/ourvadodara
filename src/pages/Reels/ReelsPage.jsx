@@ -273,6 +273,48 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     return () => clearTimeout(timer);
   }, []);
 
+  const goToNext = useCallback(() => {
+    if (currentReelIndex < reels.length - 1 && !isNavigating.current) {
+      isNavigating.current = true;
+
+      const currentVideo = videoRefs.current[currentReel?.id];
+      if (currentVideo) currentVideo.pause();
+
+      setCurrentReelIndex(prev => prev + 1);
+      setIsPlaying(true);
+
+      requestAnimationFrame(() => {
+        isNavigating.current = false;
+      });
+    }
+  }, [currentReelIndex, reels.length, currentReel]);
+
+  const goToPrevious = useCallback(() => {
+    if (currentReelIndex > 0 && !isNavigating.current) {
+      isNavigating.current = true;
+
+      const currentVideo = videoRefs.current[currentReel?.id];
+      if (currentVideo) currentVideo.pause();
+
+      setCurrentReelIndex(prev => prev - 1);
+      setIsPlaying(true);
+
+      requestAnimationFrame(() => {
+        isNavigating.current = false;
+      });
+    }
+  }, [currentReelIndex, currentReel]);
+
+  const togglePlay = useCallback(() => {
+    setIsPlaying(prev => !prev);
+    setShowPlayPauseIcon(true);
+    setTimeout(() => setShowPlayPauseIcon(false), 500);
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted(prev => !prev);
+  }, []);
+
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -302,42 +344,6 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [goToNext, goToPrevious, togglePlay, toggleMute]);
-
-  const goToNext = useCallback(() => {
-    if (currentReelIndex < reels.length - 1 && !isNavigating.current) {
-      isNavigating.current = true;
-      
-      // Pause current video immediately
-      const currentVideo = videoRefs.current[currentReel?.id];
-      if (currentVideo) currentVideo.pause();
-      
-      setCurrentReelIndex(prev => prev + 1);
-      setIsPlaying(true);
-      
-      // Reset navigation lock after a short delay
-      requestAnimationFrame(() => {
-        isNavigating.current = false;
-      });
-    }
-  }, [currentReelIndex, reels.length, currentReel]);
-
-  const goToPrevious = useCallback(() => {
-    if (currentReelIndex > 0 && !isNavigating.current) {
-      isNavigating.current = true;
-      
-      // Pause current video immediately
-      const currentVideo = videoRefs.current[currentReel?.id];
-      if (currentVideo) currentVideo.pause();
-      
-      setCurrentReelIndex(prev => prev - 1);
-      setIsPlaying(true);
-      
-      // Reset navigation lock after a short delay
-      requestAnimationFrame(() => {
-        isNavigating.current = false;
-      });
-    }
-  }, [currentReelIndex, currentReel]);
 
 
 
@@ -398,16 +404,6 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       };
     }
   }, [goToNext, goToPrevious]);
-
-  const togglePlay = useCallback(() => {
-    setIsPlaying(prev => !prev);
-    setShowPlayPauseIcon(true);
-    setTimeout(() => setShowPlayPauseIcon(false), 500);
-  }, []);
-
-  const toggleMute = useCallback(() => {
-    setIsMuted(prev => !prev);
-  }, []);
 
   const handleLike = async (reelId) => {
     if (!user) {
