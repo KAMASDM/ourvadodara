@@ -154,7 +154,7 @@ const CreatePost = () => {
           try {
             // Using Google Translate API via public endpoint
             const response = await axios.post(
-              `https://translation.googleapis.com/language/translate/v2?key=AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw`,
+              `https://translation.googleapis.com/language/translate/v2?key=${import.meta.env.VITE_GOOGLE_TRANSLATE_API_KEY}`,
               {
                 q: chunk,
                 source: sourceLang,
