@@ -128,7 +128,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
     : null;
 
   return (
-    <div ref={containerRef} className={`min-h-screen bg-gray-50 dark:bg-gray-950 ${!isDesktop ? 'pb-24' : ''}`}>
+    <div ref={containerRef} className={`min-h-screen bg-neutral-50 dark:bg-neutral-950 ${!isDesktop ? 'pb-24' : ''}`}>
       {/* Pull-to-refresh indicator - mobile only */}
       {!isDesktop && (
         <PullToRefreshIndicator
@@ -139,8 +139,8 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
           refreshing={refreshing}
         />
       )}
-      
-      {/* Desktop view - no sticky sections */}
+
+      {/* Desktop view */}
       {isDesktop ? (
         <div className="pt-6">
           <DesktopNewsFeed
@@ -151,143 +151,109 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
           />
         </div>
       ) : (
-        /* Mobile view - with sticky sections */
-        <div className="relative flex flex-col">
+        /* Mobile view */
+        <div className="flex flex-col">
+
+          {/* ── Sticky control bar ── */}
           <div
-            className="sticky z-30 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.28)]"
+            className="sticky z-30 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shadow-sm"
             style={{ top: '3.5rem' }}
           >
-            {activeSection && ActiveSectionComponent && (
-              <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-                <div className="px-2 sm:px-3 py-2.5">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`p-1.5 rounded-full ${sections.find(s => s.id === activeSection)?.color}`}>
-                        {React.createElement(sections.find(s => s.id === activeSection)?.icon, {
-                          className: 'h-4 w-4 text-white'
-                        })}
-                      </div>
-                      <h2 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
-                        {sections.find(s => s.id === activeSection)?.name}
-                      </h2>
-                    </div>
-                    <button
-                      onClick={() => setActiveSection(null)}
-                      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      <span>{t('show_news', 'Show News')}</span>
-                      <ChevronRight className="h-3 w-3" />
-                    </button>
-                  </div>
-                  <div className="max-h-[45vh] overflow-y-auto pr-1">
-                    <ActiveSectionComponent onPostClick={onPostClick} />
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-              <div className="px-2 sm:px-3 py-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <h2 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
-                    {sectionHeading}
-                  </h2>
-                  <div className="flex items-center gap-2">
-                    {activeSection && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                        {sections.find((s) => s.id === activeSection)?.name}
-                      </span>
-                    )}
-                    {activeSection && (
-                      <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                        {t('scroll_for_updates', 'Scroll for more updates')}
-                      </span>
-                    )}
-                  </div>
+            <div className="px-3 py-2.5 space-y-2.5">
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleSectionClick('weather')}
-                      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-semibold shadow-sm transition-colors ${
-                        activeSection === 'weather'
-                          ? 'border-blue-300 bg-gradient-to-r from-blue-50 to-sky-50 text-blue-700 dark:border-blue-700 dark:from-blue-900/20 dark:to-sky-900/20 dark:text-blue-300'
-                          : 'border-blue-200 bg-gradient-to-r from-blue-50 to-sky-50 text-blue-600 hover:border-blue-300 hover:from-blue-100 hover:to-sky-100 dark:border-blue-800 dark:from-blue-900/20 dark:to-sky-900/20 dark:text-blue-400 dark:hover:border-blue-700'
-                      }`}
-                    >
-                      <span className="text-sm">☁️</span>
-                      {t('weather', 'Weather')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onShowReels()}
-                      className="inline-flex items-center gap-1 rounded-full border border-pink-200 bg-gradient-to-r from-pink-50 to-purple-50 px-3 py-1.5 text-[11px] font-semibold text-pink-700 shadow-sm transition-colors hover:border-pink-300 hover:from-pink-100 hover:to-purple-100 dark:border-pink-800 dark:from-pink-900/20 dark:to-purple-900/20 dark:text-pink-300 dark:hover:border-pink-700"
-                    >
-                      <span className="text-sm">🎬</span>
-                      Reels
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSectionSheetOpen(true)}
-                      className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-gray-600"
-                    >
-                      <SlidersHorizontal className="h-3.5 w-3.5" />
-                      {t('home.open_focus', 'Focus')}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Feed Tabs */}
-                <div className="flex gap-2 mb-3">
-                  <button
-                    onClick={() => setFeedTab('for-you')}
-                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                      feedTab === 'for-you'
-                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1">
-                      ✨ {t('for_you', 'For You')}
+              {/* Row 1: section title + focus button */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  {activeSection && (
+                    <span className={`w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-lg ${sections.find(s => s.id === activeSection)?.color}`}>
+                      {React.createElement(sections.find(s => s.id === activeSection)?.icon, { className: 'w-3.5 h-3.5 text-white' })}
                     </span>
-                  </button>
+                  )}
+                  <h2 className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
+                    {activeSection
+                      ? sections.find(s => s.id === activeSection)?.name
+                      : t('top_stories', 'Top Stories')}
+                  </h2>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {activeSection && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection(null)}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-full border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                    >
+                      <X className="w-3 h-3" />
+                      News
+                    </button>
+                  )}
                   <button
-                    onClick={() => setFeedTab('all')}
-                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                      feedTab === 'all'
-                        ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                    type="button"
+                    onClick={() => setSectionSheetOpen(true)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition ${
+                      activeSection
+                        ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
+                        : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600'
                     }`}
                   >
-                    {t('all', 'All')}
+                    <SlidersHorizontal className="w-3 h-3" />
+                    {t('home.open_focus', 'Focus')}
                   </button>
                 </div>
-
-                <SwipeableCategoryFilter
-                  activeCategory={activeCategory}
-                  setActiveCategory={setActiveCategory}
-                />
               </div>
+
+              {/* Row 2: Feed tabs */}
+              <div className="flex items-center gap-1 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg w-fit">
+                {[
+                  { id: 'for-you', label: t('for_you', 'For You') },
+                  { id: 'all', label: t('all', 'All') },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setFeedTab(tab.id)}
+                    className={`px-3.5 py-1 text-xs font-semibold rounded-md transition ${
+                      feedTab === tab.id
+                        ? 'bg-white dark:bg-neutral-700 text-primary-700 dark:text-primary-400 shadow-sm'
+                        : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Row 3: Category filter */}
+              <SwipeableCategoryFilter
+                activeCategory={activeCategory}
+                setActiveCategory={setActiveCategory}
+              />
             </div>
           </div>
 
-          <div className="flex-1 bg-gray-50 dark:bg-gray-950 pt-0 pb-6">
+          {/* Active section panel (non-sticky, scrolls with page) */}
+          {activeSection && ActiveSectionComponent && (
+            <div className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+              <div className="px-3 py-4">
+                <ActiveSectionComponent onPostClick={onPostClick} />
+              </div>
+            </div>
+          )}
+
+          {/* Scrollable content */}
+          <div className="flex-1 pb-6">
             {!activeSection && (
-              <div className="px-2 sm:px-3 mt-3 mb-3">
+              <div className="px-3 mt-3 mb-3">
                 <EnhancedStorySection
                   onViewStory={(story) => console.log('View story:', story)}
                 />
               </div>
             )}
 
-            {/* Widgets Section */}
-            <div className="px-2 sm:px-3 mt-3 space-y-3">
-              <TrendingTopicsWidget 
+            <div className="px-3 mt-3 space-y-3">
+              <TrendingTopicsWidget
                 onTopicClick={(topic) => {
                   setSelectedTopic(topic);
-                  console.log('Topic clicked:', topic);
                 }}
               />
-              
               <ReadingStreak compact={true} />
             </div>
 
@@ -303,67 +269,87 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
         </div>
       )}
 
+      {/* ── Focus Bottom Sheet ── */}
       {isSectionSheetOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-40 flex flex-col justify-end">
+          {/* Backdrop */}
           <button
             type="button"
             aria-label={t('home.close_focus_panel', 'Close focus panel')}
-            className="absolute inset-0"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setSectionSheetOpen(false)}
           />
-          <div className="relative z-50 flex max-h-[70vh] w-full flex-col rounded-t-3xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
-            <div className="mx-auto mt-2 h-1 w-12 rounded-full bg-gray-300 dark:bg-gray-700" />
-            <div className="px-5 pt-4 pb-6">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                    {t('home.choose_focus', 'Choose a focus')}
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {t('home.choose_focus_hint', 'Tap a section to spotlight or return to news.')}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  aria-label={t('home.close_focus_panel', 'Close focus panel')}
-                  className="inline-flex items-center justify-center rounded-full border border-gray-200 p-2 text-gray-500 hover:text-gray-700 dark:border-gray-700 dark:text-gray-300 dark:hover:text-gray-100"
-                  onClick={() => setSectionSheetOpen(false)}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
 
-              <div className="grid max-h-[55vh] grid-cols-1 gap-3 overflow-y-auto pr-2 sm:grid-cols-2">
+          {/* Sheet */}
+          <div className="relative z-50 w-full max-h-[75vh] bg-white dark:bg-neutral-900 rounded-t-3xl border-t border-neutral-200 dark:border-neutral-700 flex flex-col shadow-2xl">
+            {/* Drag handle */}
+            <div className="mx-auto mt-3 w-10 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-3 pb-4 flex-shrink-0">
+              <div>
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+                  {t('home.choose_focus', 'Choose a focus')}
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                  {t('home.choose_focus_hint', 'Pin a section above the news feed.')}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label={t('home.close_focus_panel', 'Close focus panel')}
+                onClick={() => setSectionSheetOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Section grid */}
+            <div className="flex-1 overflow-y-auto px-5 pb-6">
+              <div className="grid grid-cols-2 gap-3">
                 {sections.map((section) => {
                   const Icon = section.icon;
                   const isActive = activeSection === section.id;
-
                   return (
                     <button
                       key={section.id}
                       type="button"
                       onClick={() => handleSectionClick(section.id)}
-                      className={`flex items-center justify-between rounded-2xl border-2 px-3.5 py-3 text-left transition-all ${
+                      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                         isActive
-                          ? 'border-warmBrown-400 bg-ivory-50 text-warmBrown-900 shadow-ivory-lg dark:border-gray-200/50 dark:bg-gray-800 dark:text-white'
-                          : 'border-warmBrown-200 bg-ivory-100 text-warmBrown-800 hover:border-warmBrown-300 hover:bg-ivory-50 hover:shadow-ivory dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-gray-600'
+                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                          : 'border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-white dark:hover:bg-neutral-750'
                       }`}
                     >
-                      <span className="flex items-center gap-3">
-                        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${section.color} text-white shadow-sm`}>
-                          <Icon className="h-4 w-4" />
-                        </span>
-                        <span className="text-sm font-semibold">
+                      <span className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl ${section.color} shadow-sm`}>
+                        <Icon className="w-5 h-5 text-white" />
+                      </span>
+                      <div className="min-w-0">
+                        <span className={`text-sm font-semibold block leading-tight ${isActive ? 'text-primary-700 dark:text-primary-400' : 'text-neutral-800 dark:text-neutral-200'}`}>
                           {section.name}
                         </span>
-                      </span>
-                      {isActive && (
-                        <ChevronRight className="h-4 w-4 text-warmBrown-600" />
-                      )}
+                        {isActive && (
+                          <span className="text-[10px] text-primary-500 dark:text-primary-400 font-medium mt-0.5 block">
+                            Active
+                          </span>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
               </div>
+
+              {activeSection && (
+                <button
+                  type="button"
+                  onClick={() => { setActiveSection(null); setSectionSheetOpen(false); }}
+                  className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 text-sm text-neutral-500 dark:text-neutral-400 hover:text-danger rounded-xl border border-neutral-200 dark:border-neutral-700 hover:border-danger transition"
+                >
+                  <X className="w-4 h-4" />
+                  Clear focus
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -110,20 +110,20 @@ const LiveUpdates = ({ className = '' }) => {
 
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'high': return 'border-l-red-500 bg-red-50 dark:bg-red-900/20';
+      case 'high': return 'border-l-danger bg-red-50 dark:bg-red-900/20';
       case 'medium': return 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-900/20';
       case 'low': return 'border-l-green-500 bg-green-50 dark:bg-green-900/20';
-      default: return 'border-l-gray-500 bg-gray-50 dark:bg-gray-900/20';
+      default: return 'border-l-neutral-400 bg-neutral-50 dark:bg-neutral-800/40';
     }
   };
 
   const getTypeIcon = (type) => {
     switch (type) {
-      case 'breaking': return <AlertCircle className="w-4 h-4 text-red-500" />;
-      case 'weather': return <Clock className="w-4 h-4 text-blue-500" />;
+      case 'breaking': return <AlertCircle className="w-4 h-4 text-danger" />;
+      case 'weather': return <Clock className="w-4 h-4 text-sky-500" />;
       case 'local': return <Users className="w-4 h-4 text-green-500" />;
-      case 'sports': return <Play className="w-4 h-4 text-purple-500" />;
-      default: return <Radio className="w-4 h-4 text-gray-500" />;
+      case 'sports': return <Play className="w-4 h-4 text-primary-500" />;
+      default: return <Radio className="w-4 h-4 text-neutral-400" />;
     }
   };
 
@@ -146,87 +146,85 @@ const LiveUpdates = ({ className = '' }) => {
   };
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden ${className}`}>
+    <div className={`bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-100 dark:border-neutral-700 overflow-hidden ${className}`}>
       {/* Header */}
-      <div className="bg-red-500 text-white p-3">
+      <div className="bg-danger text-white px-4 py-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center space-x-1">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-              <Radio className="w-5 h-5" />
-              <span className="font-semibold">
-                {t('live.breaking', 'LIVE UPDATES')}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              <Radio className="w-4 h-4" />
+              <span className="text-sm font-bold tracking-wide">
+                {t('live.breaking', 'LIVE')}
               </span>
             </div>
-            <div className="flex items-center text-sm bg-red-600 px-2 py-1 rounded">
-              <Eye className="w-3 h-3 mr-1" />
+            <div className="flex items-center gap-1 text-xs bg-red-700 px-2 py-0.5 rounded-full">
+              <Eye className="w-3 h-3" />
               {viewerCount.toLocaleString()}
             </div>
           </div>
-          
-          <div className="flex items-center space-x-2">
+
+          <div className="flex items-center gap-1">
             <button
               onClick={toggleAudio}
-              className="p-1 hover:bg-red-600 rounded transition-colors"
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-700 transition"
             >
-              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
             </button>
             <button
               onClick={toggleMute}
-              className="p-1 hover:bg-red-600 rounded transition-colors"
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-700 transition"
             >
-              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
             </button>
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="p-1 hover:bg-red-600 rounded transition-colors"
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-700 transition"
             >
-              {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>
       </div>
 
       {/* Updates List */}
-      <div className={`transition-all duration-300 ${isExpanded ? 'max-h-80' : 'max-h-40'} overflow-y-auto`}>
+      <div className={`transition-all duration-300 ${isExpanded ? 'max-h-80' : 'max-h-48'} overflow-y-auto`}>
         {updates.length === 0 ? (
-          <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-            <Radio className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>{t('live.noUpdates', 'No live updates at the moment')}</p>
+          <div className="p-6 flex flex-col items-center gap-2 text-neutral-400 dark:text-neutral-500">
+            <Radio className="w-8 h-8 opacity-50" />
+            <p className="text-sm">{t('live.noUpdates', 'No live updates at the moment')}</p>
           </div>
         ) : (
-          <div className="divide-y dark:divide-gray-700">
+          <div className="divide-y divide-neutral-50 dark:divide-neutral-700/50">
             {updates.map((update) => (
               <div
                 key={update.id}
-                className={`p-4 border-l-4 ${getPriorityColor(update.priority)} hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors`}
+                className={`px-4 py-3 border-l-4 ${getPriorityColor(update.priority)} hover:bg-neutral-50 dark:hover:bg-neutral-700/30 transition-colors`}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center space-x-2">
+                <div className="flex items-start justify-between mb-1">
+                  <div className="flex items-center gap-1.5">
                     {getTypeIcon(update.type)}
-                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                    <span className="text-[11px] text-neutral-400 dark:text-neutral-500 font-medium">
                       {update.time}
                     </span>
                   </div>
                   {update.priority === 'high' && (
-                    <span className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-xs px-2 py-1 rounded-full">
+                    <span className="bg-red-100 text-danger dark:bg-red-900/30 dark:text-red-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
                       {t('live.breaking', 'BREAKING')}
                     </span>
                   )}
                 </div>
-                
-                <h4 className="font-semibold text-gray-900 dark:text-white mb-1 text-sm">
-                  {typeof update.title === 'object' 
+
+                <h4 className="text-sm font-semibold text-neutral-900 dark:text-white mb-0.5">
+                  {typeof update.title === 'object'
                     ? (update.title[currentLanguage] || update.title.en || Object.values(update.title)[0])
-                    : update.title
-                  }
+                    : update.title}
                 </h4>
-                
-                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed">
-                  {typeof update.content === 'object' 
+
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  {typeof update.content === 'object'
                     ? (update.content[currentLanguage] || update.content.en || Object.values(update.content)[0])
-                    : update.content
-                  }
+                    : update.content}
                 </p>
               </div>
             ))}
@@ -235,13 +233,12 @@ const LiveUpdates = ({ className = '' }) => {
       </div>
 
       {/* Footer */}
-      <div className="bg-gray-50 dark:bg-gray-700 px-4 py-2">
-        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-          <span>
-            {t('live.lastUpdate', 'Last update')}: {new Date().toLocaleTimeString()}
-          </span>
-          <span>
-            {t('live.autoRefresh', 'Auto-refresh: ON')}
+      <div className="bg-neutral-50 dark:bg-neutral-700/40 px-4 py-2 border-t border-neutral-100 dark:border-neutral-700">
+        <div className="flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-500">
+          <span>{t('live.lastUpdate', 'Last update')}: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+            {t('live.autoRefresh', 'Auto-refresh on')}
           </span>
         </div>
       </div>
