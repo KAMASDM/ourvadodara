@@ -280,8 +280,8 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
             onClick={() => setSectionSheetOpen(false)}
           />
 
-          {/* Sheet */}
-          <div className="relative z-50 w-full max-h-[75vh] bg-white dark:bg-neutral-900 rounded-t-3xl border-t border-neutral-200 dark:border-neutral-700 flex flex-col shadow-2xl">
+          {/* Sheet — raised above the 64px bottom nav bar */}
+          <div className="relative z-50 w-full max-h-[75vh] mb-[64px] bg-white dark:bg-neutral-900 rounded-t-3xl border-t border-neutral-200 dark:border-neutral-700 flex flex-col shadow-2xl">
             {/* Drag handle */}
             <div className="mx-auto mt-3 w-10 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
 

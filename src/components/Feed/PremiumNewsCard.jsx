@@ -1,547 +1,214 @@
 // =============================================
 // src/components/Feed/PremiumNewsCard.jsx
-// Premium News Card - Google News + Instagram Hybrid
-// Enhanced with more information and better UX
+// Modernized news card — split into variants via composition,
+// memoized, lazy images, skeleton fallback, cleaner ARIA.
 // =============================================
-import React, { useState } from 'react';
-import { useLanguage } from '../../context/Language/LanguageContext';
-import { 
-  Clock, 
-  Eye, 
-  MessageCircle, 
-  Share2, 
-  Bookmark, 
-  TrendingUp,
-  User,
-  MapPin,
-  Calendar,
-  Award,
-  CheckCircle,
-  Play,
-  Image as ImageIcon
+import React, { memo, useState, useCallback } from 'react';
+import {
+  Clock, Eye, MessageCircle, Share2, Bookmark, MapPin,
+  CheckCircle2, Play, Images,
 } from 'lucide-react';
+import { useLanguage } from '../../context/Language/LanguageContext';
 import EmojiReactions from '../Common/EmojiReactions';
-import TopicChip from '../Topics/TopicChip';
-import InstagramCarousel from '../Media/InstagramCarousel';
 import { formatTimeAgo, formatNumber } from '../../utils/helpers';
 
-const PremiumNewsCard = ({
-  post,
-  onPostClick,
-  isLiked,
-  isSaved,
-  onLike,
-  onSave,
-  onShare,
-  variant = 'default' // 'default', 'hero', 'featured', 'compact', 'story'
-}) => {
+/* ── helpers ─────────────────────────────────────────────── */
+const useNormalizedPost = (post) => {
   const { currentLanguage } = useLanguage();
-  const [imageError, setImageError] = useState(false);
-
-  const title = post.title?.[currentLanguage] || post.title?.en || 'Untitled';
+  const title   = post.title?.[currentLanguage]   || post.title?.en   || 'Untitled';
   const excerpt = post.excerpt?.[currentLanguage] || post.excerpt?.en || '';
-  const category = post.category || 'news';
-  
-  // Handle media
-  let mediaItems = [];
-  if (post.mediaContent?.items) {
-    mediaItems = post.mediaContent.items;
-  } else if (post.media && Array.isArray(post.media)) {
-    mediaItems = post.media;
-  }
-  
-  const featuredImage = mediaItems[0]?.url || mediaItems[0]?.src || post.image;
-  const hasMultipleImages = mediaItems.length > 1;
-  const hasVideo = mediaItems.some(item => item.type === 'video' || item.url?.includes('.mp4'));
-  
-  // Stats
-  const views = post.analytics?.views ?? post.views ?? 0;
-  const likes = post.analytics?.likes ?? post.likes ?? 0;
-  const comments = post.analytics?.comments ?? post.comments ?? 0;
-  const shares = post.analytics?.shares ?? post.shares ?? 0;
-  const readTime = post.readTime || Math.ceil((excerpt?.length || 0) / 200);
-  
-  // Author/Source info
-  let author = post.author || 'Our Vadodara';
-  let authorName = '';
-  if (typeof author === 'object' && author !== null) {
-    authorName = author.name || author.email || 'Unknown';
-  } else {
-    authorName = author;
-  }
-  const authorAvatar = post.authorAvatar || null;
-  const location = post.location || post.city || 'Vadodara';
-  const isVerified = post.isVerified || post.source === 'official';
-  const isTrending = post.isTrending || views > 10000;
-  
-  // Publication date
-  const publishedAt = post.publishedAt || post.createdAt;
-  const publishDate = new Date(publishedAt);
-  const isRecent = Date.now() - publishDate.getTime() < 3600000; // Less than 1 hour
+  const media   = post.mediaContent?.items || (Array.isArray(post.media) ? post.media : []);
+  const image   = media[0]?.url || media[0]?.src || post.image;
+  const hasMulti= media.length > 1;
+  const hasVideo= media.some(m => m.type === 'video' || m.url?.includes('.mp4'));
+  const views   = post.analytics?.views    ?? post.views    ?? 0;
+  const comments= post.analytics?.comments ?? post.comments ?? 0;
+  const author  = typeof post.author === 'object' ? (post.author?.name || 'Unknown') : (post.author || 'Our Vadodara');
+  const location= post.location || post.city || 'Vadodara';
+  const verified= post.isVerified || post.source === 'official';
+  const trending= post.isTrending || views > 10000;
+  const readTime= post.readTime || Math.max(1, Math.ceil((excerpt?.length || 0) / 200));
+  const publishedAt = new Date(post.publishedAt || post.createdAt || Date.now());
+  const isLive  = post.isLive || post.live;
+  return { title, excerpt, image, hasMulti, hasVideo, views, comments, author, location, verified, trending, readTime, publishedAt, isLive, category: post.category || 'news' };
+};
 
-  // Helper to render media with indicator
-  const renderMediaWithIndicator = (className = '') => (
-    <div className="relative">
-      {hasMultipleImages ? (
-        <InstagramCarousel 
-          items={mediaItems}
-          className={className}
-          imageClassName="w-full h-full object-cover"
-        />
-      ) : featuredImage && !imageError ? (
-        <img
-          src={featuredImage}
-          alt={title}
-          onError={() => setImageError(true)}
-          className={className}
-        />
+/* ── building blocks ─────────────────────────────────────── */
+const Media = memo(function Media({ image, hasMulti, hasVideo, isLive, trending, category, className = '' }) {
+  const [loaded, setLoaded] = useState(false);
+  const [err, setErr] = useState(false);
+  return (
+    <div className={`relative overflow-hidden bg-neutral-100 dark:bg-neutral-800 ${className}`}>
+      {!err && image ? (
+        <>
+          {!loaded && <div className="absolute inset-0 skeleton" />}
+          <img
+            src={image}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            onLoad={() => setLoaded(true)}
+            onError={() => setErr(true)}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+          />
+        </>
       ) : (
-        <div className={`bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-800 dark:to-gray-900 ${className}`} />
+        <div className="absolute inset-0 grid place-items-center text-neutral-400">
+          <Images className="w-8 h-8" />
+        </div>
       )}
-      
-      {/* Media Type Indicators */}
-      {hasMultipleImages && (
-        <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-          <ImageIcon className="w-3 h-3" />
-          <span>{mediaItems.length}</span>
+
+      <div className="absolute top-2.5 left-2.5 flex gap-1.5">
+        <span className="pill-category">{category}</span>
+        {isLive && <span className="pill-live"><span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />Live</span>}
+        {trending && !isLive && <span className="pill-trending">↗ Trending</span>}
+      </div>
+
+      {hasMulti && (
+        <div className="absolute top-2.5 right-2.5 bg-black/60 text-white rounded-full px-2 py-1 flex items-center gap-1 text-2xs font-semibold backdrop-blur-sm">
+          <Images className="w-3 h-3" />
         </div>
       )}
       {hasVideo && (
-        <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm text-white p-2 rounded-full">
-          <Play className="w-4 h-4" />
+        <div className="absolute inset-0 grid place-items-center pointer-events-none">
+          <div className="w-14 h-14 rounded-full bg-black/50 backdrop-blur-sm grid place-items-center">
+            <Play className="w-6 h-6 text-white fill-white translate-x-0.5" />
+          </div>
         </div>
       )}
     </div>
   );
+});
 
-  // Hero Variant - Large immersive card
-  if (variant === 'hero') {
-    return (
-      <article 
-        onClick={() => onPostClick?.(post.id)}
-        className="hero-card group cursor-pointer mb-6 overflow-hidden"
-      >
-        <div className="relative w-full h-full">
-          {renderMediaWithIndicator('w-full h-full object-cover')}
-          
-          {/* Gradient Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
-          
-          {/* Content Overlay */}
-          <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-8">
-            {/* Header - Category & Trending Badge */}
-            <div className="flex items-center gap-2 mb-3">
-              <span className="px-3 py-1 bg-purple-600 text-white rounded-full text-xs font-bold uppercase tracking-wide">
-                {category}
-              </span>
-              {isTrending && (
-                <span className="px-3 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full text-xs font-bold flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3" />
-                  Trending
-                </span>
-              )}
-              {isRecent && (
-                <span className="px-3 py-1 bg-red-600 text-white rounded-full text-xs font-bold animate-pulse">
-                  LIVE
-                </span>
-              )}
-            </div>
-            
-            {/* Title */}
-            <h2 className="headline-hero text-white mb-3 line-clamp-3 group-hover:underline transition-all font-bold leading-tight">
-              {title}
-            </h2>
-            
-            {/* Excerpt */}
-            <p className="body-large text-gray-200 mb-4 line-clamp-2 max-w-3xl">
-              {excerpt}
-            </p>
-            
-            {/* Author & Meta Info */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-3">
-                {/* Author */}
-                <div className="flex items-center gap-2">
-                  {authorAvatar ? (
-                    <img src={authorAvatar} alt={author} className="w-8 h-8 rounded-full border-2 border-white" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                      <User className="w-4 h-4 text-white" />
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-white font-medium text-sm">{authorName}</span>
-                    {isVerified && <CheckCircle className="w-4 h-4 text-blue-400 fill-current" />}
-                  </div>
-                </div>
-                
-                {/* Location */}
-                <div className="flex items-center gap-1 text-gray-300 text-sm">
-                  <MapPin className="w-4 h-4" />
-                  <span>{location}</span>
-                </div>
-              </div>
-              
-              {/* Stats */}
-              <div className="flex items-center gap-4 text-sm text-gray-300">
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-4 h-4" />
-                  <span>{formatTimeAgo(publishedAt)}</span>
-                </div>
-                {views > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <Eye className="w-4 h-4" />
-                    <span>{formatNumber(views)}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-4 h-4" />
-                  <span>{readTime} min</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </article>
-    );
-  }
-
-  // Featured Variant - Medium card with rich info
-  if (variant === 'featured') {
-    return (
-      <article className="modern-card mb-6 overflow-hidden group cursor-pointer" onClick={() => onPostClick?.(post.id)}>
-        {/* Featured Image */}
-        {(featuredImage || hasMultipleImages) && !imageError && (
-          <div className="relative aspect-[16/9] overflow-hidden">
-            {renderMediaWithIndicator('w-full h-full object-cover transition-transform duration-700 group-hover:scale-110')}
-            
-            {/* Category Badge on Image */}
-            <div className="absolute top-4 left-4 flex gap-2">
-              <span className="px-3 py-1.5 bg-purple-600 text-white rounded-full text-xs font-bold uppercase tracking-wide shadow-lg">
-                {category}
-              </span>
-              {isTrending && (
-                <span className="px-3 py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
-                  <TrendingUp className="w-3 h-3" />
-                  Trending
-                </span>
-              )}
-            </div>
-            
-            {/* Gradient overlay on bottom */}
-            <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/60 to-transparent" />
-          </div>
-        )}
-        
-        {/* Content */}
-        <div className="p-5">
-          {/* Author & Time */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              {authorAvatar ? (
-                <img src={authorAvatar} alt={author} className="w-7 h-7 rounded-full border border-gray-200 dark:border-gray-700" />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
-                </div>
-              )}
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">{typeof author === 'object' && author !== null ? (author.name || author.email || 'Unknown') : author}</span>
-                {isVerified && <CheckCircle className="w-4 h-4 text-blue-500 fill-current" />}
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <Clock className="w-3.5 h-3.5" />
-              <span>{formatTimeAgo(publishedAt)}</span>
-            </div>
-          </div>
-          
-          {/* Title */}
-          <h3 className="headline-large mb-3 line-clamp-2 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors font-bold leading-tight">
-            {title}
-          </h3>
-          
-          {/* Excerpt */}
-          <p className="body-medium text-gray-600 dark:text-gray-400 mb-4 line-clamp-3 leading-relaxed">
-            {excerpt}
-          </p>
-          
-          {/* Location & Read Time */}
-          <div className="flex items-center gap-4 mb-4 text-sm text-gray-500 dark:text-gray-400">
-            <div className="flex items-center gap-1.5">
-              <MapPin className="w-4 h-4" />
-              <span>{location}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Calendar className="w-4 h-4" />
-              <span>{readTime} min read</span>
-            </div>
-          </div>
-          
-          {/* Topics */}
-          {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {post.tags.slice(0, 4).map((tag, idx) => (
-                <TopicChip
-                  key={idx}
-                  topic={tag}
-                  size="sm"
-                  showFollowButton={false}
-                />
-              ))}
-            </div>
-          )}
-          
-          {/* Engagement Stats & Actions */}
-          <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800">
-            {/* Stats */}
-            <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-              {views > 0 && (
-                <div className="flex items-center gap-1.5 font-medium">
-                  <Eye className="w-4 h-4" />
-                  <span>{formatNumber(views)}</span>
-                </div>
-              )}
-              {comments > 0 && (
-                <div className="flex items-center gap-1.5 font-medium">
-                  <MessageCircle className="w-4 h-4" />
-                  <span>{comments}</span>
-                </div>
-              )}
-              {shares > 0 && (
-                <div className="flex items-center gap-1.5 font-medium">
-                  <Share2 className="w-4 h-4" />
-                  <span>{shares}</span>
-                </div>
-              )}
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2">
-              <EmojiReactions 
-                postId={post.id} 
-                postType="posts"
-                compact={true}
-                showCount={false}
-              />
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onShare?.();
-                }}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                aria-label="Share"
-              >
-                <Share2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSave?.();
-                }}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                aria-label="Bookmark"
-              >
-                <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-purple-600 text-purple-600 dark:fill-purple-400 dark:text-purple-400' : 'text-gray-600 dark:text-gray-400'}`} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </article>
-    );
-  }
-
-  // Compact Variant - Horizontal layout
-  if (variant === 'compact') {
-    return (
-      <article 
-        onClick={() => onPostClick?.(post.id)}
-        className="modern-card mb-8 overflow-hidden cursor-pointer group p-0"
-        style={{ maxWidth: 600, margin: '2rem auto' }}
-      >
-        {/* Large Thumbnail at Top */}
-        {(featuredImage || hasMultipleImages) && !imageError && (
-          <div className="relative w-full aspect-[16/9] bg-gray-200 dark:bg-gray-800 overflow-hidden">
-            {renderMediaWithIndicator('w-full h-full object-cover transition-transform duration-500 group-hover:scale-105')}
-          </div>
-        )}
-        {/* Content */}
-        <div className="p-6 flex flex-col">
-          {/* Category & Badge */}
-          <div className="flex items-center gap-2 mb-2">
-            <span className="label-small text-purple-600 dark:text-purple-400 font-bold uppercase">
-              {category}
-            </span>
-            {isTrending && (
-              <span className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 font-semibold">
-                <TrendingUp className="w-3 h-3" />
-                <span>Trending</span>
-              </span>
-            )}
-            {isRecent && (
-              <span className="px-2 py-0.5 bg-red-500 text-white rounded text-xs font-bold">
-                LIVE
-              </span>
-            )}
-          </div>
-          {/* Title */}
-          <h3 className="headline-large mb-2 line-clamp-2 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors font-semibold leading-snug">
-            {title}
-          </h3>
-          {/* Excerpt */}
-          <p className="body-medium text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
-            {excerpt}
-          </p>
-          {/* Meta Info */}
-          <div className="mt-2 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-            {/* Author */}
-            <div className="flex items-center gap-1">
-              <User className="w-3 h-3" />
-              <span className="font-medium">{typeof author === 'object' && author !== null ? (author.name || author.email || 'Unknown') : author}</span>
-              {isVerified && <CheckCircle className="w-3 h-3 text-blue-500 fill-current" />}
-            </div>
-            <span>•</span>
-            <span>{formatTimeAgo(publishedAt)}</span>
-            {views > 0 && (
-              <>
-                <span>•</span>
-                <div className="flex items-center gap-1">
-                  <Eye className="w-3 h-3" />
-                  <span>{formatNumber(views)}</span>
-                </div>
-              </>
-            )}
-            {comments > 0 && (
-              <>
-                <span>•</span>
-                <div className="flex items-center gap-1">
-                  <MessageCircle className="w-3 h-3" />
-                  <span>{comments}</span>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </article>
-    );
-  }
-
-  // Default variant - Balanced card
+const AuthorRow = memo(function AuthorRow({ author, verified, time, compact }) {
   return (
-    <article 
-      onClick={() => onPostClick?.(post.id)}
-      className="modern-card mb-5 overflow-hidden cursor-pointer group"
-    >
-      {/* Image Section */}
-      {(featuredImage || hasMultipleImages) && !imageError && (
-        <div className="relative aspect-video overflow-hidden">
-          {renderMediaWithIndicator('w-full h-full object-cover transition-transform duration-500 group-hover:scale-105')}
-        </div>
-      )}
-      
-      {/* Content Section */}
-      <div className="p-4">
-        {/* Header - Category, Author, Time */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-bold uppercase">
-              {category}
-            </span>
-            {isTrending && (
-              <span className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 font-semibold">
-                <TrendingUp className="w-3 h-3" />
-              </span>
-            )}
-          </div>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{formatTimeAgo(publishedAt)}</span>
-        </div>
-        
-        {/* Title */}
-        <h3 className="headline-medium mb-2 line-clamp-2 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors font-semibold">
-          {title}
-        </h3>
-        
-        {/* Excerpt */}
-        <p className="body-medium text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
-          {excerpt}
-        </p>
-        
-        {/* Author & Location */}
-        <div className="flex items-center gap-3 mb-3 text-sm">
-          <div className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
-            {authorAvatar ? (
-              <img src={authorAvatar} alt={author} className="w-5 h-5 rounded-full" />
-            ) : (
-              <User className="w-4 h-4" />
-            )}
-            <span className="font-medium">{author}</span>
-            {isVerified && <CheckCircle className="w-4 h-4 text-blue-500 fill-current" />}
-          </div>
-          
-          <span className="text-gray-400">•</span>
-          
-          <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-            <MapPin className="w-3.5 h-3.5" />
-            <span>{location}</span>
-          </div>
-        </div>
-        
-        {/* Stats & Actions */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800">
-          {/* Stats */}
-          <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-            {views > 0 && (
-              <div className="flex items-center gap-1.5">
-                <Eye className="w-4 h-4" />
-                <span className="font-medium">{formatNumber(views)}</span>
-              </div>
-            )}
-            {comments > 0 && (
-              <div className="flex items-center gap-1.5">
-                <MessageCircle className="w-4 h-4" />
-                <span className="font-medium">{comments}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-4 h-4" />
-              <span>{readTime}m</span>
-            </div>
-          </div>
-          
-          {/* Action Buttons */}
-          <div className="flex items-center gap-1">
-            <EmojiReactions 
-              postId={post.id} 
-              postType="posts"
-              compact={true}
-              showCount={false}
-            />
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onShare?.();
-              }}
-              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Share"
-            >
-              <Share2 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSave?.();
-              }}
-              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Bookmark"
-            >
-              <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current text-purple-600 dark:text-purple-400' : ''}`} />
-            </button>
-          </div>
+    <div className={`flex items-center gap-2 ${compact ? 'text-2xs' : 'text-xs'} text-neutral-500 dark:text-neutral-400 mb-1.5`}>
+      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 text-[10px] font-bold">
+        {author[0]}
+      </span>
+      <span className="font-semibold text-neutral-700 dark:text-neutral-200 truncate">{author}</span>
+      {verified && <CheckCircle2 className="w-3.5 h-3.5 text-primary-500 flex-shrink-0" aria-label="Verified" />}
+      <span aria-hidden>·</span>
+      <time>{time}</time>
+    </div>
+  );
+});
+
+const MetaRow = memo(function MetaRow({ location, views, comments, readTime, isSaved, onSave, onShare, postId, onReact, isLiked, onLike }) {
+  const stop = (e) => e.stopPropagation();
+  return (
+    <div className="flex items-center gap-3 text-2xs text-neutral-400 dark:text-neutral-500 mt-2.5 pt-2.5 border-t border-neutral-100 dark:border-neutral-800">
+      <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{location}</span>
+      <span className="inline-flex items-center gap-1"><Eye className="w-3 h-3" />{formatNumber(views)}</span>
+      <span className="inline-flex items-center gap-1"><MessageCircle className="w-3 h-3" />{formatNumber(comments)}</span>
+      <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" />{readTime}m</span>
+      <div className="ml-auto flex items-center gap-0.5" onClick={stop}>
+        {onReact && <EmojiReactions postId={postId} isLiked={isLiked} onLike={onLike} size="sm" />}
+        <button type="button" onClick={(e) => { stop(e); onSave?.(); }} aria-label={isSaved ? 'Unsave' : 'Save'} aria-pressed={isSaved}
+          className={`btn-icon !w-8 !h-8 ${isSaved ? 'text-primary-600' : ''}`}>
+          <Bookmark className="w-4 h-4" strokeWidth={2} fill={isSaved ? 'currentColor' : 'none'} />
+        </button>
+        <button type="button" onClick={(e) => { stop(e); onShare?.(); }} aria-label="Share" className="btn-icon !w-8 !h-8">
+          <Share2 className="w-4 h-4" strokeWidth={2} />
+        </button>
+      </div>
+    </div>
+  );
+});
+
+/* ── variants ────────────────────────────────────────────── */
+function DefaultCard({ n, post, onClick, isLiked, isSaved, onLike, onSave, onShare }) {
+  return (
+    <article onClick={onClick} className="card-interactive overflow-hidden animate-fadeIn content-vis">
+      <Media image={n.image} hasMulti={n.hasMulti} hasVideo={n.hasVideo} isLive={n.isLive} trending={n.trending} category={n.category} className="aspect-[16/9]" />
+      <div className="p-3.5">
+        <AuthorRow author={n.author} verified={n.verified} time={formatTimeAgo(n.publishedAt)} />
+        <h3 className="text-base font-bold leading-snug line-clamp-2 mb-1">{n.title}</h3>
+        {n.excerpt && <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed line-clamp-2">{n.excerpt}</p>}
+        <MetaRow location={n.location} views={n.views} comments={n.comments} readTime={n.readTime}
+          isSaved={isSaved} onSave={onSave} onShare={onShare} onReact postId={post.id} isLiked={isLiked} onLike={onLike} />
+      </div>
+    </article>
+  );
+}
+
+function FeaturedCard({ n, post, onClick, isSaved, onSave, onShare }) {
+  return (
+    <article onClick={onClick} className="relative aspect-[4/5] rounded-2xl overflow-hidden shadow-lg cursor-pointer group animate-fadeIn">
+      <Media image={n.image} hasMulti={n.hasMulti} hasVideo={n.hasVideo} isLive={n.isLive} trending={n.trending} category={n.category} className="absolute inset-0" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent pointer-events-none" />
+      <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+        <h2 className="text-xl sm:text-2xl font-bold leading-tight mb-2 line-clamp-3">{n.title}</h2>
+        {n.excerpt && <p className="text-sm opacity-85 line-clamp-2 mb-3">{n.excerpt}</p>}
+        <div className="flex items-center gap-3 text-2xs opacity-90">
+          <span className="font-semibold">{n.author}</span>
+          <span aria-hidden>·</span>
+          <span>{formatTimeAgo(n.publishedAt)}</span>
+          <span aria-hidden>·</span>
+          <span className="inline-flex items-center gap-1"><Eye className="w-3 h-3" />{formatNumber(n.views)}</span>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onSave?.(); }} aria-label={isSaved ? 'Unsave' : 'Save'}
+            className="ml-auto btn-icon !w-8 !h-8 !text-white hover:!bg-white/20">
+            <Bookmark className="w-4 h-4" fill={isSaved ? 'currentColor' : 'none'} />
+          </button>
         </div>
       </div>
     </article>
   );
-};
+}
+
+function CompactCard({ n, post, onClick, isSaved, onSave }) {
+  return (
+    <article onClick={onClick} className="flex gap-3 py-3 border-b border-neutral-100 dark:border-neutral-800 cursor-pointer group">
+      <div className="flex-1 min-w-0">
+        <span className="eyebrow" style={{ color: 'var(--color-primary)' }}>{n.category}</span>
+        <h3 className="text-[15px] font-bold leading-snug line-clamp-2 my-1 group-hover:text-primary-600 transition-colors">{n.title}</h3>
+        <div className="flex items-center gap-2 text-2xs text-neutral-400">
+          <span>{n.author}</span><span aria-hidden>·</span><time>{formatTimeAgo(n.publishedAt)}</time>
+          <span aria-hidden>·</span><span className="inline-flex items-center gap-1"><Eye className="w-3 h-3" />{formatNumber(n.views)}</span>
+        </div>
+      </div>
+      {n.image && (
+        <div className="relative w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+          <img src={n.image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+        </div>
+      )}
+    </article>
+  );
+}
+
+/* ── export ──────────────────────────────────────────────── */
+const PremiumNewsCard = memo(function PremiumNewsCard({
+  post, onPostClick, isLiked, isSaved, onLike, onSave, onShare, variant = 'default',
+}) {
+  const n = useNormalizedPost(post);
+  const handleClick = useCallback(() => onPostClick?.(post), [onPostClick, post]);
+  const handleSave  = useCallback(() => onSave?.(post.id), [onSave, post.id]);
+  const handleShare = useCallback(() => onShare?.(post), [onShare, post]);
+  const handleLike  = useCallback(() => onLike?.(post.id), [onLike, post.id]);
+
+  const Variant = variant === 'hero' || variant === 'featured' ? FeaturedCard
+                : variant === 'compact' ? CompactCard
+                : DefaultCard;
+
+  return (
+    <Variant
+      n={n}
+      post={post}
+      onClick={handleClick}
+      isLiked={isLiked}
+      isSaved={isSaved}
+      onLike={handleLike}
+      onSave={handleSave}
+      onShare={handleShare}
+    />
+  );
+}, (a, b) =>
+  a.post?.id === b.post?.id &&
+  a.isLiked === b.isLiked &&
+  a.isSaved === b.isSaved &&
+  a.variant === b.variant &&
+  a.post?.analytics?.views === b.post?.analytics?.views &&
+  a.post?.analytics?.comments === b.post?.analytics?.comments
+);
 
 export default PremiumNewsCard;

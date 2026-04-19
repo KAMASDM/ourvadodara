@@ -1,34 +1,45 @@
 // =============================================
 // src/components/Shared/Logo.jsx
+// Logo tile — ivory wash, warmBrown border,
+// soft glow, 3 sizes.
 // =============================================
 import React from 'react';
-import ourVadodaraLogo from '../../assets/images/our-vadodara-logo.png.png';
+import logoSrc from '../../assets/images/our-vadodara-logo.png.png';
 
-const Logo = ({ className = '', onClick }) => {
-  return (
-    <div className={`flex items-center cursor-pointer group ${className}`} onClick={onClick}>
-      <div className="relative">
-        {/* Glowing background effect */}
-        <div className="absolute inset-0 bg-gradient-to-br from-warmBrown-400 to-warmBrown-600 dark:from-warmBrown-500 dark:to-warmBrown-700 rounded-xl blur-md opacity-40 group-hover:opacity-60 transition-opacity duration-300 animate-pulse"></div>
-        
-        {/* Logo container with enhanced styling */}
-        <div className="relative h-12 w-12 bg-gradient-to-br from-ivory-50 to-ivory-100 dark:from-white dark:to-gray-100 rounded-xl p-1.5 shadow-ivory-lg hover:shadow-ivory-xl border-2 border-warmBrown-300 dark:border-warmBrown-400 flex items-center justify-center transform group-hover:scale-105 transition-all duration-300">
-          <img
-            src={ourVadodaraLogo}
-            alt="Our Vadodara Logo"
-            className="h-full w-full object-contain drop-shadow-md"
-          />
-          
-          {/* Shine effect on hover */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/40 to-transparent opacity-0 group-hover:opacity-100 group-hover:translate-x-full transition-all duration-500 rounded-xl"></div>
-        </div>
-        
-        {/* Decorative corner accents */}
-        <div className="absolute -top-0.5 -left-0.5 w-2 h-2 bg-warmBrown-500 rounded-full opacity-70"></div>
-        <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-warmBrown-500 rounded-full opacity-70"></div>
-      </div>
-    </div>
-  );
+const SIZES = {
+  sm: 'w-10 h-10 rounded-lg p-1 border-2',
+  md: 'w-14 h-14 rounded-xl p-1.5 border-2',
+  lg: 'w-24 h-24 rounded-2xl p-2 border-2',
 };
 
-export default Logo;
+export default function Logo({ size = 'sm', className = '', alt = 'Our Vadodara', onClick }) {
+  return (
+    <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      className={`relative flex-shrink-0 cursor-${onClick ? 'pointer' : 'default'} ${SIZES[size] || SIZES.sm}
+        bg-gradient-to-br from-ivory-50 to-ivory-100
+        border-warmBrown-300 shadow-ivory
+        flex items-center justify-center
+        ${className}`}
+    >
+      <div
+        aria-hidden
+        className="absolute inset-0 rounded-[inherit] blur-md opacity-40
+          bg-gradient-to-br from-warmBrown-400 to-warmBrown-600
+          -z-10"
+      />
+      <img
+        src={logoSrc}
+        alt={alt}
+        width="96"
+        height="96"
+        loading="eager"
+        decoding="async"
+        className="w-full h-full object-contain relative"
+      />
+    </div>
+  );
+}
