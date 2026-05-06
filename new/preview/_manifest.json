@@ -1,0 +1,20 @@
+[
+  {"path":"preview/colors-brand.html","asset":"Colors · Primary + Accent","group":"Colors","subtitle":"Indigo primary, orange accent, red danger","viewport":{"width":700,"height":320}},
+  {"path":"preview/colors-warm.html","asset":"Colors · Ivory + Warm Brown","group":"Colors","subtitle":"Editorial warm wash and logo accents","viewport":{"width":700,"height":320}},
+  {"path":"preview/colors-neutral.html","asset":"Colors · Slate scale","group":"Colors","subtitle":"50 → 950 neutrals","viewport":{"width":700,"height":240}},
+  {"path":"preview/colors-semantic.html","asset":"Colors · Semantic tokens","group":"Colors","subtitle":"bg/fg/border roles","viewport":{"width":700,"height":320}},
+  {"path":"preview/type-display.html","asset":"Type · Display scale","group":"Type","subtitle":"h1–h3 + headline","viewport":{"width":700,"height":200}},
+  {"path":"preview/type-body.html","asset":"Type · Body, meta, multilingual","group":"Type","subtitle":"Inter + Noto HI/GU","viewport":{"width":700,"height":280}},
+  {"path":"preview/radii-shadows.html","asset":"Radii & Shadows","group":"Spacing","subtitle":"Slate + warm ivory shadows","viewport":{"width":700,"height":340}},
+  {"path":"preview/spacing.html","asset":"Spacing scale","group":"Spacing","subtitle":"4pt grid","viewport":{"width":700,"height":260}},
+  {"path":"preview/buttons.html","asset":"Buttons","group":"Components","subtitle":"Primary, secondary, chips","viewport":{"width":700,"height":260}},
+  {"path":"preview/badges.html","asset":"Badges & pills","group":"Components","subtitle":"Category, LIVE, trending","viewport":{"width":700,"height":260}},
+  {"path":"preview/inputs.html","asset":"Form inputs","group":"Components","subtitle":"Text, select, search","viewport":{"width":700,"height":260}},
+  {"path":"preview/news-card.html","asset":"News card","group":"Components","subtitle":"Default variant","viewport":{"width":700,"height":360}},
+  {"path":"preview/stories-rail.html","asset":"Stories rail","group":"Components","subtitle":"Gradient rings","viewport":{"width":700,"height":140}},
+  {"path":"preview/bottom-nav.html","asset":"Bottom tab bar","group":"Components","subtitle":"5 tabs with active pill","viewport":{"width":700,"height":120}},
+  {"path":"preview/weather-card.html","asset":"Weather card","group":"Components","subtitle":"Current + 3-stat grid","viewport":{"width":700,"height":200}},
+  {"path":"preview/reactions.html","asset":"Emoji reactions","group":"Components","subtitle":"12-reaction picker","viewport":{"width":700,"height":160}},
+  {"path":"preview/icons.html","asset":"Iconography · Lucide","group":"Brand","subtitle":"Core outline set","viewport":{"width":700,"height":220}},
+  {"path":"preview/brand-logo.html","asset":"Brand logo","group":"Brand","subtitle":"Tile, wordmark, on-dark","viewport":{"width":700,"height":200}}
+]

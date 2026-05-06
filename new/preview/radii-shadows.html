@@ -1,0 +1,33 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Radii & Shadows</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:20px;background:#fafafa;font-family:var(--ov-font-sans);color:#0f172a}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.sw{background:#fff;height:70px;display:flex;align-items:center;justify-content:center;font-size:11px;font-family:var(--ov-font-mono);color:#64748b}
+.group{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin:4px 0 8px}
+</style></head><body>
+<p class="group">Radii</p>
+<div class="grid" style="margin-bottom:14px">
+  <div class="sw" style="border:1px solid #e2e8f0;border-radius:6px">sm · 6</div>
+  <div class="sw" style="border:1px solid #e2e8f0;border-radius:12px">md · 12</div>
+  <div class="sw" style="border:1px solid #e2e8f0;border-radius:16px">lg · 16</div>
+  <div class="sw" style="border:1px solid #e2e8f0;border-radius:24px">xl · 24</div>
+  <div class="sw" style="border:1px solid #e2e8f0;border-radius:9999px">full</div>
+</div>
+<p class="group">Slate shadows (functional)</p>
+<div class="grid" style="margin-bottom:14px">
+  <div class="sw" style="border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.05)">sm</div>
+  <div class="sw" style="border-radius:12px;box-shadow:0 1px 3px rgba(15,23,42,.1),0 1px 2px -1px rgba(15,23,42,.1)">base</div>
+  <div class="sw" style="border-radius:12px;box-shadow:0 4px 6px -1px rgba(15,23,42,.1),0 2px 4px -2px rgba(15,23,42,.1)">md</div>
+  <div class="sw" style="border-radius:12px;box-shadow:0 10px 15px -3px rgba(15,23,42,.1),0 4px 6px -4px rgba(15,23,42,.1)">lg</div>
+  <div class="sw" style="border-radius:12px;box-shadow:0 20px 25px -5px rgba(15,23,42,.1),0 8px 10px -6px rgba(15,23,42,.1)">xl</div>
+</div>
+<p class="group">Ivory shadows (editorial)</p>
+<div class="grid">
+  <div class="sw" style="border-radius:12px;box-shadow:0 4px 6px -1px rgba(162,146,111,.1),0 2px 4px -1px rgba(162,146,111,.06);background:#fffef9">ivory</div>
+  <div class="sw" style="border-radius:12px;box-shadow:0 10px 15px -3px rgba(162,146,111,.15),0 4px 6px -2px rgba(162,146,111,.1);background:#fffef9">ivory-lg</div>
+  <div class="sw" style="border-radius:12px;box-shadow:0 20px 25px -5px rgba(162,146,111,.2),0 10px 10px -5px rgba(162,146,111,.1);background:#fffef9">ivory-xl</div>
+  <div class="sw" style="border-radius:12px;background:rgba(255,255,255,.7);backdrop-filter:blur(10px) saturate(180%);border:1px solid rgba(255,255,255,.3);box-shadow:0 8px 32px rgba(31,38,135,.15)">glass</div>
+  <div class="sw" style="border-radius:12px;background:rgba(255,254,249,.8);backdrop-filter:blur(10px);border:1px solid rgba(212,193,152,.3);box-shadow:0 8px 32px rgba(162,146,111,.15)">glass-ivory</div>
+</div>
+</body></html>

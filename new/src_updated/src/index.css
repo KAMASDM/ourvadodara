@@ -1,0 +1,264 @@
+/* =============================================
+   src/index.css — Our Vadodara
+   Modernized tokens + utilities + animations.
+   Reduced redundancy, added warm palette,
+   a11y focus rings, and perf helpers.
+   ============================================= */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Font loading (self-host via Google Fonts CDN) ──────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&display=swap');
+
+/* ─── Design tokens (CSS vars for non-Tailwind consumers) ─ */
+:root {
+  --color-primary:       #6366f1;
+  --color-primary-dark:  #4f46e5;
+  --color-accent:        #f97316;
+  --color-danger:        #ef4444;
+
+  --color-ivory-wash:    #fffef9;
+  --color-warm-border:   #e9dcbb;
+
+  --bg:            #f8fafc;
+  --bg-card:       #ffffff;
+  --bg-chrome:     rgba(255,255,255,0.92);
+  --border:        #e2e8f0;
+  --text:          #0f172a;
+  --text-muted:    #64748b;
+  --text-subtle:   #94a3b8;
+
+  --shadow-card:       0 1px 3px rgba(15,23,42,.08), 0 1px 2px -1px rgba(15,23,42,.06);
+  --shadow-primary:    0 4px 14px rgba(79,70,229,.35);
+  --shadow-ivory:      0 4px 6px -1px rgba(162,146,111,.1), 0 2px 4px -1px rgba(162,146,111,.06);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-hindi: 'Noto Sans Devanagari', 'Inter', sans-serif;
+  --font-gujarati: 'Noto Sans Gujarati', 'Inter', sans-serif;
+
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dark {
+  --bg:            #0f172a;
+  --bg-card:       #1e293b;
+  --bg-chrome:     rgba(15,23,42,0.92);
+  --border:        #334155;
+  --text:          #f8fafc;
+  --text-muted:    #94a3b8;
+  --text-subtle:   #64748b;
+
+  --shadow-card:   0 1px 3px rgba(0,0,0,.3), 0 1px 2px -1px rgba(0,0,0,.2);
+}
+
+/* ─── Base reset & a11y ───────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body, #root {
+  overscroll-behavior-y: contain;
+  overflow-x: hidden;
+  max-width: 100vw;
+  height: 100%;
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Focus rings — visible only for keyboard users */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── Scrollbars ──────────────────────────────────────────── */
+.horizontal-scroll,
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.horizontal-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+}
+.horizontal-scroll::-webkit-scrollbar,
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* ─── Component tokens (used throughout codebase) ─────────── */
+@layer components {
+  .app-shell {
+    @apply min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50;
+  }
+
+  .chrome-blur {
+    @apply backdrop-blur-md bg-white/92 dark:bg-neutral-900/92 border-neutral-200 dark:border-neutral-800;
+  }
+
+  .card {
+    @apply bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800
+           rounded-2xl shadow-card transition-all duration-200;
+  }
+  .card-interactive {
+    @apply card cursor-pointer hover:-translate-y-0.5 hover:shadow-card-hover active:scale-[0.99];
+  }
+  .card-ivory {
+    @apply bg-gradient-to-br from-ivory-50 via-ivory-100 to-ivory-200
+           border border-warmBrown-200 dark:border-warmBrown-700
+           dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800
+           rounded-2xl shadow-ivory;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 font-semibold rounded-full
+           transition-all duration-150 ease-standard
+           disabled:opacity-50 disabled:cursor-not-allowed
+           active:scale-[0.98] select-none;
+  }
+  .btn-primary {
+    @apply btn bg-primary-600 hover:bg-primary-700 text-white px-5 py-3 shadow-primary-glow;
+  }
+  .btn-secondary {
+    @apply btn bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700
+           text-neutral-700 dark:text-neutral-200 px-5 py-3;
+  }
+  .btn-ghost {
+    @apply btn text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 px-4 py-2;
+  }
+  .btn-icon {
+    @apply inline-flex items-center justify-center w-10 h-10 rounded-full
+           text-neutral-600 dark:text-neutral-300
+           hover:bg-neutral-100 dark:hover:bg-neutral-800
+           transition-colors duration-150 relative;
+  }
+
+  .input-field {
+    @apply w-full bg-neutral-50 dark:bg-neutral-800
+           border border-neutral-200 dark:border-neutral-700
+           text-neutral-900 dark:text-white rounded-xl px-4 py-3
+           placeholder:text-neutral-400
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent focus:bg-white
+           dark:focus:bg-neutral-900
+           transition-all duration-150;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold
+           border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900
+           text-neutral-600 dark:text-neutral-300
+           transition-all duration-150 whitespace-nowrap cursor-pointer select-none
+           hover:border-primary-300 hover:text-primary-600;
+  }
+  .chip-active {
+    @apply chip bg-gradient-to-r from-primary-500 to-primary-600 text-white border-transparent
+           shadow-primary-glow hover:text-white;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full
+           text-2xs font-bold uppercase tracking-wider;
+  }
+  .pill-category  { @apply pill bg-primary-600 text-white; }
+  .pill-live      { @apply pill bg-danger-500  text-white; }
+  .pill-trending  { @apply pill bg-gradient-to-r from-accent-500 to-danger-500 text-white; }
+  .pill-verified  { @apply pill bg-emerald-500 text-white; }
+
+  .eyebrow {
+    @apply text-2xs font-bold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400;
+  }
+
+  .skeleton {
+    @apply bg-gradient-to-r from-neutral-100 via-neutral-200 to-neutral-100
+           dark:from-neutral-800 dark:via-neutral-700 dark:to-neutral-800
+           bg-[length:200%_100%] animate-shimmer rounded-lg;
+  }
+}
+
+/* ─── Ivory/glass utilities ───────────────────────────────── */
+.bg-ivory-gradient  { background: linear-gradient(135deg, #fffef9 0%, #fff9e6 50%, #fffcf0 100%); }
+.bg-ivory-dots      { background-image: radial-gradient(circle, #f5e0b3 1px, transparent 1px); background-size: 20px 20px; }
+.bg-glass           { background: rgba(255,255,255,0.7); backdrop-filter: blur(10px) saturate(180%); border: 1px solid rgba(255,255,255,0.3); }
+.bg-glass-ivory     { background: rgba(255,254,249,0.8); backdrop-filter: blur(10px); border: 1px solid rgba(212,193,152,0.3); }
+.bg-story-gradient  { background: linear-gradient(45deg, #7c3aed, #ec4899, #ef4444); }
+
+/* ─── Perf helpers ────────────────────────────────────────── */
+.gpu            { transform: translateZ(0); will-change: transform; }
+.content-vis    { content-visibility: auto; contain-intrinsic-size: 400px; }
+img, video      { content-visibility: auto; }
+
+/* ─── Snap scroll (Reels) ─────────────────────────────────── */
+.snap-y       { scroll-snap-type: y mandatory; }
+.snap-start   { scroll-snap-align: start; }
+.snap-always  { scroll-snap-stop: always; }
+
+/* ─── Animation utilities ─────────────────────────────────── */
+/* (Keyframes are declared in tailwind.config.js — these are legacy class names kept for compat) */
+.animate-fadeIn          { animation: fadeInUp 0.25s var(--ease-standard) both; }
+.animate-fade-in         { animation: fadeInUp 0.6s  var(--ease-standard) 0.3s both; }
+.animate-fade-in-delayed { animation: fadeInUp 0.6s  var(--ease-standard) 0.8s both; }
+.animate-story-progress  { transform-origin: left; animation: storyProgress var(--duration, 15s) linear forwards; }
+.animate-carousel        { transition: transform 0.3s var(--ease-standard); }
+
+@keyframes fadeInUp      { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes storyProgress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes confettiBurst {
+  0%   { transform: translate(0, 0) rotate(0) scale(0); opacity: 1; }
+  100% { transform: translate(var(--tx, 50px), var(--ty, 50px)) rotate(var(--r, 180deg)) scale(1); opacity: 0; }
+}
+.animate-confetti { animation: confettiBurst 1s var(--ease-out-back) forwards; }
+
+/* Streak flame wiggle */
+@keyframes flameFlicker {
+  0%   { transform: scale(1) rotate(-2deg); filter: brightness(1); }
+  100% { transform: scale(1.08) rotate(2deg); filter: brightness(1.15); }
+}
+.animate-flame { animation: flameFlicker 0.6s ease-in-out infinite alternate; display: inline-block; transform-origin: bottom; }
+
+/* ─── Safe area helpers for PWA ───────────────────────────── */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.pb-tabbar { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+
+/* ─── Hide default input spinners ─────────────────────────── */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ─── Prevent iOS auto-zoom on input focus ────────────────── */
+@supports (-webkit-touch-callout: none) {
+  input, textarea, select { font-size: 16px; }
+}

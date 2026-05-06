@@ -1,0 +1,26 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Weather card</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:18px;background:#f8fafc;font-family:var(--ov-font-sans);color:#0f172a}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:16px;max-width:360px}
+.row1{display:flex;justify-content:space-between;align-items:flex-start}
+.t{font-size:36px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.sub{font-size:12px;color:#64748b;margin-top:4px;display:flex;align-items:center;gap:4px}
+.ic{font-size:44px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.cell{background:#f8fafc;border-radius:10px;padding:10px;text-align:center}
+.cell .v{font-size:14px;font-weight:700;color:#0f172a}
+.cell .k{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+</style></head><body>
+<div class="card">
+  <div class="row1">
+    <div><div class="t">32°</div><div class="sub">📍 Vadodara · Sunny</div></div>
+    <div class="ic">☀️</div>
+  </div>
+  <div class="grid">
+    <div class="cell"><div class="v">65%</div><div class="k">Humidity</div></div>
+    <div class="cell"><div class="v">12 km/h</div><div class="k">Wind</div></div>
+    <div class="cell"><div class="v">7</div><div class="k">UV</div></div>
+  </div>
+</div>
+</body></html>

@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Bottom nav</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:20px;background:#f1f5f9;font-family:var(--ov-font-sans)}
+.bar{background:rgba(255,255,255,.95);backdrop-filter:blur(12px);border-top:1px solid #e2e8f0;display:flex;border-radius:12px;overflow:hidden;max-width:448px;margin:0 auto}
+.tab{flex:1;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;cursor:pointer;color:#94a3b8}
+.tab.active{color:#4f46e5}
+.tab.alert{color:#f97316}
+.tab.active::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:28px;height:2px;background:#4f46e5;border-radius:0 0 3px 3px}
+.ic{font-size:18px}
+.lb{font-size:10px;font-weight:600;letter-spacing:.02em}
+</style></head><body>
+<div class="bar">
+  <div class="tab active"><span class="ic">🏠</span><span class="lb">Home</span></div>
+  <div class="tab"><span class="ic">📰</span><span class="lb">Roundup</span></div>
+  <div class="tab"><span class="ic">🎬</span><span class="lb">Reels</span></div>
+  <div class="tab alert"><span class="ic">⚠️</span><span class="lb">Breaking</span></div>
+  <div class="tab"><span class="ic">👤</span><span class="lb">Profile</span></div>
+</div>
+</body></html>

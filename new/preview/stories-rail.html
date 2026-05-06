@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Stories rail</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:16px;background:#fff;font-family:var(--ov-font-sans)}
+.rail{display:flex;gap:14px;overflow:hidden}
+.s{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px;width:64px}
+.ring{width:64px;height:64px;border-radius:9999px;padding:2.5px;background:linear-gradient(45deg,#7c3aed,#ec4899,#ef4444)}
+.ring.seen{background:#cbd5e1}
+.inner{width:100%;height:100%;border-radius:9999px;background:#fff;padding:2px;box-sizing:border-box}
+.inner img{width:100%;height:100%;border-radius:9999px;object-fit:cover;display:block;background:#64748b}
+.cap{font-size:10px;color:#475569;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;text-align:center}
+</style></head><body>
+<div class="rail">
+  <div class="s"><div class="ring"><div class="inner"><img src="https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=100"></div></div><span class="cap">Metro</span></div>
+  <div class="s"><div class="ring"><div class="inner"><img src="https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=100"></div></div><span class="cap">Cricket</span></div>
+  <div class="s"><div class="ring"><div class="inner"><img src="https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=100"></div></div><span class="cap">Traffic</span></div>
+  <div class="s"><div class="ring seen"><div class="inner"><img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=100"></div></div><span class="cap">Weather</span></div>
+  <div class="s"><div class="ring seen"><div class="inner"><img src="https://images.unsplash.com/photo-1604933834413-4f5d5fbeaeb9?w=100"></div></div><span class="cap">Festival</span></div>
+</div>
+</body></html>

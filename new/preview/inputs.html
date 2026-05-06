@@ -1,0 +1,17 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Inputs</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;padding:18px;background:#fff;font-family:var(--ov-font-sans)}
+.lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin:10px 0 6px;display:block}
+.input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #e2e8f0;background:#f8fafc;font-size:14px;color:#0f172a;outline:none;box-sizing:border-box}
+.input:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.15);background:#fff}
+.select{position:relative}
+.select::after{content:'▾';position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none}
+</style></head><body>
+<span class="lbl">Email</span>
+<input class="input" placeholder="you@vadodara.in">
+<span class="lbl">City</span>
+<div class="select"><input class="input" value="Vadodara" readonly></div>
+<span class="lbl">Search</span>
+<input class="input" placeholder="🔎 Search Vadodara news…">
+</body></html>
