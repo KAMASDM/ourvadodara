@@ -26,6 +26,12 @@ const ReelFeedCard = ({ reel, onLike, onComment, onShare, onSave, isLiked, isSav
     }
   };
 
+  const handleAction = (event, action) => {
+    event.preventDefault();
+    event.stopPropagation();
+    action?.();
+  };
+
   return (
     <div className="relative bg-black rounded-2xl overflow-hidden shadow-lg mb-8 flex flex-col">
       <div className="relative w-full aspect-video bg-black">
@@ -60,19 +66,19 @@ const ReelFeedCard = ({ reel, onLike, onComment, onShare, onSave, isLiked, isSav
           <p className="text-gray-200 text-sm line-clamp-2 mb-1">{reel.excerpt.en}</p>
         )}
         <div className="flex items-center gap-4 mt-2">
-          <button onClick={onLike} className={`flex items-center gap-1 text-white ${isLiked ? 'text-pink-400' : ''}`}>
+          <button type="button" onClick={(event) => handleAction(event, onLike)} className={`flex items-center gap-1 text-white ${isLiked ? 'text-pink-400' : ''}`}>
             <Heart className="w-5 h-5" />
             <span className="text-xs">{reel.likes || 0}</span>
           </button>
-          <button onClick={onComment} className="flex items-center gap-1 text-white">
+          <button type="button" onClick={(event) => handleAction(event, onComment)} className="flex items-center gap-1 text-white">
             <MessageCircle className="w-5 h-5" />
             <span className="text-xs">{reel.comments || 0}</span>
           </button>
-          <button onClick={onShare} className="flex items-center gap-1 text-white">
+          <button type="button" onClick={(event) => handleAction(event, onShare)} className="flex items-center gap-1 text-white">
             <Share2 className="w-5 h-5" />
             <span className="text-xs">Share</span>
           </button>
-          <button onClick={onSave} className={`flex items-center gap-1 text-white ${isSaved ? 'text-yellow-400' : ''}`}>
+          <button type="button" onClick={(event) => handleAction(event, onSave)} className={`flex items-center gap-1 text-white ${isSaved ? 'text-yellow-400' : ''}`}>
             <Bookmark className="w-5 h-5" />
           </button>
         </div>

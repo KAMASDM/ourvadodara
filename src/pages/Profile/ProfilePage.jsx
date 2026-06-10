@@ -4,19 +4,15 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/Auth/AuthContext';
-import { useTheme } from '../../context/Theme/ThemeContext';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { getUserProfile, updateUserProfile } from '../../utils/adminSetup';
 import { firebaseAuth, db } from '../../firebase-config';
 import { ref, get, onValue } from 'firebase/database';
-import BloodSOSButton from '../../components/SOS/BloodSOSButton.jsx';
 import ContactVerificationModal from '../../components/Profile/ContactVerificationModal';
 import {
   User,
   Settings,
   Bell,
-  Moon,
-  Sun,
   Globe,
   LogOut,
   Edit3,
@@ -82,7 +78,6 @@ const INITIAL_PROFILE_DATA = {
 const ProfilePage = () => {
   const { t } = useTranslation();
   const { user, logout, refreshProfileCompletion, profileCompletion } = useAuth();
-  const { toggleTheme, isDark } = useTheme();
   const { currentLanguage, changeLanguage } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
   const [profileData, setProfileData] = useState(() => cloneProfile(INITIAL_PROFILE_DATA));
@@ -575,6 +570,12 @@ const ProfilePage = () => {
     }
   };
 
+  const handleLogout = async () => {
+    await logout();
+    window.history.pushState({}, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   const dataSource = isEditing ? draftData : profileData;
   const displayName = dataSource.personal.fullName || user?.name || 'News Reader';
   const displayEmail = dataSource.contact.email || user?.email || 'reader@ourvadodara.com';
@@ -839,16 +840,6 @@ const ProfilePage = () => {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Settings</h2>
 
           <div className="space-y-4">
-            <button
-              onClick={toggleTheme}
-              className="w-full flex items-center justify-between rounded-xl border border-transparent bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:bg-gray-800/60 dark:hover:bg-gray-800"
-            >
-              <div className="flex items-center gap-3">
-                {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                <span className="text-gray-900 dark:text-white">{isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</span>
-              </div>
-            </button>
-
             <div className="flex items-center justify-between rounded-xl border border-transparent bg-gray-50/80 px-4 py-3 transition-colors hover:bg-gray-100 dark:bg-gray-800/60 dark:hover:bg-gray-800">
               <div className="flex items-center gap-3">
                 <Globe className="w-5 h-5" />
@@ -909,7 +900,8 @@ const ProfilePage = () => {
       {/* Logout */}
       <div className="mt-6 px-4 pb-10">
         <button
-          onClick={logout}
+          type="button"
+          onClick={handleLogout}
           className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-red-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-red-500/20 transition-colors hover:bg-red-600"
         >
           <LogOut className="w-5 h-5" />
@@ -917,8 +909,6 @@ const ProfilePage = () => {
         </button>
       </div>
 
-      {/* <BloodSOSButton /> */}
-      
       {/* Contact Verification Modal */}
       {showVerificationModal && verificationType && verificationValue && (
         <ContactVerificationModal

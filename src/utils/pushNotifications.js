@@ -92,28 +92,6 @@ class PushNotificationService {
       });
 
       console.log('Successfully stored FCM token with topics:', allTopics);
-      
-      // Call Netlify function to subscribe token to topics
-      try {
-        const response = await fetch('/.netlify/functions/subscribe-topics', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            token: token,
-            topics: allTopics,
-            userId: userId
-          })
-        });
-
-        const result = await response.json();
-        console.log('Topic subscription result:', result);
-      } catch (netlifyError) {
-        console.error('Error calling Netlify function:', netlifyError);
-        // Continue even if Netlify function fails - token is still stored in Firebase
-      }
-      
       return allTopics;
     } catch (error) {
       console.error('Error subscribing to topics:', error);

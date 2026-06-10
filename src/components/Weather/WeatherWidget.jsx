@@ -20,7 +20,9 @@ function getCached(key) {
 }
 
 function setCache(key, data) {
-  try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+  try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {
+    // Cache is optional.
+  }
 }
 
 const Stat = memo(function Stat({ Icon, value, label }) {

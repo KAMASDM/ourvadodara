@@ -11,12 +11,12 @@ import { useLanguage } from '../../context/Language/LanguageContext';
 import { useCity } from '../../context/CityContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { LANGUAGES } from '../../utils/constants';
-import { Globe, Bell, LogIn, MapPin, AlertCircle, X, ChevronDown } from 'lucide-react';
+import { Globe, Bell, LogIn, MapPin, AlertCircle, X, ChevronDown, Search } from 'lucide-react';
 import Logo from '../Shared/Logo';
 import PWAInstallButton from '../PWA/PWAInstallButton';
 import ReadingStreak from '../Gamification/ReadingStreak';
 
-const Header = memo(function Header({ onNotificationClick, onNotifClick, onLoginClick, onProfileClick }) {
+const Header = memo(function Header({ onNotificationClick, onNotifClick, onLoginClick, onProfileClick, onSearchClick }) {
   const { t } = useTranslation();
   const { currentLanguage, changeLanguage } = useLanguage();
   const { currentCity, setCurrentCity, cities } = useCity();
@@ -46,7 +46,7 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
     <>
       {/* ── Header bar ─────────────────────────────────────── */}
       <header
-        className="fixed top-0 inset-x-0 z-50 chrome-blur border-b pt-safe"
+        className="fixed top-0 inset-x-0 z-50 liquid-glass border-b border-white/60 dark:border-white/10 pt-safe"
         style={{ height: 'calc(56px + env(safe-area-inset-top))' }}
         role="banner"
       >
@@ -58,10 +58,10 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
           <button
             type="button"
             onClick={() => setShowSettingsMenu(true)}
-            className="flex items-center gap-1 rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors truncate max-w-[110px]"
+            className="liquid-chip max-w-[120px] text-xs font-semibold text-neutral-700 dark:text-neutral-200 transition-colors truncate"
             aria-label="Select city"
           >
-            <MapPin className="w-3 h-3 flex-shrink-0 text-accent-500" />
+            <MapPin className="w-3 h-3 flex-shrink-0 text-teal-500" />
             <span className="truncate">{currentCity?.name || 'City'}</span>
             <ChevronDown className="w-3 h-3 flex-shrink-0" />
           </button>
@@ -70,6 +70,15 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
 
           {/* Right — action icons */}
           <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={onSearchClick}
+              className="btn-icon"
+              aria-label="Search"
+            >
+              <Search className="w-5 h-5" strokeWidth={2} />
+            </button>
+
             <button
               type="button"
               onClick={() => setShowSettingsMenu(true)}
@@ -126,11 +135,11 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
       {/* ── Settings bottom sheet ───────────────────────────── */}
       {showSettingsMenu && (
         <div
-          className="fixed inset-0 bg-black/40 z-[60] flex items-end"
+          className="fixed inset-0 bg-slate-950/45 backdrop-blur-sm z-[60] flex items-end"
           onClick={closeSheet}
         >
           <div
-            className="w-full bg-white dark:bg-neutral-900 rounded-t-3xl shadow-2xl"
+            className="w-full liquid-panel rounded-t-3xl shadow-2xl border-t border-white/60 dark:border-white/10"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-center pt-3 pb-1">

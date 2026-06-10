@@ -38,7 +38,7 @@ const Media = memo(function Media({ image, hasMulti, hasVideo, isLive, trending,
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(false);
   return (
-    <div className={`relative overflow-hidden bg-neutral-100 dark:bg-neutral-800 ${className}`}>
+    <div className={`relative overflow-hidden bg-slate-100 dark:bg-slate-900 ${className}`}>
       {!err && image ? (
         <>
           {!loaded && <div className="absolute inset-0 skeleton" />}
@@ -65,13 +65,13 @@ const Media = memo(function Media({ image, hasMulti, hasVideo, isLive, trending,
       </div>
 
       {hasMulti && (
-        <div className="absolute top-2.5 right-2.5 bg-black/60 text-white rounded-full px-2 py-1 flex items-center gap-1 text-2xs font-semibold backdrop-blur-sm">
+        <div className="absolute top-2.5 right-2.5 liquid-chip !bg-black/45 text-white px-2 py-1 flex items-center gap-1 text-2xs font-semibold">
           <Images className="w-3 h-3" />
         </div>
       )}
       {hasVideo && (
         <div className="absolute inset-0 grid place-items-center pointer-events-none">
-          <div className="w-14 h-14 rounded-full bg-black/50 backdrop-blur-sm grid place-items-center">
+          <div className="w-14 h-14 rounded-full bg-white/20 border border-white/30 backdrop-blur-xl grid place-items-center shadow-2xl">
             <Play className="w-6 h-6 text-white fill-white translate-x-0.5" />
           </div>
         </div>
@@ -83,7 +83,7 @@ const Media = memo(function Media({ image, hasMulti, hasVideo, isLive, trending,
 const AuthorRow = memo(function AuthorRow({ author, verified, time, compact }) {
   return (
     <div className={`flex items-center gap-2 ${compact ? 'text-2xs' : 'text-xs'} text-neutral-500 dark:text-neutral-400 mb-1.5`}>
-      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 text-[10px] font-bold">
+      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/65 dark:bg-white/10 border border-white/50 dark:border-white/10 text-primary-700 dark:text-primary-300 text-[10px] font-bold">
         {author[0]}
       </span>
       <span className="font-semibold text-neutral-700 dark:text-neutral-200 truncate">{author}</span>
@@ -97,7 +97,7 @@ const AuthorRow = memo(function AuthorRow({ author, verified, time, compact }) {
 const MetaRow = memo(function MetaRow({ location, views, comments, readTime, isSaved, onSave, onShare, postId, onReact, isLiked, onLike }) {
   const stop = (e) => e.stopPropagation();
   return (
-    <div className="flex items-center gap-3 text-2xs text-neutral-400 dark:text-neutral-500 mt-2.5 pt-2.5 border-t border-neutral-100 dark:border-neutral-800">
+    <div className="flex items-center gap-3 text-2xs text-neutral-500 dark:text-neutral-400 mt-2.5 pt-2.5 border-t border-white/50 dark:border-white/10">
       <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{location}</span>
       <span className="inline-flex items-center gap-1"><Eye className="w-3 h-3" />{formatNumber(views)}</span>
       <span className="inline-flex items-center gap-1"><MessageCircle className="w-3 h-3" />{formatNumber(comments)}</span>
@@ -119,8 +119,8 @@ const MetaRow = memo(function MetaRow({ location, views, comments, readTime, isS
 /* ── variants ────────────────────────────────────────────── */
 function DefaultCard({ n, post, onClick, isLiked, isSaved, onLike, onSave, onShare }) {
   return (
-    <article onClick={onClick} className="card-interactive overflow-hidden animate-fadeIn content-vis">
-      <Media image={n.image} hasMulti={n.hasMulti} hasVideo={n.hasVideo} isLive={n.isLive} trending={n.trending} category={n.category} className="aspect-[16/9]" />
+    <article onClick={onClick} className="liquid-card overflow-hidden animate-fadeIn content-vis cursor-pointer transition-all duration-300 hover:-translate-y-0.5">
+      <Media image={n.image} hasMulti={n.hasMulti} hasVideo={n.hasVideo} isLive={n.isLive} trending={n.trending} category={n.category} className="aspect-[16/9] m-2 rounded-[1.25rem]" />
       <div className="p-3.5">
         <AuthorRow author={n.author} verified={n.verified} time={formatTimeAgo(n.publishedAt)} />
         <h3 className="text-base font-bold leading-snug line-clamp-2 mb-1">{n.title}</h3>
@@ -134,7 +134,7 @@ function DefaultCard({ n, post, onClick, isLiked, isSaved, onLike, onSave, onSha
 
 function FeaturedCard({ n, post, onClick, isSaved, onSave, onShare }) {
   return (
-    <article onClick={onClick} className="relative aspect-[4/5] rounded-2xl overflow-hidden shadow-lg cursor-pointer group animate-fadeIn">
+    <article onClick={onClick} className="relative aspect-[4/5] rounded-3xl overflow-hidden shadow-lg cursor-pointer group animate-fadeIn border border-white/50 dark:border-white/10">
       <Media image={n.image} hasMulti={n.hasMulti} hasVideo={n.hasVideo} isLive={n.isLive} trending={n.trending} category={n.category} className="absolute inset-0" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent pointer-events-none" />
       <div className="absolute inset-x-0 bottom-0 p-5 text-white">
@@ -158,7 +158,7 @@ function FeaturedCard({ n, post, onClick, isSaved, onSave, onShare }) {
 
 function CompactCard({ n, post, onClick, isSaved, onSave }) {
   return (
-    <article onClick={onClick} className="flex gap-3 py-3 border-b border-neutral-100 dark:border-neutral-800 cursor-pointer group">
+    <article onClick={onClick} className="flex gap-3 py-3 border-b border-white/50 dark:border-white/10 cursor-pointer group">
       <div className="flex-1 min-w-0">
         <span className="eyebrow" style={{ color: 'var(--color-primary)' }}>{n.category}</span>
         <h3 className="text-[15px] font-bold leading-snug line-clamp-2 my-1 group-hover:text-primary-600 transition-colors">{n.title}</h3>

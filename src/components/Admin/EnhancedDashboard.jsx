@@ -73,15 +73,18 @@ const EnhancedDashboard = () => {
     switch (dateRange) {
       case 'today':
         return postDate.toDateString() === now.toDateString();
-      case 'week':
+      case 'week': {
         const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
         return postDate >= weekAgo;
-      case 'month':
+      }
+      case 'month': {
         const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
         return postDate >= monthAgo;
-      case 'year':
+      }
+      case 'year': {
         const yearAgo = new Date(now - 365 * 24 * 60 * 60 * 1000);
         return postDate >= yearAgo;
+      }
       default:
         return true;
     }

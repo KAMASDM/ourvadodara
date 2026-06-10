@@ -1,7 +1,7 @@
 // =============================================
 // src/context/Theme/ThemeContext.jsx
 // =============================================
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
 import { THEMES } from '../../utils/constants';
 
 const ThemeContext = createContext();
@@ -15,34 +15,18 @@ export const useTheme = () => {
 };
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      return savedTheme;
-    }
-    localStorage.setItem('theme', THEMES.DARK);
-    return THEMES.DARK;
-  });
-
-  const toggleTheme = () => {
-    const newTheme = theme === THEMES.LIGHT ? THEMES.DARK : THEMES.LIGHT;
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-  };
+  const theme = THEMES.LIGHT;
 
   useEffect(() => {
     const root = window.document.documentElement;
-    if (theme === THEMES.DARK) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-  }, [theme]);
+    root.classList.remove('dark');
+    localStorage.setItem('theme', THEMES.LIGHT);
+  }, []);
 
   const value = {
     theme,
-    toggleTheme,
-    isDark: theme === THEMES.DARK,
+    toggleTheme: () => {},
+    isDark: false,
   };
 
   return (

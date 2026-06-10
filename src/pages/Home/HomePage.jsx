@@ -128,7 +128,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
     : null;
 
   return (
-    <div ref={containerRef} className={`min-h-screen bg-neutral-50 dark:bg-neutral-950 ${!isDesktop ? 'pb-24' : ''}`}>
+    <div ref={containerRef} className={`min-h-screen ${!isDesktop ? 'pb-24' : ''}`}>
       {/* Pull-to-refresh indicator - mobile only */}
       {!isDesktop && (
         <PullToRefreshIndicator
@@ -156,10 +156,10 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
 
           {/* ── Sticky control bar ── */}
           <div
-            className="sticky z-30 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shadow-sm"
-            style={{ top: '3.5rem' }}
+            className="sticky z-30 px-2 pt-1"
+            style={{ top: 'calc(56px + env(safe-area-inset-top) + 4px)' }}
           >
-            <div className="px-3 py-2.5 space-y-2.5">
+            <div className="liquid-panel rounded-[1.35rem] px-3 py-2.5 space-y-2.5 border border-white/60 dark:border-white/10">
 
               {/* Row 1: section title + focus button */}
               <div className="flex items-center justify-between">
@@ -180,7 +180,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                     <button
                       type="button"
                       onClick={() => setActiveSection(null)}
-                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-full border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                      className="liquid-chip px-2.5 py-1 text-xs font-semibold text-neutral-600 dark:text-neutral-300 transition"
                     >
                       <X className="w-3 h-3" />
                       News
@@ -189,10 +189,10 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                   <button
                     type="button"
                     onClick={() => setSectionSheetOpen(true)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition ${
+                    className={`liquid-chip px-3 py-1.5 text-xs font-semibold transition ${
                       activeSection
-                        ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
-                        : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600'
+                        ? 'text-blue-700 dark:text-sky-300'
+                        : 'text-neutral-600 dark:text-neutral-300'
                     }`}
                   >
                     <SlidersHorizontal className="w-3 h-3" />
@@ -202,7 +202,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
               </div>
 
               {/* Row 2: Feed tabs */}
-              <div className="flex items-center gap-1 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg w-fit">
+              <div className="liquid-chip flex items-center gap-1 p-1 w-fit">
                 {[
                   { id: 'for-you', label: t('for_you', 'For You') },
                   { id: 'all', label: t('all', 'All') },
@@ -210,9 +210,9 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                   <button
                     key={tab.id}
                     onClick={() => setFeedTab(tab.id)}
-                    className={`px-3.5 py-1 text-xs font-semibold rounded-md transition ${
+                    className={`px-3.5 py-1 text-xs font-semibold rounded-full transition ${
                       feedTab === tab.id
-                        ? 'bg-white dark:bg-neutral-700 text-primary-700 dark:text-primary-400 shadow-sm'
+                        ? 'bg-white/80 dark:bg-white/10 text-blue-700 dark:text-sky-300 shadow-sm'
                         : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
                     }`}
                   >
@@ -231,8 +231,8 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
 
           {/* Active section panel (non-sticky, scrolls with page) */}
           {activeSection && ActiveSectionComponent && (
-            <div className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-              <div className="px-3 py-4">
+            <div className="px-2 pt-3">
+              <div className="liquid-card p-3">
                 <ActiveSectionComponent onPostClick={onPostClick} />
               </div>
             </div>
@@ -241,14 +241,14 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
           {/* Scrollable content */}
           <div className="flex-1 pb-6">
             {!activeSection && (
-              <div className="px-3 mt-3 mb-3">
+              <div className="mt-3 mb-2">
                 <EnhancedStorySection
                   onViewStory={(story) => console.log('View story:', story)}
                 />
               </div>
             )}
 
-            <div className="px-3 mt-3 space-y-3">
+            <div className="px-2 mt-2 space-y-2.5">
               <TrendingTopicsWidget
                 onTopicClick={(topic) => {
                   setSelectedTopic(topic);
@@ -257,11 +257,12 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
               <ReadingStreak compact={true} />
             </div>
 
-            <div className="mt-3">
+            <div className="mt-2">
               <EnhancedNewsFeed
                 key={`${refreshKey}-${feedTab}-${selectedTopic}`}
                 activeCategory={activeCategory}
                 onPostClick={onPostClick}
+                onShowReels={onShowReels}
                 feedType="all"
               />
             </div>
@@ -276,12 +277,12 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
           <button
             type="button"
             aria-label={t('home.close_focus_panel', 'Close focus panel')}
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
             onClick={() => setSectionSheetOpen(false)}
           />
 
           {/* Sheet — raised above the 64px bottom nav bar */}
-          <div className="relative z-50 w-full max-h-[75vh] mb-[64px] bg-white dark:bg-neutral-900 rounded-t-3xl border-t border-neutral-200 dark:border-neutral-700 flex flex-col shadow-2xl">
+          <div className="relative z-50 w-full max-h-[75vh] mb-[74px] liquid-panel rounded-t-3xl border-t border-white/60 dark:border-white/10 flex flex-col shadow-2xl">
             {/* Drag handle */}
             <div className="mx-auto mt-3 w-10 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
 
@@ -316,10 +317,10 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                       key={section.id}
                       type="button"
                       onClick={() => handleSectionClick(section.id)}
-                      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                      className={`liquid-action flex items-center gap-3 p-3.5 rounded-2xl text-left focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                         isActive
-                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                          : 'border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-white dark:hover:bg-neutral-750'
+                          ? 'text-blue-700 dark:text-sky-300'
+                          : 'text-neutral-800 dark:text-neutral-200'
                       }`}
                     >
                       <span className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl ${section.color} shadow-sm`}>
@@ -344,7 +345,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                 <button
                   type="button"
                   onClick={() => { setActiveSection(null); setSectionSheetOpen(false); }}
-                  className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 text-sm text-neutral-500 dark:text-neutral-400 hover:text-danger rounded-xl border border-neutral-200 dark:border-neutral-700 hover:border-danger transition"
+                  className="mt-4 w-full liquid-action flex items-center justify-center gap-2 py-2.5 text-sm text-neutral-500 dark:text-neutral-400 hover:text-danger rounded-2xl transition"
                 >
                   <X className="w-4 h-4" />
                   Clear focus

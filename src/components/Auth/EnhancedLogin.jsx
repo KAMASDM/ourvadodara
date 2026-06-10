@@ -22,7 +22,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import GoogleIcon from '../Icons/GoogleIcon';
-import LoadingSpinner from '../Common/LoadingSpinner';
+import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 
 const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
   const { t } = useTranslation();
@@ -487,20 +487,31 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-bg-card-dark rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-border-light dark:border-border-dark">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+      <div className="liquid-panel max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[1.75rem] border border-white/70 shadow-2xl">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              {mode === 'signin' && t('auth.signInTitle')}
-              {mode === 'signup' && t('auth.signUpTitle')}
-              {mode === 'phone' && t('auth.phoneSignIn')}
-              {mode === 'reset' && t('auth.resetPasswordTitle')}
-            </h2>
+        <div className="border-b border-white/60 p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-white/75 shadow-inner">
+                <img src={logoImage} alt="Our Vadodara" className="h-11 w-11 object-contain" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-700">Our Vadodara</p>
+                <h2 className="text-xl font-bold leading-tight text-slate-950">
+                  {mode === 'signin' && 'Welcome back'}
+                  {mode === 'signup' && 'Join the city desk'}
+                  {mode === 'phone' && 'Sign in with phone'}
+                  {mode === 'reset' && 'Reset password'}
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">Local news, reels, alerts, and community updates in one app.</p>
+              </div>
+            </div>
             <button
+              type="button"
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/60 text-slate-400 transition hover:text-slate-700"
+              aria-label="Close login"
             >
               ×
             </button>

@@ -10,6 +10,8 @@ import { useCity } from '../../context/CityContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { useDoubleTap } from '../../hooks/useDoubleTap';
+import { db } from '../../firebase-config';
+import { ref, update, increment, set, remove } from 'firebase/database';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import { 
   Heart, 
@@ -33,7 +35,7 @@ import { FeedSkeleton, ReelsGridSkeleton } from '../Common/SkeletonLoader';
 import { POST_TYPES } from '../../utils/mediaSchema';
 import { sampleNews } from '../../data/newsData';
 
-const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => {
+const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {}, feedType = 'all' }) => {
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
   const { user } = useAuth();
@@ -209,10 +211,20 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
   );
 
   // Handle post interactions
-  const handleLike = async (postId) => {
+  const handleLike = async (post) => {
+    const postId = post?.id;
+    if (!postId) return;
+
+    if (!user) {
+      document.dispatchEvent(new CustomEvent('showGuestPrompt'));
+      return;
+    }
+
+    const wasLiked = likedPosts.has(postId);
+
     setLikedPosts(prev => {
       const newLiked = new Set(prev);
-      if (newLiked.has(postId)) {
+      if (wasLiked) {
         newLiked.delete(postId);
       } else {
         newLiked.add(postId);
@@ -220,13 +232,41 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
       return newLiked;
     });
 
-    // TODO: Update Firebase with like status
+    try {
+      const sourcePath = post.source || 'posts';
+      const updates = {
+        [`likes/${postId}/${user.uid}`]: wasLiked ? null : true,
+        [`${sourcePath}/${postId}/analytics/likes`]: increment(wasLiked ? -1 : 1)
+      };
+      await update(ref(db), updates);
+    } catch (error) {
+      console.error('Error updating like:', error);
+      setLikedPosts(prev => {
+        const newLiked = new Set(prev);
+        if (wasLiked) {
+          newLiked.add(postId);
+        } else {
+          newLiked.delete(postId);
+        }
+        return newLiked;
+      });
+    }
   };
 
-  const handleSave = async (postId) => {
+  const handleSave = async (post) => {
+    const postId = post?.id;
+    if (!postId) return;
+
+    if (!user) {
+      document.dispatchEvent(new CustomEvent('showGuestPrompt'));
+      return;
+    }
+
+    const wasSaved = savedPosts.has(postId);
+
     setSavedPosts(prev => {
       const newSaved = new Set(prev);
-      if (newSaved.has(postId)) {
+      if (wasSaved) {
         newSaved.delete(postId);
       } else {
         newSaved.add(postId);
@@ -234,7 +274,29 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
       return newSaved;
     });
 
-    // TODO: Update Firebase with saved status
+    try {
+      const bookmarkRef = ref(db, `bookmarks/${user.uid}/${postId}`);
+      if (wasSaved) {
+        await remove(bookmarkRef);
+      } else {
+        await set(bookmarkRef, {
+          timestamp: Date.now(),
+          type: post.type || 'post',
+          source: post.source || 'posts'
+        });
+      }
+    } catch (error) {
+      console.error('Error updating bookmark:', error);
+      setSavedPosts(prev => {
+        const newSaved = new Set(prev);
+        if (wasSaved) {
+          newSaved.add(postId);
+        } else {
+          newSaved.delete(postId);
+        }
+        return newSaved;
+      });
+    }
   };
 
   const handleShare = async (post) => {
@@ -263,7 +325,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
   };
 
   const handleMediaInteraction = (type, data) => {
-    // Handle media-specific interactions (video play, carousel navigation, etc.)
+    // Reserved for feed-level media analytics.
   };
 
   if (isLoading) {
@@ -306,17 +368,18 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, feedType = 'all' }) => 
 
   // Standard feed layout
   return (
-    <div className="flex flex-col gap-6 px-3 pb-8 sm:px-4">
+    <div className="flex flex-col gap-4 px-1 pb-8 sm:px-3">
       {paginatedPosts.map((post, index) => {
         return (
           <PostCard 
             key={post.id || `post-${index}`}
             post={post} 
             onPostClick={onPostClick}
-            onLike={() => handleLike(post.id)}
-            onSave={() => handleSave(post.id)}
+            onLike={() => handleLike(post)}
+            onSave={() => handleSave(post)}
             onShare={() => handleShare(post)}
             onMediaInteraction={handleMediaInteraction}
+            onShowReels={onShowReels}
             isLiked={likedPosts.has(post.id)}
             isSaved={savedPosts.has(post.id)}
             isExpanded={expandedPosts.has(post.id)}
@@ -362,6 +425,7 @@ const PostCard = ({
   onSave, 
   onShare, 
   onMediaInteraction,
+  onShowReels,
   isLiked, 
   isSaved, 
   isExpanded,
@@ -445,14 +509,15 @@ const PostCard = ({
   const displayContent = isExpanded ? content : (excerpt || content?.substring(0, 150) + '...');
   const shouldShowReadMore = content.length > 150;
   const isClickable = post.source === 'posts';
-  const titleClasses = `text-xl font-semibold text-warmBrown-900 dark:text-white tracking-tight transition-colors ${
-    isClickable ? 'cursor-pointer hover:text-warmBrown-600 dark:hover:text-blue-400' : 'cursor-default'
+  const isReel = post.type === POST_TYPES.REEL || post.source === 'reels';
+  const titleClasses = `text-xl font-bold text-slate-950 dark:text-white tracking-tight leading-snug transition-colors ${
+    isClickable ? 'cursor-pointer hover:text-blue-700 dark:hover:text-sky-300' : 'cursor-default'
   }`;
   const authorName = 'Our Vadodara';
   const authorAvatar = logoImage;
 
   return (
-    <article className="group relative overflow-hidden border-y-2 border-warmBrown-200 dark:border-gray-700/60 bg-gradient-to-b from-ivory-50 via-ivory-100 to-ivory-200 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-sm hover:shadow-md dark:shadow-black/40 transition-all duration-300 mb-0">
+    <article className="group liquid-card transition-all duration-300 hover:-translate-y-0.5 rounded-[1.35rem]">
       {/* Heart animation overlay */}
       <HeartAnimation
         show={showHeartAnimation}
@@ -460,25 +525,25 @@ const PostCard = ({
         onComplete={() => setShowHeartAnimation(false)}
       />
       
-      <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(circle_at_top_left,rgba(168,146,111,0.15),transparent_55%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.3),transparent_55%)]"></div>
+      <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.18),transparent_48%),radial-gradient(circle_at_top_right,rgba(37,99,235,0.16),transparent_42%)]"></div>
 
       {/* Post Header */}
       <div className="relative px-4 pt-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="relative">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-warmBrown-200 to-ivory-100 dark:from-blue-500/20 dark:to-transparent flex items-center justify-center shadow-inner">
+              <div className="w-12 h-12 rounded-2xl bg-white/60 dark:bg-white/10 border border-white/70 dark:border-white/10 flex items-center justify-center shadow-inner backdrop-blur-md">
                 <img
                   src={authorAvatar}
                   alt={authorName}
-                  className="w-10 h-10 rounded-full border-2 border-warmBrown-300 dark:border-gray-800 shadow-md object-contain bg-white p-1"
+                  className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 shadow-md object-contain bg-white p-1"
                 />
               </div>
-              <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-ivory-50 dark:border-gray-900 bg-emerald-500 shadow-sm"></span>
+              <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-white dark:border-slate-900 bg-emerald-500 shadow-sm"></span>
             </div>
             <div className="flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-semibold text-warmBrown-900 dark:text-white text-sm sm:text-base">
+                <h3 className="font-semibold text-slate-900 dark:text-white text-sm sm:text-base">
                   {authorName}
                 </h3>
                 {post.type !== POST_TYPES.STANDARD && (
@@ -492,7 +557,7 @@ const PostCard = ({
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 <span className="inline-flex items-center gap-1">
                   <Clock className="w-3 h-3" />
                   {formatTimeAgo(post.publishedAt || post.createdAt)}
@@ -507,7 +572,7 @@ const PostCard = ({
             </div>
           </div>
 
-          <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-transparent bg-gray-100/80 text-gray-500 transition-colors hover:border-gray-200 hover:text-gray-700 dark:bg-gray-800/70 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:text-gray-200">
+          <button className="liquid-action flex h-10 w-10 items-center justify-center rounded-2xl text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100">
             <MoreVertical className="w-4 h-4" />
           </button>
         </div>
@@ -526,12 +591,12 @@ const PostCard = ({
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {post.isBreaking && (
-            <span className="bg-red-600 text-white text-[11px] font-bold px-2 py-1 rounded-full shadow-sm animate-pulse border border-red-700">
+            <span className="bg-red-600 text-white text-[11px] font-bold px-2 py-1 rounded-full shadow-sm animate-pulse border border-red-500/60">
               BREAKING
             </span>
           )}
           {post.isFeatured && (
-            <span className="bg-blue-600/90 text-white text-[11px] font-semibold px-2 py-1 rounded-full shadow-sm border border-blue-700">
+            <span className="bg-blue-600/90 text-white text-[11px] font-semibold px-2 py-1 rounded-full shadow-sm border border-blue-500/60">
               FEATURED
             </span>
           )}
@@ -543,12 +608,12 @@ const PostCard = ({
         </div>
 
         {displayContent && (
-          <div className="mt-3 text-sm leading-relaxed text-warmBrown-800 dark:text-gray-300">
+          <div className="mt-3 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
             <p>{displayContent}</p>
             {shouldShowReadMore && (
               <button
                 onClick={onToggleExpanded}
-                className="mt-2 inline-flex items-center text-blue-600 dark:text-blue-400 text-sm font-semibold hover:underline"
+                className="mt-2 inline-flex items-center text-blue-700 dark:text-sky-300 text-sm font-semibold hover:underline"
               >
                 {isExpanded ? 'Show less' : 'Read more'}
               </button>
@@ -578,15 +643,30 @@ const PostCard = ({
 
       {/* Media Content */}
       {hasMedia && (
-        <div className="relative mt-5">
-          <div 
-            className="overflow-hidden bg-black dark:bg-gray-900 select-none"
+      <div className="relative mt-5 px-2">
+        <div 
+            className="overflow-hidden bg-black dark:bg-gray-900 select-none rounded-[1.15rem] border border-white/50 dark:border-white/10 shadow-xl"
           >
             <MediaRenderer
               post={post}
               className="w-full h-auto max-h-[80vh]"
               showControls={post.type === POST_TYPES.REEL}
-              onInteraction={onMediaInteraction}
+              onInteraction={(type, data) => {
+                onMediaInteraction(type, data);
+
+                if (type === 'like') {
+                  onLike();
+                } else if (type === 'comment' && isReel) {
+                  onShowReels(post.id);
+                } else if (type === 'comment' && isClickable) {
+                  onPostClick(post.id);
+                } else if (type === 'share') {
+                  onShare();
+                } else if (type === 'save') {
+                  onSave();
+                }
+              }}
+              actionState={{ isLiked, isSaved }}
               showCarouselDots={!isCarouselPost}
               onCarouselChange={handleCarouselChange}
               externalCarouselIndex={carouselIndex}
@@ -621,19 +701,19 @@ const PostCard = ({
         <div className="relative mt-5 px-4">
           <div className="flex flex-wrap items-center gap-2">
             {post.category && (
-              <span className="rounded-full bg-ivory-200 text-warmBrown-800 border border-warmBrown-300 px-3 py-1 text-xs font-medium dark:bg-gray-800/70 dark:text-gray-200 dark:border-gray-700">
+              <span className="liquid-chip text-xs font-semibold text-blue-700 dark:text-sky-300">
                 {post.category}
               </span>
             )}
             {post.tags && post.tags.slice(0, 3).map((tag, index) => (
-              <span key={index} className="rounded-full bg-warmBrown-100 text-warmBrown-700 border border-warmBrown-200 px-3 py-1 text-xs font-medium dark:bg-blue-500/20 dark:text-blue-200 dark:border-blue-700">
+              <span key={index} className="liquid-chip text-xs font-medium text-slate-600 dark:text-slate-300">
                 #{tag}
               </span>
             ))}
           </div>
 
           {showStats && (
-            <div className="mt-4 flex flex-wrap gap-4 text-xs text-warmBrown-600 dark:text-gray-400">
+            <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-500 dark:text-slate-400">
               {viewCount !== null && (
                 <span className="inline-flex items-center gap-1">
                   <Eye className="w-4 h-4" />
@@ -655,9 +735,9 @@ const PostCard = ({
       )}
 
       {/* Action Buttons */}
-      <div className="relative mt-6 border-t border-warmBrown-200 dark:border-gray-800 bg-ivory-50/70 dark:bg-gray-900/60 backdrop-blur-sm">
-        <div className="flex items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-4 text-sm">
+      <div className="relative mt-6 border-t border-white/50 dark:border-white/10 bg-white/35 dark:bg-slate-950/25 backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-2 px-3 py-3.5 sm:px-4 sm:py-4">
+          <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-hide text-sm">
             <EmojiReactions 
               postId={post.id} 
               postType="posts"
@@ -666,13 +746,13 @@ const PostCard = ({
             />
 
             <button
-              onClick={isClickable ? () => onPostClick(post.id) : undefined}
-              className={`flex items-center gap-2 rounded-full px-3 py-2 transition-colors ${
-                isClickable
-                  ? 'text-warmBrown-700 dark:text-gray-300 hover:text-warmBrown-500 hover:bg-warmBrown-100 dark:hover:bg-blue-500/20'
-                  : 'text-warmBrown-400 dark:text-gray-500 cursor-not-allowed opacity-60'
+              onClick={isReel ? () => onShowReels(post.id) : isClickable ? () => onPostClick(post.id) : undefined}
+              className={`flex flex-shrink-0 items-center gap-2 rounded-full px-2.5 py-2 transition-colors ${
+                isClickable || isReel
+                  ? 'text-slate-700 dark:text-slate-300 hover:text-blue-700 hover:bg-white/45 dark:hover:bg-white/10'
+                  : 'text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60'
               }`}
-              disabled={!isClickable}
+              disabled={!isClickable && !isReel}
             >
               <MessageCircle className="w-5 h-5" />
               <span className="font-medium">Comment</span>
@@ -680,7 +760,7 @@ const PostCard = ({
 
             <button
               onClick={onShare}
-              className="flex items-center gap-2 rounded-full px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-emerald-500 hover:bg-emerald-500/10 dark:hover:bg-emerald-500/20 transition-colors"
+              className="flex flex-shrink-0 items-center gap-2 rounded-full px-2.5 py-2 text-slate-600 dark:text-slate-300 hover:text-teal-600 hover:bg-white/45 dark:hover:bg-white/10 transition-colors"
             >
               <Share2 className="w-5 h-5" />
               <span className="font-medium">Share</span>
@@ -691,8 +771,8 @@ const PostCard = ({
             onClick={onSave}
             className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
               isSaved 
-                ? 'bg-blue-500/15 text-blue-500 dark:bg-blue-500/20' 
-                : 'text-gray-600 dark:text-gray-300 hover:text-blue-500 hover:bg-blue-500/10 dark:hover:bg-blue-500/20'
+                ? 'bg-blue-500/15 text-blue-600 dark:bg-blue-500/20' 
+                : 'text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:bg-white/45 dark:hover:bg-white/10'
             }`}
             aria-label="Save post"
           >

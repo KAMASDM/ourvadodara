@@ -3,7 +3,7 @@
 // Modernized bottom tab bar — frosted chrome,
 // active pill, safe-area, keyboard accessible.
 // =============================================
-import React, { memo } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Home, Newspaper, User, AlertTriangle, LogIn, Clapperboard } from 'lucide-react';
 import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
@@ -13,6 +13,8 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
   const { t } = useTranslation();
   const { user } = useEnhancedAuth();
   const handleChange = onTabChange || setActiveTab;
+  const [isHidden, setIsHidden] = useState(false);
+  const lastScrollY = useRef(typeof window !== 'undefined' ? window.scrollY : 0);
 
   const { data: notificationsObject } = useRealtimeData(
     user ? `notifications/${user.uid}` : null
@@ -21,6 +23,35 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
   const unreadCount = notificationsObject
     ? Object.values(notificationsObject).filter(n => !n.isRead).length
     : 0;
+
+  useEffect(() => {
+    const showNav = () => setIsHidden(false);
+
+    const handleScroll = () => {
+      const currentY = Math.max(window.scrollY, 0);
+      const delta = currentY - lastScrollY.current;
+      const nearTop = currentY < 48;
+      const nearBottom = window.innerHeight + currentY >= document.documentElement.scrollHeight - 96;
+
+      if (nearTop || nearBottom || delta < -8) {
+        setIsHidden(false);
+      } else if (delta > 10 && currentY > 120) {
+        setIsHidden(true);
+      }
+
+      lastScrollY.current = currentY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('touchstart', showNav, { passive: true });
+    window.addEventListener('focusin', showNav);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('touchstart', showNav);
+      window.removeEventListener('focusin', showNav);
+    };
+  }, []);
 
   const navItems = [
     { id: 'home',     Icon: Home,          label: t('home', 'Home') },
@@ -34,11 +65,16 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-50 chrome-blur border-t pb-safe"
+      className={`fixed bottom-0 inset-x-0 z-50 pb-safe transition-all duration-300 ease-out ${
+        isHidden ? 'translate-y-[calc(100%+1rem)] opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+      }`}
       role="navigation"
       aria-label="Primary"
+      onMouseEnter={() => setIsHidden(false)}
+      onFocusCapture={() => setIsHidden(false)}
     >
-      <div className="max-w-app mx-auto flex h-[64px]">
+      <div className="max-w-app mx-auto mb-2 px-2">
+        <div className="liquid-glass flex h-[64px] rounded-3xl border border-white/60 dark:border-white/10">
         {navItems.map(({ id, Icon, label, alert, badge }) => {
           const active = activeTab === id;
           const color = active
@@ -54,16 +90,16 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
               onClick={() => handleChange?.(id)}
               aria-label={label}
               aria-current={active ? 'page' : undefined}
-              className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 ${color} transition-colors duration-150 active:scale-95`}
+              className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 ${color} transition-all duration-200 active:scale-95`}
             >
               {active && (
                 <span
                   aria-hidden
-                  className="absolute top-0 w-8 h-0.5 bg-primary-600 dark:bg-primary-400 rounded-b-[3px]"
+                  className="absolute inset-x-1 top-1 bottom-1 rounded-[1.35rem] bg-white/75 dark:bg-white/10 shadow-inner ring-1 ring-white/60"
                 />
               )}
-              <Icon className="w-[22px] h-[22px]" strokeWidth={active ? 2.5 : 2} />
-              <span className="text-[10px] font-semibold tracking-[0.02em]">{label}</span>
+              <Icon className="relative z-10 w-[22px] h-[22px]" strokeWidth={active ? 2.5 : 2} />
+              <span className="relative z-10 text-[10px] font-semibold tracking-[0.02em]">{label}</span>
 
               {/* Notification badge */}
               {badge > 0 && (
@@ -79,6 +115,7 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
             </button>
           );
         })}
+        </div>
       </div>
     </nav>
   );

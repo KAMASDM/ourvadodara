@@ -10,7 +10,6 @@ const resources = {
     translation: {
       // Navigation
       home: 'Home',
-      search: 'Search',
       profile: 'Profile',
       admin: 'Admin',
       
@@ -87,6 +86,7 @@ const resources = {
       
       // Search
       search: {
+        search: 'Search',
         all_categories: 'All Categories',
         category: 'Category',
         tags: 'Tags'
@@ -103,7 +103,6 @@ const resources = {
     translation: {
       // Navigation
       home: 'होम',
-      search: 'खोजें',
       profile: 'प्रोफाइल',
       admin: 'एडमिन',
       
@@ -151,6 +150,7 @@ const resources = {
       
       // Search
       search: {
+        search: 'खोजें',
         all_categories: 'सभी श्रेणियां',
         category: 'श्रेणी',
         tags: 'टैग'
@@ -167,7 +167,6 @@ const resources = {
     translation: {
       // Navigation
       home: 'હોમ',
-      search: 'શોધો',
       profile: 'પ્રોફાઇલ',
       admin: 'એડમિન',
       
@@ -215,6 +214,7 @@ const resources = {
       
       // Search
       search: {
+        search: 'શોધો',
         all_categories: 'બધી શ્રેણીઓ',
         category: 'શ્રેણી',
         tags: 'ટેગ્સ'

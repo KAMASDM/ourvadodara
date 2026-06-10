@@ -30,6 +30,7 @@ const MediaRenderer = ({
   showActionButtons = true,
   showReelInfo = true,
   onInteraction = null,
+  actionState = {},
   showCarouselDots = true,
   onCarouselChange = null,
   externalCarouselIndex = null
@@ -356,6 +357,12 @@ const MediaRenderer = ({
     onInteraction?.(type, { ...data, postId: post.id, mediaIndex: currentIndex });
   };
 
+  const handleActionButtonClick = (event, interactionType) => {
+    event.preventDefault();
+    event.stopPropagation();
+    handleInteraction(interactionType);
+  };
+
   // Handle legacy image field as fallback
 
   // Use only validSlides for rendering
@@ -569,7 +576,10 @@ const MediaRenderer = ({
 
         {/* Custom Play/Pause Button Overlay */}
         <div
-          onClick={togglePlayPause}
+          onClick={(event) => {
+            event.stopPropagation();
+            togglePlayPause();
+          }}
           className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
           style={{ pointerEvents: 'auto' }}
         >
@@ -626,37 +636,46 @@ const MediaRenderer = ({
 
         {/* Action Buttons */}
         {showActionButtons && (
-          <div className="absolute bottom-4 right-4 flex flex-col space-y-4">
+          <div className="absolute bottom-4 right-4 z-30 flex flex-col space-y-4">
           <button
-            onClick={() => handleInteraction('like')}
+            type="button"
+            onClick={(event) => handleActionButtonClick(event, 'like')}
             className="w-12 h-12 flex items-center justify-center text-white bg-black bg-opacity-30 rounded-full hover:bg-opacity-50 transition-colors"
           >
-            <Heart className="w-6 h-6" />
+            <Heart className={`w-6 h-6 ${actionState.isLiked ? 'fill-current text-red-400' : ''}`} />
           </button>
           
           <button
-            onClick={() => handleInteraction('comment')}
+            type="button"
+            onClick={(event) => handleActionButtonClick(event, 'comment')}
             className="w-12 h-12 flex items-center justify-center text-white bg-black bg-opacity-30 rounded-full hover:bg-opacity-50 transition-colors"
           >
             <MessageCircle className="w-6 h-6" />
           </button>
           
           <button
-            onClick={() => handleInteraction('share')}
+            type="button"
+            onClick={(event) => handleActionButtonClick(event, 'share')}
             className="w-12 h-12 flex items-center justify-center text-white bg-black bg-opacity-30 rounded-full hover:bg-opacity-50 transition-colors"
           >
             <Share2 className="w-6 h-6" />
           </button>
           
           <button
-            onClick={() => handleInteraction('save')}
+            type="button"
+            onClick={(event) => handleActionButtonClick(event, 'save')}
             className="w-12 h-12 flex items-center justify-center text-white bg-black bg-opacity-30 rounded-full hover:bg-opacity-50 transition-colors"
           >
-            <Bookmark className="w-6 h-6" />
+            <Bookmark className={`w-6 h-6 ${actionState.isSaved ? 'fill-current text-yellow-300' : ''}`} />
           </button>
           
           <button
-            onClick={toggleMute}
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              toggleMute();
+            }}
             className="w-12 h-12 flex items-center justify-center text-white bg-black bg-opacity-30 rounded-full hover:bg-opacity-50 transition-colors"
           >
             {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}

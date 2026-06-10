@@ -1,168 +1,187 @@
 // =============================================
 // src/components/PWA/InstallPrompt.jsx
-// PWA Install App Button Component
+// Install and update cards for the PWA experience.
 // =============================================
-import React, { useState, useEffect } from 'react';
-import { Download, X, Smartphone } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import React, { useEffect, useState } from 'react';
+import { Download, X, Smartphone, Share, PlusSquare, RefreshCw, CheckCircle2 } from 'lucide-react';
+import logoImage from '../../assets/images/our-vadodara-logo.png.png';
+
+const isStandalone = () => (
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.navigator.standalone === true ||
+  document.referrer.includes('android-app://')
+);
+
+const clearAllCaches = async () => {
+  if (!('caches' in window)) return;
+  const cacheNames = await caches.keys();
+  await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+};
 
 const InstallPrompt = () => {
-  const { t } = useTranslation();
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [updateRegistration, setUpdateRegistration] = useState(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
-    console.log('PWA InstallPrompt: Component mounted');
-    
-    // Check if it's iOS
-    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    setIsIOS(isIOSDevice);
-    console.log('PWA InstallPrompt: Is iOS device:', isIOSDevice);
+    const iosDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    setIsIOS(iosDevice);
 
-    // Check if app is already installed
-    const isAppInstalled = window.matchMedia('(display-mode: standalone)').matches || 
-                          window.navigator.standalone || 
-                          document.referrer.includes('android-app://');
-    console.log('PWA InstallPrompt: Is app installed:', isAppInstalled);
+    if (isStandalone()) return;
 
-    if (isAppInstalled) {
-      console.log('PWA InstallPrompt: App already installed, not showing prompt');
-      return; // Don't show install prompt if already installed
-    }
-
-    // Check if user has previously dismissed the prompt
-    const hasPromptBeenDismissed = localStorage.getItem('pwa-install-dismissed');
-    console.log('PWA InstallPrompt: Prompt previously dismissed:', hasPromptBeenDismissed);
-    
-    if (hasPromptBeenDismissed) {
-      return;
-    }
-
-    // Check if we're on HTTPS or localhost
+    const dismissedAt = Number(localStorage.getItem('pwa-install-dismissed-at') || 0);
+    const dismissedRecently = dismissedAt && Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000;
     const isSecureContext = window.isSecureContext || location.hostname === 'localhost';
-    console.log('PWA InstallPrompt: Is secure context (HTTPS or localhost):', isSecureContext);
-    
-    if (!isSecureContext) {
-      console.log('PWA InstallPrompt: Not in secure context, PWA install not available');
-      return;
-    }
 
-    // Listen for beforeinstallprompt event (Android/Chrome)
-    const handleBeforeInstallPrompt = (e) => {
-      console.log('PWA InstallPrompt: beforeinstallprompt event fired', e);
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallPrompt(true);
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setDeferredPrompt(event);
+      if (!dismissedRecently) setShowInstallPrompt(true);
+    };
+
+    const handleInstallAvailable = () => {
+      if (!dismissedRecently && isSecureContext) setShowInstallPrompt(true);
+    };
+
+    const handleUpdateAvailable = (event) => {
+      setUpdateRegistration(event.detail?.registration || null);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    console.log('PWA InstallPrompt: Added beforeinstallprompt listener');
+    window.addEventListener('pwa-install-available', handleInstallAvailable);
+    window.addEventListener('pwa-update-available', handleUpdateAvailable);
 
-    // For iOS, show manual instruction prompt
-    if (isIOSDevice && !isAppInstalled && isSecureContext) {
-      console.log('PWA InstallPrompt: Setting up iOS prompt timer');
-      // Delay showing iOS prompt
-      const timer = setTimeout(() => {
-        console.log('PWA InstallPrompt: Showing iOS install prompt');
-        setShowInstallPrompt(true);
-      }, 5000);
-      
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      };
+    let iosTimer;
+    if (iosDevice && isSecureContext && !dismissedRecently) {
+      iosTimer = setTimeout(() => setShowInstallPrompt(true), 2500);
     }
 
     return () => {
+      clearTimeout(iosTimer);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('pwa-install-available', handleInstallAvailable);
+      window.removeEventListener('pwa-update-available', handleUpdateAvailable);
     };
   }, []);
 
-  const handleInstallClick = async () => {
-    if (!deferredPrompt && !isIOS) return;
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    setDeferredPrompt(null);
+    setShowInstallPrompt(false);
+  };
 
-    if (deferredPrompt) {
-      // Android/Chrome installation
-      deferredPrompt.prompt();
-      const choiceResult = await deferredPrompt.userChoice;
-      
-      if (choiceResult.outcome === 'accepted') {
-        console.log('User accepted the install prompt');
+  const dismissInstall = () => {
+    localStorage.setItem('pwa-install-dismissed-at', String(Date.now()));
+    setShowInstallPrompt(false);
+  };
+
+  const updateApp = async () => {
+    setIsUpdating(true);
+    try {
+      if (updateRegistration?.waiting) {
+        updateRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), { once: true });
       } else {
-        console.log('User dismissed the install prompt');
+        await clearAllCaches();
+        window.location.reload();
       }
-      
-      setDeferredPrompt(null);
-      setShowInstallPrompt(false);
+    } catch (error) {
+      console.error('PWA update failed:', error);
+      window.location.reload();
     }
   };
 
-  const handleDismiss = () => {
-    setShowInstallPrompt(false);
-    localStorage.setItem('pwa-install-dismissed', 'true');
-    
-    // Auto-show again after 7 days
-    setTimeout(() => {
-      localStorage.removeItem('pwa-install-dismissed');
-    }, 7 * 24 * 60 * 60 * 1000);
-  };
+  if (!showInstallPrompt && !updateRegistration) return null;
 
-  if (!showInstallPrompt) return null;
+  const isUpdate = Boolean(updateRegistration);
 
   return (
-    <div className="fixed bottom-20 left-4 right-4 z-40 max-w-sm mx-auto">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center space-x-3">
-            <div className="flex-shrink-0 w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
-              <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                Install Our Vadodara
-              </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Get the full app experience
-              </p>
-            </div>
+    <div className="fixed inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-[70] px-3 sm:bottom-5">
+      <div className="liquid-panel mx-auto max-w-md rounded-[1.5rem] border border-white/70 p-4 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/75 shadow-inner">
+            <img src={logoImage} alt="Our Vadodara" className="h-9 w-9 object-contain" />
           </div>
-          <button
-            onClick={handleDismiss}
-            className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
 
-        {isIOS ? (
-          <div className="space-y-2">
-            <p className="text-xs text-gray-600 dark:text-gray-300">
-              To install this app on your iPhone:
-            </p>
-            <ol className="text-xs text-gray-500 dark:text-gray-400 space-y-1 ml-3">
-              <li>1. Tap the Share button <span className="font-mono">⎋</span></li>
-              <li>2. Scroll down and tap "Add to Home Screen"</li>
-              <li>3. Tap "Add" in the top right corner</li>
-            </ol>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-950">
+                  {isUpdate ? 'Update Our Vadodara' : 'Install Our Vadodara'}
+                </h3>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+                  {isUpdate
+                    ? 'A fresh version is ready with the latest fixes and improvements.'
+                    : 'Get faster access, full-screen reading, and a phone-ready city news experience.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => (isUpdate ? setUpdateRegistration(null) : dismissInstall())}
+                className="rounded-full p-1 text-slate-400 transition hover:bg-white/60 hover:text-slate-700"
+                aria-label="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {isUpdate ? (
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={updateApp}
+                  disabled={isUpdating}
+                  className="btn-primary flex-1 !py-2.5 !text-sm"
+                >
+                  {isUpdating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {isUpdating ? 'Updating' : 'Update now'}
+                </button>
+              </div>
+            ) : isIOS ? (
+              <div className="mt-4 space-y-2 text-xs text-slate-600">
+                <div className="flex items-center gap-2 rounded-2xl bg-white/55 px-3 py-2">
+                  <Share className="h-4 w-4 text-teal-700" />
+                  <span>Tap Safari Share.</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-2xl bg-white/55 px-3 py-2">
+                  <PlusSquare className="h-4 w-4 text-teal-700" />
+                  <span>Choose Add to Home Screen, then tap Add.</span>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleInstall}
+                  disabled={!deferredPrompt}
+                  className="btn-primary flex-1 !py-2.5 !text-sm"
+                >
+                  <Download className="h-4 w-4" />
+                  Install app
+                </button>
+                <button
+                  type="button"
+                  onClick={dismissInstall}
+                  className="liquid-action rounded-full px-4 text-sm font-semibold text-slate-600"
+                >
+                  Later
+                </button>
+              </div>
+            )}
+
+            {!isUpdate && (
+              <div className="mt-3 flex items-center gap-2 text-[11px] font-medium text-slate-500">
+                <Smartphone className="h-3.5 w-3.5" />
+                <span>Designed for Android and iPhone home screens.</span>
+                <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-emerald-600" />
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="flex space-x-2">
-            <button
-              onClick={handleInstallClick}
-              className="flex-1 bg-blue-600 text-white text-sm font-medium py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
-            >
-              <Download className="w-4 h-4" />
-              <span>Install App</span>
-            </button>
-            <button
-              onClick={handleDismiss}
-              className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 transition-colors"
-            >
-              Later
-            </button>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

@@ -34,8 +34,7 @@ import AdminUpgrade from './components/Admin/AdminUpgrade.jsx';
 import EventQRScanner from './components/Admin/EventQRScanner.jsx';
 import BreakingNewsManager from './components/Breaking/BreakingNewsManager.jsx';
 import BreakingNewsView from './components/Breaking/BreakingNewsView.jsx';
-import BloodSOSBanner from './components/SOS/BloodSOSBanner.jsx';
-import { BloodSOSProvider, useBloodSOS } from './context/SOS/BloodSOSContext.jsx';
+import { BloodSOSProvider } from './context/SOS/BloodSOSContext.jsx';
 import { TopicFollowingProvider } from './context/Topics/TopicFollowingContext.jsx';
 import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
 import { analytics } from './utils/analytics.js';
@@ -52,7 +51,6 @@ function AppContent() {
   const [showGuestPrompt, setShowGuestPrompt] = useState(false);
   const [showFirebaseSetup, setShowFirebaseSetup] = useState(false);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
-  const { hasActiveSOS } = useBloodSOS();
   
   // Use the enhanced auth context
   const { user, profileCompletion } = useEnhancedAuth();
@@ -100,6 +98,12 @@ function AppContent() {
     if (path === '/roundup') {
       setCurrentView({ type: 'roundup', data: null });
       setActiveTab('roundup');
+      return;
+    }
+
+    if (path === '/search') {
+      setCurrentView({ type: 'search', data: null });
+      setActiveTab('home');
       return;
     }
 
@@ -231,11 +235,12 @@ function AppContent() {
     'admin-upgrade',
     'qr-scanner'
   ].includes(currentView.type);
+  const hasMobileHeader = !isDesktop && currentView.type !== 'news-detail' && !isFullWidthView;
 
   // Dynamically set the main container's class based on the current view
   const mainContainerClass = isFullWidthView
     ? 'w-full'
-    : 'max-w-2xl mx-auto px-3 sm:px-4';
+    : `max-w-2xl mx-auto w-full ${hasMobileHeader ? 'pt-[calc(56px+env(safe-area-inset-top))]' : ''}`;
   // --- LAYOUT FIX END ---
 
   const handlePostClick = (postId) => {
@@ -342,6 +347,12 @@ function AppContent() {
     setCurrentView({ type: 'profile', data: null });
   };
 
+  const handleSearchClick = () => {
+    window.history.pushState({ view: 'search' }, '', '/search');
+    setActiveTab('home');
+    setCurrentView({ type: 'search', data: null });
+  };
+
   const renderContent = () => {
     switch (currentView.type) {
       case 'news-detail':
@@ -363,6 +374,8 @@ function AppContent() {
         );
       case 'home':
         return <HomePage onPostClick={handlePostClick} onShowReels={handleShowReels} />;
+      case 'search':
+        return <SearchPage onPostClick={handlePostClick} onShowReels={handleShowReels} />;
       case 'roundup':
         return <RoundupPage onBack={handleBackToHome} />;
       case 'profile':
@@ -392,23 +405,19 @@ function AppContent() {
 
   return (
     <ResponsiveLayout currentView={currentView} onNavigate={handleNavigation} isDesktop={isDesktop}>
-      <div className="min-h-screen bg-surface-light dark:bg-surface-dark">
+      <div className="min-h-screen liquid-app-bg">
         <OfflineIndicator />
             
             {/* Only show mobile header on mobile or for full-width views */}
-            {!isDesktop && currentView.type !== 'news-detail' && !isFullWidthView && (
+            {hasMobileHeader && (
               <Header 
                 onNotificationClick={() => setShowNotifications(true)}
                 onLoginClick={() => setShowLogin(true)}
                 onProfileClick={handleProfileClick}
+                onSearchClick={handleSearchClick}
               />
             )}
 
-            {/* Only show Blood SOS banner on mobile */}
-            {!isDesktop && currentView.type !== 'news-detail' && (
-              <BloodSOSBanner />
-            )}
-            
             {/* Apply the dynamic container class to the main element - only on mobile */}
             <main className={!isDesktop && !isFullWidthView ? mainContainerClass : ''}>
               {renderContent()}
@@ -419,7 +428,7 @@ function AppContent() {
               <Navigation 
                 activeTab={activeTab} 
                 setActiveTab={handleTabChange}
-                hasActiveSOS={hasActiveSOS}
+                hasActiveSOS={false}
               />
             )}
 
@@ -475,4 +484,3 @@ function App() {
 }
 
 export default App;
-

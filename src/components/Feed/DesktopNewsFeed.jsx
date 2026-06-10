@@ -26,7 +26,7 @@ const PostMedia = ({ src, alt, className, fallback = true, post }) => {
 
   if (!src || error) {
     return fallback ? (
-      <div className={`${className} flex items-center justify-center bg-gray-100 dark:bg-gray-800`}>
+      <div className={`${className} flex items-center justify-center bg-white/40 dark:bg-white/10`}>
         <ImageOff className="w-12 h-12 text-gray-400" />
       </div>
     ) : null;
@@ -63,7 +63,7 @@ const PostMedia = ({ src, alt, className, fallback = true, post }) => {
     return (
       <>
         {loading && (
-          <div className={`${className} flex items-center justify-center bg-gray-100 dark:bg-gray-800`}>
+          <div className={`${className} flex items-center justify-center bg-white/40 dark:bg-white/10`}>
             <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
         )}
@@ -89,7 +89,7 @@ const PostMedia = ({ src, alt, className, fallback = true, post }) => {
           />
           {!isPlaying && !loading && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-white/20 border border-white/30 backdrop-blur-xl flex items-center justify-center shadow-2xl">
                 <Play className="w-8 h-8 text-white fill-white ml-1" />
               </div>
             </div>
@@ -102,7 +102,7 @@ const PostMedia = ({ src, alt, className, fallback = true, post }) => {
   return (
     <>
       {loading && (
-        <div className={`${className} flex items-center justify-center bg-gray-100 dark:bg-gray-800`}>
+        <div className={`${className} flex items-center justify-center bg-white/40 dark:bg-white/10`}>
           <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
         </div>
       )}
@@ -291,7 +291,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
 
   if (!displayedItems || displayedItems.length === 0) {
     return (
-      <div className="text-center py-20">
+      <div className="liquid-card text-center py-20">
         <p className="text-gray-500 dark:text-gray-400">No posts available</p>
       </div>
     );
@@ -303,14 +303,14 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
   const gridPosts = displayedItems.slice(3);
 
   return (
-    <div className="w-full bg-gray-50 dark:bg-gray-950">
-      <div className="max-w-[1600px] mx-auto px-6 py-8">
+    <div className="w-full">
+      <div className="max-w-[1600px] mx-auto px-2 py-4">
         {/* Header Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+        <div className="liquid-panel rounded-3xl px-6 py-5 mb-8">
+          <h1 className="text-3xl font-bold text-slate-950 dark:text-white mb-2">
             {category ? `${category.charAt(0).toUpperCase() + category.slice(1)} News` : 'Latest News'}
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-slate-600 dark:text-slate-400">
             Stay updated with the latest news and stories
           </p>
         </div>
@@ -322,7 +322,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
               {/* Main Featured Post */}
             <div 
               onClick={() => handlePostClick(featuredPost.id)}
-              className="bg-white dark:bg-gray-900 rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 dark:hover:shadow-2xl group border border-gray-200 dark:border-gray-800 hover:border-blue-200 dark:hover:border-blue-900"
+              className="liquid-card overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 group"
             >
               {getPostImage(featuredPost) && (
                 <div className="relative overflow-hidden h-[480px]">
@@ -334,7 +334,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
                   {featuredPost.category && (
-                    <div className="absolute top-5 left-5 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-bold rounded-full shadow-xl backdrop-blur-sm">
+                    <div className="absolute top-5 left-5 liquid-chip !bg-blue-600/80 text-white text-sm font-bold shadow-xl">
                       {featuredPost.category}
                     </div>
                   )}
@@ -356,7 +356,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
                   </div>
                 </div>
               )}
-              <div className="p-6 border-t border-gray-100 dark:border-gray-800">
+              <div className="p-6 border-t border-white/50 dark:border-white/10">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
@@ -376,7 +376,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={(e) => handleSave(featuredPost.id, e)}
-                      className="p-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-all duration-200"
+                      className="liquid-action p-2.5 rounded-full transition-all duration-200"
                       title="Save"
                     >
                       {savedPosts.has(featuredPost.id) ? (
@@ -387,7 +387,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
                     </button>
                     <button
                       onClick={(e) => handleShare(featuredPost, e)}
-                      className="p-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-all duration-200"
+                      className="liquid-action p-2.5 rounded-full transition-all duration-200"
                       title="Share"
                     >
                       <Share2 className="w-5 h-5 text-gray-500 hover:text-blue-600" />
@@ -403,7 +403,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
               <div
                 key={post.id}
                 onClick={() => handlePostClick(post.id)}
-                className="bg-white dark:bg-gray-900 rounded-2xl overflow-hidden cursor-pointer transition-all hover:shadow-xl dark:hover:shadow-2xl group border border-gray-200 dark:border-gray-800 hover:border-blue-200 dark:hover:border-blue-900"
+                className="liquid-card overflow-hidden cursor-pointer transition-all hover:-translate-y-0.5 group"
               >
                 {getPostImage(post) && (
                   <div className="relative overflow-hidden h-[160px]">
@@ -414,14 +414,14 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
                       post={post}
                     />
                     {post.category && (
-                      <div className="absolute top-3 left-3 px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full shadow-lg">
+                      <div className="absolute top-3 left-3 liquid-chip !bg-blue-600/80 text-white text-xs font-semibold">
                         {post.category}
                       </div>
                     )}
                   </div>
                 )}
                 <div className="p-5">
-                  <h3 className="text-base font-bold leading-snug mb-3 text-gray-900 dark:text-white line-clamp-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  <h3 className="text-base font-bold leading-snug mb-3 text-slate-950 dark:text-white line-clamp-3 group-hover:text-blue-700 dark:group-hover:text-sky-300 transition-colors">
                     {getPostTitle(post)}
                   </h3>
                   <div className="flex items-center justify-between">
@@ -446,7 +446,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
             <div
               key={post.id}
               onClick={() => handlePostClick(post.id)}
-              className="bg-white dark:bg-gray-900 rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 dark:hover:shadow-2xl group border border-gray-200 dark:border-gray-800 hover:border-blue-200 dark:hover:border-blue-900"
+              className="liquid-card overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 group"
             >
               {getPostImage(post) && (
                 <div className="relative overflow-hidden h-[200px]">
@@ -457,7 +457,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
                     post={post}
                   />
                   {post.category && (
-                    <div className="absolute top-3 left-3 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-xs font-bold rounded-full shadow-lg backdrop-blur-sm">
+                    <div className="absolute top-3 left-3 liquid-chip !bg-blue-600/80 text-white text-xs font-bold">
                       {post.category}
                     </div>
                   )}
@@ -469,13 +469,13 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
                 </div>
               )}
               <div className="p-5">
-                <h3 className="text-base font-bold leading-tight mb-3 text-gray-900 dark:text-white line-clamp-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors min-h-[3.6rem]">
+                <h3 className="text-base font-bold leading-tight mb-3 text-slate-950 dark:text-white line-clamp-3 group-hover:text-blue-700 dark:group-hover:text-sky-300 transition-colors min-h-[3.6rem]">
                   {getPostTitle(post)}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-4">
                   {getPostDescription(post)}
                 </p>
-                <div className="flex items-center gap-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <div className="flex items-center gap-4 pt-3 border-t border-white/50 dark:border-white/10">
                   <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                     <Eye className="w-3.5 h-3.5" />
                     <span>{post.views || 0}</span>
@@ -495,7 +495,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
           <div className="text-center mt-12 mb-8">
             <button
               onClick={loadMore}
-              className="px-8 py-3.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-full font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+              className="btn-primary px-8 py-3.5 text-white rounded-full font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
             >
               Load More Stories
             </button>

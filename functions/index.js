@@ -1,7 +1,7 @@
 // =============================================
 // Firebase Cloud Functions for Our Vadodara News
 // =============================================
-const functions = require('firebase-functions');
+const functions = require('firebase-functions/v1');
 const admin = require('firebase-admin');
 
 admin.initializeApp();
@@ -24,6 +24,13 @@ exports.sendNewCityNewsNotification = functions.database
 // Shared function to send notification for new posts
 async function sendNotificationForNewPost(snapshot, postId, cityId = null) {
   const post = snapshot.val();
+
+  // City post entries are often mirrors of the canonical /posts entry.
+  // The canonical post already targets city topics, so skip mirrored writes.
+  if (cityId && post.mainPostId) {
+    console.log('City post mirrors main post, skipping duplicate notification');
+    return null;
+  }
 
   // Only send notification if post is published and not a draft
   if (post.status === 'draft' || post.isPublished === false) {
@@ -261,6 +268,7 @@ exports.subscribeTokenToTopics = functions.database
   .onWrite(async (change, context) => {
     const userId = context.params.userId;
     const tokenData = change.after.val();
+    const previousTokenData = change.before.val();
 
     // If token was deleted, skip
     if (!tokenData || !tokenData.token) {
@@ -268,7 +276,16 @@ exports.subscribeTokenToTopics = functions.database
       return null;
     }
 
-    const { token, topics = [] } = tokenData;
+    const { token } = tokenData;
+    const topics = Array.isArray(tokenData.topics) ? tokenData.topics : [];
+    const previousTopics = Array.isArray(previousTokenData?.topics) ? previousTokenData.topics : [];
+    const topicsChanged = JSON.stringify([...topics].sort()) !== JSON.stringify([...previousTopics].sort());
+    const tokenChanged = token !== previousTokenData?.token;
+
+    if (!tokenChanged && !topicsChanged) {
+      console.log('FCM token and topics unchanged, skipping subscription');
+      return null;
+    }
 
     try {
       // Subscribe token to all listed topics

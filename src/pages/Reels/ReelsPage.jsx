@@ -672,7 +672,10 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
               playsInline
               preload="auto"
               muted={isMuted}
-              onClick={togglePlay}
+              onClick={(event) => {
+                event.stopPropagation();
+                togglePlay();
+              }}
             />
 
           {/* Bottom Gradient Overlay */}
@@ -703,7 +706,10 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
             {/* Center tap area to toggle play/pause */}
             <button
               className="flex-1 bg-transparent"
-              onClick={togglePlay}
+              onClick={(event) => {
+                event.stopPropagation();
+                togglePlay();
+              }}
             />
           </div>
 
@@ -751,7 +757,12 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           <div className="absolute bottom-24 right-4 flex flex-col space-y-4 z-20">
             {/* Like Button - Primary */}
             <button
-              onClick={() => handleLike(currentReel.id)}
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                handleLike(currentReel.id);
+              }}
               className="flex flex-col items-center space-y-1 reel-action-button"
             >
               <div className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${
@@ -770,7 +781,12 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
             {/* Comment Button - Primary */}
             <button
-              onClick={() => setShowComments(true)}
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                handleComment();
+              }}
               className="flex flex-col items-center space-y-1 reel-action-button"
             >
               <div className="w-12 h-12 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm text-white rounded-full hover:bg-gray-900/70 transition-all">
@@ -786,7 +802,12 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
             {/* More Menu - Secondary Actions */}
             <div className="relative flex flex-col items-center">
               <button
-                onClick={() => setShowActionsMenu(!showActionsMenu)}
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setShowActionsMenu(!showActionsMenu);
+                }}
                 className="flex flex-col items-center space-y-1 reel-action-button"
               >
                 <div className="w-12 h-12 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm text-white rounded-full hover:bg-gray-900/70 transition-all">
@@ -799,11 +820,17 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
                 <>
                   <div 
                     className="fixed inset-0 z-30" 
-                    onClick={() => setShowActionsMenu(false)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setShowActionsMenu(false);
+                    }}
                   />
                   <div className="absolute right-full mr-3 bottom-0 w-48 bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 py-2 z-40 overflow-hidden">
                     <button
-                      onClick={() => {
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
                         handleShare(currentReel);
                         setShowActionsMenu(false);
                       }}
@@ -818,7 +845,10 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
                       </div>
                     </button>
                     <button
-                      onClick={() => {
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
                         handleSave(currentReel.id);
                         setShowActionsMenu(false);
                       }}
