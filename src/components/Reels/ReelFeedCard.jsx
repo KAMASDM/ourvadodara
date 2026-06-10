@@ -4,6 +4,7 @@
 // =============================================
 import React, { useRef, useState } from 'react';
 import { Heart, MessageCircle, Share2, Bookmark, Play } from 'lucide-react';
+import { getLocalizedText } from '../../utils/textUtils';
 
 const ReelFeedCard = ({ reel, onLike, onComment, onShare, onSave, isLiked, isSaved }) => {
   const videoRef = useRef(null);
@@ -12,6 +13,8 @@ const ReelFeedCard = ({ reel, onLike, onComment, onShare, onSave, isLiked, isSav
 
   const videoUrl = reel.mediaContent?.items?.[0]?.url || reel.videoUrl || '';
   const thumbnailUrl = reel.mediaContent?.items?.[0]?.thumbnailUrl || reel.thumbnail || '';
+  const title = getLocalizedText(reel.title, 'en') || 'Untitled Reel';
+  const excerpt = getLocalizedText(reel.excerpt || reel.description, 'en');
 
   const handlePlayPause = () => {
     const video = videoRef.current;
@@ -57,13 +60,13 @@ const ReelFeedCard = ({ reel, onLike, onComment, onShare, onSave, isLiked, isSav
       </div>
       <div className="p-4 flex flex-col gap-2">
         <div className="flex items-center gap-2 mb-1">
-          <span className="font-semibold text-white text-base line-clamp-1">{reel.title?.en || 'Untitled Reel'}</span>
+          <span className="font-semibold text-white text-base line-clamp-1">{title}</span>
           {reel.tags && reel.tags.length > 0 && (
             <span className="ml-2 text-xs text-blue-300">#{reel.tags[0]}</span>
           )}
         </div>
-        {reel.excerpt?.en && (
-          <p className="text-gray-200 text-sm line-clamp-2 mb-1">{reel.excerpt.en}</p>
+        {excerpt && (
+          <p className="text-gray-200 text-sm line-clamp-2 mb-1">{excerpt}</p>
         )}
         <div className="flex items-center gap-4 mt-2">
           <button type="button" onClick={(event) => handleAction(event, onLike)} className={`flex items-center gap-1 text-white ${isLiked ? 'text-pink-400' : ''}`}>

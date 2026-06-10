@@ -59,6 +59,65 @@ import axios from 'axios';
 
 const MAX_VISIBLE_CITY_PILLS = 12;
 const CITY_VALIDATION_MESSAGE = 'Please select at least one city | ઓછામાં ઓછું એક શહેર પસંદ કરો';
+const LANGUAGE_CODES = ['en', 'hi', 'gu'];
+
+const createInitialFormData = () => ({
+  title: { en: '', hi: '', gu: '' },
+  content: { en: '', hi: '', gu: '' },
+  excerpt: { en: '', hi: '', gu: '' },
+  category: '',
+  subcategory: '',
+  tags: [],
+  location: '',
+  media: [],
+  externalLink: '',
+  isBreaking: false,
+  isUrgent: false,
+  isFeatured: false,
+  publishDate: '',
+  scheduledTime: '',
+  mediaContent: {
+    type: MEDIA_TYPES.SINGLE_IMAGE,
+    items: [],
+    settings: {
+      autoplay: false,
+      showCaptions: true,
+      duration: 15,
+      aspectRatio: '16:9',
+      infinite: false,
+      loop: false
+    }
+  },
+  storySettings: {
+    duration: 15,
+    backgroundColor: '#000000',
+    textColor: '#ffffff',
+    textPosition: 'bottom',
+    hasMusic: false,
+    musicUrl: '',
+    musicTitle: ''
+  },
+  reelSettings: {
+    musicUrl: '',
+    musicTitle: '',
+    musicArtist: '',
+    effects: [],
+    speed: 1.0,
+    allowDownload: true,
+    allowDuet: true,
+    allowComments: true
+  },
+  carouselSettings: {
+    autoPlay: false,
+    interval: 3000,
+    showIndicators: true,
+    showArrows: true,
+    transition: 'slide'
+  }
+});
+
+const stripHtml = (value = '') => value.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+const hasTextValue = (value = '') => stripHtml(value).length > 0;
 
 const UnifiedPostCreator = () => {
   const { user } = useAuth();
@@ -71,6 +130,7 @@ const UnifiedPostCreator = () => {
   const [translating, setTranslating] = useState(false);
   const [activeLanguage, setActiveLanguage] = useState('en');
   const [errors, setErrors] = useState({});
+  const [successMessage, setSuccessMessage] = useState('');
   const [uploadProgress, setUploadProgress] = useState({});
   
   // Multi-city selection
@@ -150,67 +210,13 @@ const UnifiedPostCreator = () => {
   };
   
   // Universal form data structure
-  const [formData, setFormData] = useState({
-    title: { en: '', hi: '', gu: '' },
-    content: { en: '', hi: '', gu: '' },
-    excerpt: { en: '', hi: '', gu: '' },
-    category: '',
-    subcategory: '',
-    tags: [],
-    location: '',
-    media: [], // For legacy regular posts
-    externalLink: '',
-    isBreaking: false,
-    isUrgent: false,
-    isFeatured: false,
-    publishDate: '',
-    scheduledTime: '',
-    // Media content for stories/reels/carousels
-    mediaContent: {
-      type: MEDIA_TYPES.SINGLE_IMAGE,
-      items: [],
-      settings: {
-        autoplay: false,
-        showCaptions: true,
-        duration: 15,
-        aspectRatio: '16:9',
-        infinite: false,
-        loop: false
-      }
-    },
-    // Story-specific settings
-    storySettings: {
-      duration: 15,
-      backgroundColor: '#000000',
-      textColor: '#ffffff',
-      textPosition: 'bottom',
-      hasMusic: false,
-      musicUrl: '',
-      musicTitle: ''
-    },
-    // Reel-specific settings
-    reelSettings: {
-      musicUrl: '',
-      musicTitle: '',
-      musicArtist: '',
-      effects: [],
-      speed: 1.0,
-      allowDownload: true,
-      allowDuet: true,
-      allowComments: true
-    },
-    // Carousel-specific settings
-    carouselSettings: {
-      autoPlay: false,
-      interval: 3000,
-      showIndicators: true,
-      showArrows: true,
-      transition: 'slide'
-    }
-  });
+  const [formData, setFormData] = useState(createInitialFormData);
+  const hasStandardSchedule = postType === POST_TYPES.STANDARD && formData.publishDate && formData.scheduledTime;
+  const publishActionLabel = hasStandardSchedule ? 'Schedule' : 'Publish';
   
   const [newTag, setNewTag] = useState('');
   const [mediaFiles, setMediaFiles] = useState([]);
+  const mediaFilesRef = useRef([]);
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const multipleImageInputRef = useRef(null);
@@ -249,24 +255,33 @@ const UnifiedPostCreator = () => {
     }
   ];
   
+  useEffect(() => {
+    mediaFilesRef.current = mediaFiles;
+  }, [mediaFiles]);
+
+  const revokeMediaUrls = (files = mediaFilesRef.current) => {
+    files.forEach(media => {
+      if (media.previewUrl && media.previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(media.previewUrl);
+      }
+      if (media.thumbnailUrl && media.thumbnailUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(media.thumbnailUrl);
+      }
+    });
+  };
+
   // Cleanup object URLs on unmount
   useEffect(() => {
     return () => {
-      mediaFiles.forEach(media => {
-        if (media.previewUrl && media.previewUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(media.previewUrl);
-        }
-        if (media.thumbnailUrl && media.thumbnailUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(media.thumbnailUrl);
-        }
-      });
+      revokeMediaUrls();
     };
-  }, [mediaFiles]);
+  }, []);
   
   // Translation function using MyMemory API
   // Handles text of any length by chunking into 500 character segments
-  const translateText = async (text, targetLang) => {
+  const translateText = async (text, targetLang, sourceLang) => {
     if (!text || !text.trim()) return '';
+    if (sourceLang === targetLang) return text;
     
     try {
       // Split text into chunks of 500 characters (API limit)
@@ -276,7 +291,7 @@ const UnifiedPostCreator = () => {
         chunks.push(text.slice(i, i + chunkSize));
       }
       
-      console.log(`Translating text from English to ${targetLang} (${chunks.length} chunks, ${text.length} total chars)`);
+      console.log(`Translating text from ${sourceLang} to ${targetLang} (${chunks.length} chunks, ${text.length} total chars)`);
       
       // Translate each chunk
       const translatedChunks = await Promise.all(
@@ -285,7 +300,7 @@ const UnifiedPostCreator = () => {
             const response = await axios.get('https://api.mymemory.translated.net/get', {
               params: {
                 q: chunk,
-                langpair: `en|${targetLang}`
+                langpair: `${sourceLang}|${targetLang}`
               }
             });
             return response.data.responseData.translatedText || chunk;
@@ -306,36 +321,87 @@ const UnifiedPostCreator = () => {
       return text;
     }
   };
+
+  const translateRichText = async (html, targetLang, sourceLang) => {
+    if (!hasTextValue(html)) return '';
+    if (sourceLang === targetLang) return html;
+
+    if (typeof DOMParser === 'undefined' || typeof document === 'undefined') {
+      return translateText(html, targetLang, sourceLang);
+    }
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html');
+    const wrapper = doc.body.firstElementChild;
+    const walker = doc.createTreeWalker(wrapper, window.NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node.nodeValue.trim()) {
+        textNodes.push(node);
+      }
+    }
+
+    await Promise.all(textNodes.map(async (node) => {
+      node.nodeValue = await translateText(node.nodeValue, targetLang, sourceLang);
+    }));
+
+    return wrapper.innerHTML;
+  };
+
+  const getTranslationSourceLanguage = () => {
+    const languagePriority = [activeLanguage, ...LANGUAGE_CODES.filter(lang => lang !== activeLanguage)];
+    return languagePriority.find(lang =>
+      formData.title[lang]?.trim() ||
+      hasTextValue(formData.content[lang]) ||
+      hasTextValue(formData.excerpt[lang])
+    );
+  };
   
   // Auto-translate all fields
   const handleAutoTranslate = async () => {
+    const sourceLang = getTranslationSourceLanguage();
+    if (!sourceLang) {
+      setErrors(prev => ({ ...prev, translation: 'Enter content in English, Hindi, or Gujarati first' }));
+      return;
+    }
+
     setTranslating(true);
+    setErrors(prev => ({ ...prev, translation: null }));
     
     try {
-      const [hiTitle, guTitle] = await Promise.all([
-        translateText(formData.title.en, 'hi'),
-        translateText(formData.title.en, 'gu')
-      ]);
-      
-      const [hiContent, guContent] = await Promise.all([
-        translateText(formData.content.en, 'hi'),
-        translateText(formData.content.en, 'gu')
-      ]);
-      
-      const [hiExcerpt, guExcerpt] = await Promise.all([
-        translateText(formData.excerpt.en, 'hi'),
-        translateText(formData.excerpt.en, 'gu')
-      ]);
+      const targetLanguages = LANGUAGE_CODES.filter(lang => lang !== sourceLang);
+      const translatedFields = {};
+
+      await Promise.all(targetLanguages.map(async (targetLang) => {
+        const [title, content, excerpt] = await Promise.all([
+          translateText(formData.title[sourceLang], targetLang, sourceLang),
+          translateRichText(formData.content[sourceLang], targetLang, sourceLang),
+          translateRichText(formData.excerpt[sourceLang], targetLang, sourceLang)
+        ]);
+
+        translatedFields[targetLang] = { title, content, excerpt };
+      }));
       
       setFormData(prev => ({
         ...prev,
-        title: { ...prev.title, hi: hiTitle, gu: guTitle },
-        content: { ...prev.content, hi: hiContent, gu: guContent },
-        excerpt: { ...prev.excerpt, hi: hiExcerpt, gu: guExcerpt }
+        title: LANGUAGE_CODES.reduce((acc, lang) => ({
+          ...acc,
+          [lang]: lang === sourceLang ? prev.title[lang] : translatedFields[lang]?.title || ''
+        }), {}),
+        content: LANGUAGE_CODES.reduce((acc, lang) => ({
+          ...acc,
+          [lang]: lang === sourceLang ? prev.content[lang] : translatedFields[lang]?.content || ''
+        }), {}),
+        excerpt: LANGUAGE_CODES.reduce((acc, lang) => ({
+          ...acc,
+          [lang]: lang === sourceLang ? prev.excerpt[lang] : translatedFields[lang]?.excerpt || ''
+        }), {})
       }));
     } catch (error) {
       console.error('Translation failed:', error);
-      alert('Translation failed. Please try again.');
+      setErrors(prev => ({ ...prev, translation: 'Translation failed. Please try again.' }));
     } finally {
       setTranslating(false);
     }
@@ -345,6 +411,7 @@ const UnifiedPostCreator = () => {
   const handleMediaSelect = async (e, type = 'image') => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
+    setErrors(prev => ({ ...prev, media: null }));
     
     // Process all files in parallel for faster loading
     const processFile = async (file) => {
@@ -387,6 +454,7 @@ const UnifiedPostCreator = () => {
     // Process all files in parallel
     const newMediaFiles = await Promise.all(files.map(processFile));
     setMediaFiles(prev => [...prev, ...newMediaFiles]);
+    e.target.value = '';
   };
   
   // Remove media file
@@ -496,6 +564,7 @@ const UnifiedPostCreator = () => {
   // Validate form
   const validateForm = () => {
     const newErrors = {};
+    const now = new Date();
     
     // Check if at least one language has a title
     const hasTitle = formData.title.en.trim() || formData.title.hi.trim() || formData.title.gu.trim();
@@ -505,7 +574,7 @@ const UnifiedPostCreator = () => {
     
     // For standard posts, check if at least one language has content
     if (postType === POST_TYPES.STANDARD) {
-      const hasContent = formData.content.en.trim() || formData.content.hi.trim() || formData.content.gu.trim();
+      const hasContent = stripHtml(formData.content.en) || stripHtml(formData.content.hi) || stripHtml(formData.content.gu);
       if (!hasContent) {
         newErrors.content = 'Content is required in at least one language';
       }
@@ -518,9 +587,29 @@ const UnifiedPostCreator = () => {
     if (validSelectedCities.length === 0) {
       newErrors.cities = CITY_VALIDATION_MESSAGE;
     }
+
+    if (!user?.uid) {
+      newErrors.auth = 'Please sign in as an admin before publishing';
+    }
+
+    if (postType === POST_TYPES.STANDARD) {
+      if ((formData.publishDate && !formData.scheduledTime) || (!formData.publishDate && formData.scheduledTime)) {
+        newErrors.schedule = 'Select both date and time to schedule content';
+      }
+
+      if (formData.publishDate && formData.scheduledTime) {
+        const scheduledAt = new Date(`${formData.publishDate}T${formData.scheduledTime}`);
+        if (Number.isNaN(scheduledAt.getTime())) {
+          newErrors.schedule = 'Choose a valid schedule date and time';
+        } else if (scheduledAt <= now) {
+          newErrors.schedule = 'Schedule time must be in the future';
+        }
+      }
+    }
     
     // Media validation based on post type
-    if (postType === POST_TYPES.REEL && mediaFiles.length === 0) {
+    const hasVideo = mediaFiles.some(media => media.type === 'video');
+    if (postType === POST_TYPES.REEL && !hasVideo) {
       newErrors.media = 'At least one video is required for Reels';
     }
     
@@ -529,7 +618,7 @@ const UnifiedPostCreator = () => {
     }
     
     if (postType === POST_TYPES.CAROUSEL && mediaFiles.length < 2) {
-      newErrors.media = 'At least 2 images are required for Carousels';
+      newErrors.media = 'At least 2 media items are required for Carousels';
     }
     
     setCitiesTouched(true);
@@ -542,31 +631,60 @@ const UnifiedPostCreator = () => {
     e.preventDefault();
     
     if (!validateForm()) {
-      alert('Please fix the errors before submitting');
+      setSuccessMessage('');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     
     setLoading(true);
     
     try {
+      setSuccessMessage('');
       // Upload all media files
       const uploadedMedia = await Promise.all(
         mediaFiles.map((media, index) => uploadMedia(media, index))
       );
+
+      const nowIso = new Date().toISOString();
+      const hasSchedule = postType === POST_TYPES.STANDARD && formData.publishDate && formData.scheduledTime;
+      const scheduledAt = hasSchedule
+        ? new Date(`${formData.publishDate}T${formData.scheduledTime}`).toISOString()
+        : null;
+      const status = scheduledAt ? 'scheduled' : 'published';
+      const isPublished = status === 'published';
+      const primaryMedia = uploadedMedia[0] || null;
       
       // Prepare post data based on post type
       let postData = {
         ...formData,
         cities: validSelectedCities,
+        status,
+        scheduledAt,
         author: {
           uid: user.uid,
           name: user.displayName || 'Admin',
           email: user.email
         },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        authorId: user.uid,
+        authorName: user.displayName || user.email || 'Admin',
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        timestamp: Date.now(),
         type: postType,
-        isPublished: true
+        isPublished,
+        publishedAt: isPublished ? nowIso : null,
+        views: 0,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        saves: 0,
+        analytics: {
+          views: 0,
+          likes: 0,
+          comments: 0,
+          shares: 0,
+          saves: 0
+        }
       };
       
       // Add media content for media posts
@@ -586,21 +704,32 @@ const UnifiedPostCreator = () => {
         // Add type-specific settings
         if (postType === POST_TYPES.STORY) {
           postData.storySettings = formData.storySettings;
-          postData.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
-          postData.isActive = true;
+          postData.expiresAt = isPublished
+            ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+            : null;
+          postData.isActive = isPublished;
+          postData.imageUrl = primaryMedia?.url || '';
+          postData.thumbnailUrl = primaryMedia?.thumbnailUrl || primaryMedia?.url || '';
         }
         
         if (postType === POST_TYPES.REEL) {
           postData.reelSettings = formData.reelSettings;
+          postData.videoUrl = primaryMedia?.url || '';
+          postData.thumbnail = primaryMedia?.thumbnailUrl || '';
+          postData.thumbnailUrl = primaryMedia?.thumbnailUrl || '';
         }
         
         if (postType === POST_TYPES.CAROUSEL) {
           postData.carouselSettings = formData.carouselSettings;
+          postData.imageUrl = primaryMedia?.url || '';
+          postData.thumbnailUrl = primaryMedia?.thumbnailUrl || primaryMedia?.url || '';
         }
       } else {
         // Regular post - legacy format
         postData.media = uploadedMedia;
         postData.image = uploadedMedia[0]?.url || '';
+        postData.imageUrl = uploadedMedia[0]?.url || '';
+        postData.thumbnailUrl = uploadedMedia[0]?.thumbnailUrl || uploadedMedia[0]?.url || '';
       }
       
       // Save to Firebase based on post type
@@ -611,13 +740,24 @@ const UnifiedPostCreator = () => {
       
       const postRef = ref(db, dbPath);
       const newPostRef = push(postRef);
-      await set(newPostRef, {
+      const savedPostData = {
         ...postData,
-        id: newPostRef.key,
-        publishedAt: new Date().toISOString()
-      });
+        id: newPostRef.key
+      };
+      await set(newPostRef, savedPostData);
+
+      const cityWrites = validSelectedCities.map(cityId =>
+        set(ref(db, `cities/${cityId}/${dbPath}/${newPostRef.key}`), {
+          ...savedPostData,
+          cityId,
+          mainPostId: newPostRef.key
+        })
+      );
+      await Promise.all(cityWrites);
       
-      alert(`${postType} created successfully!`);
+      setSuccessMessage(
+        `${postType.charAt(0) + postType.slice(1).toLowerCase()} ${status === 'scheduled' ? 'scheduled' : 'published'} successfully for ${selectedCityNames.join(', ')}.`
+      );
       
       // Clear upload progress first
       setUploadProgress({});
@@ -638,62 +778,12 @@ const UnifiedPostCreator = () => {
   
   // Reset form
   const resetForm = () => {
-    setFormData({
-      title: { en: '', hi: '', gu: '' },
-      content: { en: '', hi: '', gu: '' },
-      excerpt: { en: '', hi: '', gu: '' },
-      category: '',
-      subcategory: '',
-      tags: [],
-      location: '',
-      media: [],
-      externalLink: '',
-      isBreaking: false,
-      isUrgent: false,
-      isFeatured: false,
-      publishDate: '',
-      scheduledTime: '',
-      mediaContent: {
-        type: MEDIA_TYPES.SINGLE_IMAGE,
-        items: [],
-        settings: {
-          autoplay: false,
-          showCaptions: true,
-          duration: 15,
-          aspectRatio: '16:9',
-          infinite: false,
-          loop: false
-        }
-      },
-      storySettings: {
-        duration: 15,
-        backgroundColor: '#000000',
-        textColor: '#ffffff',
-        textPosition: 'bottom',
-        hasMusic: false,
-        musicUrl: '',
-        musicTitle: ''
-      },
-      reelSettings: {
-        musicUrl: '',
-        musicTitle: '',
-        musicArtist: '',
-        effects: [],
-        speed: 1.0,
-        allowDownload: true,
-        allowDuet: true,
-        allowComments: true
-      },
-      carouselSettings: {
-        autoPlay: false,
-        interval: 3000,
-        showIndicators: true,
-        showArrows: true,
-        transition: 'slide'
-      }
-    });
+    revokeMediaUrls();
+    setFormData(createInitialFormData());
     setMediaFiles([]);
     setErrors({});
+    setUploadProgress({});
+    setNewTag('');
   };
   
   // Render post type selector
@@ -706,7 +796,13 @@ const UnifiedPostCreator = () => {
           <button
             key={type.value}
             type="button"
-            onClick={() => setPostType(type.value)}
+            onClick={() => {
+              setPostType(type.value);
+              setErrors(prev => ({ ...prev, media: null, schedule: null }));
+              if (type.value !== POST_TYPES.STANDARD) {
+                setFormData(prev => ({ ...prev, publishDate: '', scheduledTime: '' }));
+              }
+            }}
             className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2 ${
               active
                 ? 'border-primary-600 bg-primary-50 dark:bg-primary-600/10 shadow-md'
@@ -741,7 +837,7 @@ const UnifiedPostCreator = () => {
         <button
           type="button"
           onClick={handleAutoTranslate}
-          disabled={translating || (!formData.title.en && !formData.title.hi && !formData.title.gu)}
+          disabled={translating || !getTranslationSourceLanguage()}
           className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {translating ? (
@@ -752,6 +848,11 @@ const UnifiedPostCreator = () => {
           <span>{translating ? 'Translating…' : 'Auto Translate'}</span>
         </button>
       </div>
+      {errors.translation && (
+        <p className="mb-4 text-danger text-xs flex items-center gap-1">
+          <AlertCircle className="w-3 h-3" />{errors.translation}
+        </p>
+      )}
       
       {/* Language Tabs */}
       <div className="flex gap-1 mb-5 p-1 bg-neutral-100 dark:bg-neutral-700/50 rounded-lg w-fit">
@@ -1033,6 +1134,46 @@ const UnifiedPostCreator = () => {
               </label>
             ))}
           </div>
+        </div>
+      )}
+
+      {postType === POST_TYPES.STANDARD && (
+        <div className="pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-700">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 mb-3">Timing</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                Publish Date
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
+                <input
+                  type="date"
+                  value={formData.publishDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, publishDate: e.target.value }))}
+                  className="w-full pl-9 pr-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                Publish Time
+              </label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
+                <input
+                  type="time"
+                  value={formData.scheduledTime}
+                  onChange={(e) => setFormData(prev => ({ ...prev, scheduledTime: e.target.value }))}
+                  className="w-full pl-9 pr-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                />
+              </div>
+            </div>
+          </div>
+          {errors.schedule && <p className="text-danger text-xs mt-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.schedule}</p>}
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
+            Leave both fields empty to publish immediately.
+          </p>
         </div>
       )}
     </div>
@@ -1355,7 +1496,7 @@ const UnifiedPostCreator = () => {
               {loading ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /><span>Publishing…</span></>
               ) : (
-                <><Send className="w-4 h-4" /><span>Publish</span></>
+                <><Send className="w-4 h-4" /><span>{publishActionLabel}</span></>
               )}
             </button>
           </div>
@@ -1363,6 +1504,18 @@ const UnifiedPostCreator = () => {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        {successMessage && (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-green-800">
+            <Check className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <p className="text-sm font-medium">{successMessage}</p>
+          </div>
+        )}
+        {errors.auth && (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <p className="text-sm font-medium">{errors.auth}</p>
+          </div>
+        )}
         <form id="unified-post-form" onSubmit={handleSubmit}>
           {/* Step 1: Post Type */}
           <div className="mb-2">
@@ -1412,7 +1565,7 @@ const UnifiedPostCreator = () => {
                 {loading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /><span>Publishing…</span></>
                 ) : (
-                  <><Send className="w-4 h-4" /><span>Publish {postType.charAt(0) + postType.slice(1).toLowerCase()}</span></>
+                  <><Send className="w-4 h-4" /><span>{publishActionLabel} {postType.charAt(0) + postType.slice(1).toLowerCase()}</span></>
                 )}
               </button>
             </div>
@@ -1467,4 +1620,3 @@ const UnifiedPostCreator = () => {
 };
 
 export default UnifiedPostCreator;
-

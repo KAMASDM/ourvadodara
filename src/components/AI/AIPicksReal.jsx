@@ -9,6 +9,7 @@ import { db } from '../../firebase-config';
 import { DATABASE_PATHS } from '../../utils/databaseSchema';
 import { Brain, Sparkles, Eye, Heart, MessageCircle, Clock, Star, TrendingUp } from 'lucide-react';
 import { useLanguage } from '../../context/Language/LanguageContext';
+import { getLocalizedText } from '../../utils/textUtils';
 
 const AIPicksReal = ({ onPostClick }) => {
   const [posts, setPosts] = useState([]);
@@ -153,7 +154,7 @@ const AIPicksReal = ({ onPostClick }) => {
                     <div className="flex-shrink-0">
                       <img
                         src={pick.media?.[0]?.url || pick.imageUrl}
-                        alt={typeof pick.title === 'object' ? (pick.title[currentLanguage] || pick.title.en) : pick.title || 'AI Pick'}
+                        alt={getLocalizedText(pick.title, currentLanguage) || 'AI Pick'}
                         className="w-20 h-20 rounded-lg object-cover"
                       />
                     </div>
@@ -170,11 +171,11 @@ const AIPicksReal = ({ onPostClick }) => {
                     )}
                     
                     <h3 className="font-semibold text-gray-900 text-sm leading-tight mb-1 line-clamp-2 pr-16">
-                      {typeof pick.title === 'object' ? (pick.title[currentLanguage] || pick.title.en || Object.values(pick.title)[0]) : (pick.title || 'AI Recommended Story')}
+                      {getLocalizedText(pick.title, currentLanguage) || 'AI Recommended Story'}
                     </h3>
                     
                     <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-                      {typeof pick.excerpt === 'object' ? (pick.excerpt[currentLanguage] || pick.excerpt.en || Object.values(pick.excerpt)[0]) : (pick.excerpt || '')}
+                      {getLocalizedText(pick.excerpt, currentLanguage)}
                     </p>
                     
                     {/* Why AI Picked This */}

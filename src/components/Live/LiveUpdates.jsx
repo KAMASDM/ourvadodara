@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { useLanguage } from '../../context/Language/LanguageContext';
+import { getLocalizedText } from '../../utils/textUtils';
 
 const LiveUpdates = ({ className = '' }) => {
   const { t } = useTranslation();
@@ -216,15 +217,11 @@ const LiveUpdates = ({ className = '' }) => {
                 </div>
 
                 <h4 className="text-sm font-semibold text-neutral-900 dark:text-white mb-0.5">
-                  {typeof update.title === 'object'
-                    ? (update.title[currentLanguage] || update.title.en || Object.values(update.title)[0])
-                    : update.title}
+                  {getLocalizedText(update.title, currentLanguage)}
                 </h4>
 
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                  {typeof update.content === 'object'
-                    ? (update.content[currentLanguage] || update.content.en || Object.values(update.content)[0])
-                    : update.content}
+                  {getLocalizedText(update.content, currentLanguage)}
                 </p>
               </div>
             ))}

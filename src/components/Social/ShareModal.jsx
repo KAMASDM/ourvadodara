@@ -11,6 +11,7 @@ import {
   Share2,
   Check
 } from 'lucide-react';
+import { getLocalizedText } from '../../utils/textUtils';
 
 const ShareModal = ({ isOpen, onClose, post }) => {
   const { t } = useTranslation();
@@ -19,8 +20,9 @@ const ShareModal = ({ isOpen, onClose, post }) => {
   if (!isOpen || !post) return null;
 
   const shareUrl = `${window.location.origin}/post/${post.id}`;
-  const shareTitle = post.title?.en || 'Check out this article';
-  const shareText = post.content?.en?.substring(0, 100) + '...' || '';
+  const shareTitle = getLocalizedText(post.title, 'en') || 'Check out this article';
+  const cleanContent = getLocalizedText(post.content || post.excerpt, 'en');
+  const shareText = cleanContent ? `${cleanContent.substring(0, 100)}...` : '';
 
   const handleCopyLink = async () => {
     try {

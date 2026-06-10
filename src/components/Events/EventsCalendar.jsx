@@ -20,6 +20,15 @@ import { db } from '../../firebase-config';
 import EventRegistration from './EventRegistration';
 import EventCard from './EventCard';
 import { useTranslation } from 'react-i18next';
+import {
+  getEventCapacity,
+  getEventStartDate,
+  getEventStartTime,
+  getRegistrationCount,
+  getVenueName,
+  isPublishedEvent,
+  normalizeEvent
+} from '../../utils/eventUtils';
 
 const EventsCalendar = ({ className = '' }) => {
   const { t } = useTranslation();
@@ -36,119 +45,18 @@ const EventsCalendar = ({ className = '' }) => {
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Mock events data
-  const mockEvents = [
-    {
-      id: 1,
-      title: 'Navratri Festival 2025',
-      description: 'Traditional Gujarati folk dance and music celebration',
-      date: '2025-11-15',
-      time: '19:00',
-      venue: 'Sayajibaug Gardens, Vadodara',
-      organizer: 'Cultural Society',
-      category: 'Festival',
-      price: 0,
-      capacity: 1000,
-      registered: 350,
-      image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800',
-      rating: 4.8,
-      tags: ['Traditional', 'Dance', 'Music'],
-      ticketTypes: [
-        {
-          id: 1,
-          name: 'General Entry',
-          price: 0,
-          totalSeats: 1000,
-          availableSeats: 650,
-          benefits: ['Entry to all dance performances', 'Traditional snacks', 'Cultural activities']
-        }
-      ]
-    },
-    {
-      id: 2,
-      title: 'Tech Meetup Vadodara',
-      description: 'Monthly tech meetup for developers and entrepreneurs',
-      date: '2025-11-08',
-      time: '18:30',
-      venue: 'MS University',
-      organizer: 'Dev Community',
-      category: 'Technology',
-      price: 100,
-      capacity: 150,
-      registered: 89,
-      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
-      rating: 4.5,
-      tags: ['Tech', 'Networking'],
-      ticketTypes: [
-        {
-          id: 1,
-          name: 'Regular Pass',
-          price: 100,
-          totalSeats: 100,
-          availableSeats: 61,
-          benefits: ['Access to all sessions', 'Networking tea', 'Certificate of participation']
-        },
-        {
-          id: 2,
-          name: 'Student Pass',
-          price: 50,
-          totalSeats: 50,
-          availableSeats: 11,
-          benefits: ['Access to all sessions', 'Student networking', 'Certificate of participation']
-        }
-      ]
-    },
-    {
-      id: 3,
-      title: 'Food Festival Gujarat',
-      description: 'Authentic Gujarati cuisine festival',
-      date: '2025-11-20',
-      time: '11:00',
-      venue: 'Inox Road',
-      organizer: 'Food Association',
-      category: 'Food',
-      price: 50,
-      capacity: 500,
-      registered: 200,
-      image: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=800',
-      rating: 4.7,
-      tags: ['Food', 'Cultural'],
-      ticketTypes: [
-        {
-          id: 1,
-          name: 'Food Explorer',
-          price: 50,
-          totalSeats: 300,
-          availableSeats: 100,
-          benefits: ['Access to all food stalls', 'Complimentary water', 'Recipe booklet']
-        },
-        {
-          id: 2,
-          name: 'VIP Foodie',
-          price: 150,
-          totalSeats: 100,
-          availableSeats: 50,
-          benefits: ['Priority access', 'Chef interactions', 'Premium tasting menu', 'Recipe booklet', 'Goodie bag']
-        },
-        {
-          id: 3,
-          name: 'Family Pack (4 people)',
-          price: 180,
-          totalSeats: 100,
-          availableSeats: 50,
-          benefits: ['Entry for 4 people', 'Family seating area', 'Kids activities', 'Recipe booklet']
-        }
-      ]
-    }
-  ];
-
   const categories = [
     { id: 'all', name: 'All Events', color: 'blue' },
-    { id: 'Festival', name: 'Festivals', color: 'orange' },
-    { id: 'Technology', name: 'Tech', color: 'purple' },
-    { id: 'Food', name: 'Food', color: 'green' },
-    { id: 'Sports', name: 'Sports', color: 'red' },
-    { id: 'Music', name: 'Music', color: 'pink' }
+    { id: 'entertainment', name: 'Entertainment', color: 'purple' },
+    { id: 'music', name: 'Music', color: 'pink' },
+    { id: 'sports', name: 'Sports', color: 'red' },
+    { id: 'business', name: 'Business', color: 'blue' },
+    { id: 'education', name: 'Education', color: 'yellow' },
+    { id: 'cultural', name: 'Cultural', color: 'indigo' },
+    { id: 'food', name: 'Food', color: 'green' },
+    { id: 'health', name: 'Health', color: 'teal' },
+    { id: 'technology', name: 'Technology', color: 'gray' },
+    { id: 'community', name: 'Community', color: 'orange' }
   ];
 
   const dateFilters = [
@@ -167,13 +75,12 @@ const EventsCalendar = ({ className = '' }) => {
     const unsubscribe = onValue(eventsRef, (snapshot) => {
       if (snapshot.exists()) {
         const eventsData = snapshot.val();
-        const eventsArray = Object.entries(eventsData).map(([id, event]) => ({
-          id,
-          ...event
-        }));
-        setEvents([...eventsArray, ...mockEvents]);
+        const eventsArray = Object.entries(eventsData)
+          .map(([id, event]) => normalizeEvent(event, id))
+          .filter(isPublishedEvent);
+        setEvents(eventsArray);
       } else {
-        setEvents(mockEvents);
+        setEvents([]);
       }
       setLoading(false);
     });
@@ -186,7 +93,7 @@ const EventsCalendar = ({ className = '' }) => {
     const categoryMatch = categoryFilter === 'all' || event.category === categoryFilter;
     
     // Date filter
-    const eventDate = new Date(event.date);
+    const eventDate = new Date(getEventStartDate(event));
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
@@ -465,7 +372,7 @@ const EventsCalendar = ({ className = '' }) => {
         ) : (
           <div className="grid gap-6">
             {filteredEvents.map((event) => {
-              const eventDate = new Date(event.date);
+              const eventDate = new Date(getEventStartDate(event));
               const isExpired = eventDate < new Date();
               const isToday = eventDate.toDateString() === new Date().toDateString();
               
@@ -556,7 +463,7 @@ const EventsCalendar = ({ className = '' }) => {
                                 day: 'numeric' 
                               })}
                             </span>
-                            <span className="text-sm text-gray-500">{event.time}</span>
+                            <span className="text-sm text-gray-500">{getEventStartTime(event)}</span>
                           </div>
                         </div>
                         
@@ -566,7 +473,7 @@ const EventsCalendar = ({ className = '' }) => {
                           </div>
                           <div className="flex-1">
                             <span className="text-sm font-medium text-gray-900 dark:text-white block">
-                              {typeof event.venue === 'string' ? event.venue : event.venue?.name || 'Venue TBD'}
+                              {getVenueName(event.venue)}
                             </span>
                             {typeof event.venue === 'object' && event.venue?.address && (
                               <span className="text-sm text-gray-500">{event.venue.address}</span>
@@ -580,10 +487,10 @@ const EventsCalendar = ({ className = '' }) => {
                           </div>
                           <div>
                             <span className="text-sm font-medium text-gray-900 dark:text-white block">
-                              {event.registered || 0} attending
+                              {getRegistrationCount(event)} attending
                             </span>
                             <span className="text-sm text-gray-500">
-                              {event.capacity ? `${event.capacity} capacity` : 'Unlimited'}
+                              {getEventCapacity(event) ? `${getEventCapacity(event)} capacity` : 'Unlimited'}
                             </span>
                           </div>
                         </div>

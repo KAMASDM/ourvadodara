@@ -144,6 +144,23 @@ const EnhancedEventManagement = () => {
     'Outside Food Allowed', 'Age Appropriate', 'Security Check'
   ];
 
+  const getPublicEventFields = (event) => {
+    const ticketTypes = event.ticketTypes || [];
+    const prices = ticketTypes
+      .map(ticket => Number(ticket.price))
+      .filter(price => Number.isFinite(price));
+    const registrationCount = Object.keys(event.registrations || {}).length;
+
+    return {
+      date: event.startDate,
+      time: event.startTime,
+      image: event.media?.thumbnail || event.media?.images?.[0]?.url || '',
+      price: prices.length > 0 ? Math.min(...prices) : 0,
+      capacity: event.maxCapacity || event.venue?.capacity || 0,
+      registered: event.analytics?.registrations || registrationCount
+    };
+  };
+
   useEffect(() => {
     const eventsRef = ref(db, 'events');
     const unsubscribe = onValue(eventsRef, (snapshot) => {
@@ -267,27 +284,49 @@ const EnhancedEventManagement = () => {
     setLoading(true);
 
     try {
-      const eventData = {
+      const sanitizedTicketTypes = eventForm.ticketTypes.map(ticket => {
+        const totalSeats = Number(ticket.totalSeats) || 0;
+        const currentAvailable = Number(ticket.availableSeats);
+        return {
+          ...ticket,
+          price: Number(ticket.price) || 0,
+          totalSeats,
+          availableSeats: Number.isFinite(currentAvailable) ? Math.min(currentAvailable, totalSeats) : totalSeats
+        };
+      });
+
+      const normalizedForm = {
         ...eventForm,
-        createdAt: new Date().toISOString(),
+        ticketTypes: sanitizedTicketTypes,
+        maxCapacity: Number(eventForm.maxCapacity) || 0,
+        venue: {
+          ...eventForm.venue,
+          capacity: Number(eventForm.venue?.capacity) || 0
+        }
+      };
+
+      const eventData = {
+        ...normalizedForm,
+        ...getPublicEventFields(normalizedForm),
+        createdAt: editingEvent?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        createdBy: user.uid,
-        registrations: {},
-        checkedInUsers: {},
-        analytics: {
+        createdBy: editingEvent?.createdBy || user.uid,
+        registrations: editingEvent?.registrations || {},
+        checkedInUsers: editingEvent?.checkedInUsers || {},
+        analytics: editingEvent?.analytics || {
           views: 0,
           registrations: 0,
           checkins: 0,
           revenue: 0
-        }
+        },
+        isPublished: normalizedForm.status === 'published'
       };
 
       let eventId;
       if (editingEvent) {
         eventId = editingEvent.id;
         await update(ref(db, `events/${eventId}`), {
-          ...eventData,
-          updatedAt: new Date().toISOString()
+          ...eventData
         });
       } else {
         const eventRef = await push(ref(db, 'events'), eventData);
@@ -609,6 +648,25 @@ const EnhancedEventManagement = () => {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Publishing Status *
+              </label>
+              <select
+                value={eventForm.status}
+                onChange={(e) => handleInputChange('status', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                required
+              >
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Only published events appear in the public app.
+              </p>
             </div>
 
             <div>

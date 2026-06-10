@@ -56,6 +56,13 @@ const ContentManagement = () => {
     return '';
   };
 
+  const getCityName = (city) => getTextContent(city?.name) || city?.nameEn || city?.id || '';
+
+  const getPostStatus = (post) => {
+    if (post?.status) return post.status;
+    return post?.isPublished === false ? 'draft' : 'published';
+  };
+
   const { data: rawPostsData, isLoading: postsLoading, source: postsSource } = useRealtimeData(
     selectedCity ? 'posts' : null,
     {
@@ -106,7 +113,7 @@ const ContentManagement = () => {
     ? 'posts'
     : (selectedCity ? `cities/${selectedCity}/posts` : null);
   const selectedCityName = selectedCity
-    ? cities.find(c => c.id === selectedCity)?.name || selectedCity
+    ? getCityName(cities.find(c => c.id === selectedCity)) || selectedCity
     : '...';
 
   useEffect(() => {
@@ -140,7 +147,8 @@ const ContentManagement = () => {
       alert('Unable to resolve post location for status update.');
       return;
     }
-    const newStatus = currentStatus === 'published' ? 'draft' : 'published';
+    const resolvedStatus = currentStatus || getPostStatus(posts.find(p => p.id === postId));
+    const newStatus = resolvedStatus === 'published' ? 'draft' : 'published';
     const post = posts.find(p => p.id === postId);
     const action = newStatus === 'published' ? 'publish' : 'unpublish';
     
@@ -148,6 +156,8 @@ const ContentManagement = () => {
       try {
         await update(ref(db, `${postsBasePath}/${postId}`), {
           status: newStatus,
+          isPublished: newStatus === 'published',
+          publishedAt: newStatus === 'published' ? new Date().toISOString() : null,
           updatedAt: new Date().toISOString()
         });
         alert(`Post ${action}ed successfully`);
@@ -229,6 +239,8 @@ const ContentManagement = () => {
         const updatePromises = selectedPosts.map(postId =>
           update(ref(db, `${postsBasePath}/${postId}`), {
             status: 'published',
+            isPublished: true,
+            publishedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           })
         );
@@ -244,6 +256,7 @@ const ContentManagement = () => {
         const updatePromises = selectedPosts.map(postId =>
           update(ref(db, `${postsBasePath}/${postId}`), {
             status: 'draft',
+            isPublished: false,
             updatedAt: new Date().toISOString()
           })
         );
@@ -267,7 +280,7 @@ const ContentManagement = () => {
     const matchesSearch = !searchTerm || 
       titleText.toLowerCase().includes(searchTerm.toLowerCase()) ||
       contentText.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || post.status === filterStatus;
+    const matchesFilter = filterStatus === 'all' || getPostStatus(post) === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
@@ -306,6 +319,7 @@ const ContentManagement = () => {
     const statusStyles = {
       published: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-200',
       draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-200',
+      scheduled: 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-200',
       archived: 'bg-gray-100 text-gray-800 dark:bg-gray-500/20 dark:text-gray-200'
     };
     
@@ -369,7 +383,7 @@ const ContentManagement = () => {
           className="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
         >
           {cities.map(city => (
-            <option key={city.id} value={city.id}>{city.name}</option>
+            <option key={city.id} value={city.id}>{getCityName(city)}</option>
           ))}
         </select>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Showing posts for {selectedCityName}</p>
@@ -461,6 +475,7 @@ const ContentManagement = () => {
           >
             <option value="all">All Status</option>
             <option value="published">Published</option>
+            <option value="scheduled">Scheduled</option>
             <option value="draft">Draft</option>
             <option value="archived">Archived</option>
           </select>
@@ -520,10 +535,10 @@ const ContentManagement = () => {
                     }}
                     className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
                   />
-                  {/* Display thumbnail - support both imageUrl and media array */}
-                  {(post.imageUrl || (post.media && post.media.length > 0)) && (
+                  {/* Display thumbnail - support both current and legacy media fields */}
+                  {(post.thumbnailUrl || post.imageUrl || post.image || (post.media && post.media.length > 0)) && (
                     <img
-                      src={post.imageUrl || (post.media && post.media[0]?.url)}
+                      src={post.thumbnailUrl || post.imageUrl || post.image || (post.media && post.media[0]?.thumbnailUrl) || (post.media && post.media[0]?.url)}
                       alt="Post thumbnail"
                       className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
                       onError={(e) => { e.target.style.display = 'none'; }}
@@ -562,16 +577,16 @@ const ContentManagement = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
-                        {getStatusBadge(post.status)}
+                        {getStatusBadge(getPostStatus(post))}
                         <div className="flex items-center space-x-1">
                           <button
-                            onClick={() => handleToggleStatus(post.id, post.status)}
+                            onClick={() => handleToggleStatus(post.id, getPostStatus(post))}
                             className={`p-1 transition-colors ${
-                              post.status === 'published' 
+                              getPostStatus(post) === 'published' 
                                 ? 'text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300' 
                                 : 'text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400'
                             }`}
-                            title={post.status === 'published' ? 'Unpublish Post' : 'Publish Post'}
+                            title={getPostStatus(post) === 'published' ? 'Unpublish Post' : 'Publish Post'}
                           >
                             <TrendingUp className="w-4 h-4" />
                           </button>

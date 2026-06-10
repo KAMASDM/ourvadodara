@@ -18,6 +18,7 @@ import {
   Eye,
   TrendingUp
 } from 'lucide-react';
+import { stripHtmlTags } from '../../utils/textUtils';
 
 const TodaysRoundup = ({ onClose }) => {
   const [roundup, setRoundup] = useState(null);
@@ -300,12 +301,12 @@ const TodaysRoundup = ({ onClose }) => {
             {/* Content */}
             <div className="p-6">
               <h3 className="text-2xl font-bold text-white mb-3 line-clamp-2">
-                {currentPost.title}
+                {stripHtmlTags(currentPost.title)}
               </h3>
 
               {currentPost.excerpt && (
                 <p className="text-white/80 text-sm mb-4 line-clamp-3">
-                  {currentPost.excerpt}
+                  {stripHtmlTags(currentPost.excerpt)}
                 </p>
               )}
 

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { MEDIA_TYPES, POST_TYPES } from '../../utils/mediaSchema';
 import InstagramCarousel from './InstagramCarousel';
+import { getLocalizedText } from '../../utils/textUtils';
 
 const MediaRenderer = ({ 
   post, 
@@ -372,7 +373,7 @@ const MediaRenderer = ({
         <div className="relative w-full">
           <img
             src={post.image}
-            alt={post.title?.en || post.title || 'News image'}
+              alt={getLocalizedText(post.title, 'en') || 'News image'}
             className="w-full h-auto max-h-[80vh] object-contain"
           />
         </div>
@@ -440,14 +441,14 @@ const MediaRenderer = ({
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/50" />
           
           {/* Story Text */}
-          {post.title?.en && (
+          {getLocalizedText(post.title, 'en') && (
             <div 
               className="absolute bottom-6 left-4 right-4 text-white"
               style={{ color: post.storySettings?.textColor || '#ffffff' }}
             >
-              <h3 className="text-lg font-semibold mb-2">{post.title.en}</h3>
-              {post.content?.en && (
-                <p className="text-sm opacity-90">{post.content.en}</p>
+              <h3 className="text-lg font-semibold mb-2">{getLocalizedText(post.title, 'en')}</h3>
+              {getLocalizedText(post.content || post.excerpt, 'en') && (
+                <p className="text-sm opacity-90">{getLocalizedText(post.content || post.excerpt, 'en')}</p>
               )}
             </div>
           )}
@@ -616,12 +617,12 @@ const MediaRenderer = ({
               <span className="font-semibold">{post.author?.name || brandName}</span>
             </div>
             
-            {post.title?.en && (
-              <h3 className="font-medium mb-1">{post.title.en}</h3>
+            {getLocalizedText(post.title, 'en') && (
+              <h3 className="font-medium mb-1">{getLocalizedText(post.title, 'en')}</h3>
             )}
             
-            {post.description?.en && (
-              <p className="text-sm opacity-90 line-clamp-2">{post.description.en}</p>
+            {getLocalizedText(post.description || post.excerpt, 'en') && (
+              <p className="text-sm opacity-90 line-clamp-2">{getLocalizedText(post.description || post.excerpt, 'en')}</p>
             )}
             
             {post.hashtags && post.hashtags.length > 0 && (

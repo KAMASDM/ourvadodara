@@ -8,6 +8,7 @@ import { ref, onValue } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { DATABASE_PATHS } from '../../utils/databaseSchema';
 import { TrendingUp, Eye, Heart, MessageCircle, Share2, Clock } from 'lucide-react';
+import { getLocalizedText } from '../../utils/textUtils';
 
 const TrendingStoriesReal = ({ onPostClick }) => {
   const [trendingStories, setTrendingStories] = useState([]);
@@ -103,7 +104,7 @@ const TrendingStoriesReal = ({ onPostClick }) => {
                   <div className="flex-shrink-0">
                     <img
                       src={story.imageUrl}
-                      alt={story.title?.en || 'Story image'}
+                      alt={getLocalizedText(story.title, 'en') || 'Story image'}
                       className="w-16 h-16 rounded-lg object-cover"
                     />
                   </div>
@@ -112,12 +113,12 @@ const TrendingStoriesReal = ({ onPostClick }) => {
                 {/* Story Content */}
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium text-gray-900 text-sm leading-tight mb-1 line-clamp-2">
-                    {story.title?.en || 'Trending Story'}
+                    {getLocalizedText(story.title, 'en') || 'Trending Story'}
                   </h3>
                   
-                  {story.excerpt?.en && (
+                  {getLocalizedText(story.excerpt, 'en') && (
                     <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-                      {story.excerpt.en}
+                      {getLocalizedText(story.excerpt, 'en')}
                     </p>
                   )}
                   

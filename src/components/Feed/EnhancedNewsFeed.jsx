@@ -33,6 +33,7 @@ import EmojiReactions from '../Common/EmojiReactions';
 import TopicChip from '../Topics/TopicChip';
 import { FeedSkeleton, ReelsGridSkeleton } from '../Common/SkeletonLoader';
 import { POST_TYPES } from '../../utils/mediaSchema';
+import { getLocalizedText } from '../../utils/textUtils';
 import { sampleNews } from '../../data/newsData';
 
 const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {}, feedType = 'all' }) => {
@@ -432,21 +433,9 @@ const PostCard = ({
   onToggleExpanded,
   currentLanguage 
 }) => {
-  // Strip HTML tags helper function
-  const stripHtmlTags = (html) => {
-    if (!html) return '';
-    const tmp = document.createElement('DIV');
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || '';
-  };
-
-  const title = post.title?.[currentLanguage] || post.title?.en || 'Untitled';
-  const rawContent = post.content?.[currentLanguage] || post.content?.en || '';
-  const rawExcerpt = post.excerpt?.[currentLanguage] || post.excerpt?.en || '';
-  
-  // Strip HTML from content and excerpt
-  const content = stripHtmlTags(rawContent);
-  const excerpt = stripHtmlTags(rawExcerpt);
+  const title = getLocalizedText(post.title, currentLanguage) || 'Untitled';
+  const content = getLocalizedText(post.content, currentLanguage);
+  const excerpt = getLocalizedText(post.excerpt, currentLanguage);
   
   // Handle both new mediaContent structure and legacy media array
   let mediaItems = [];
@@ -786,7 +775,7 @@ const PostCard = ({
 
 // Reel Card Component (for reel grid view)
 const ReelCard = ({ post, onLike, onSave, onShare, isLiked, isSaved, currentLanguage }) => {
-  const title = post.title?.[currentLanguage] || post.title?.en || 'Untitled';
+  const title = getLocalizedText(post.title, currentLanguage) || 'Untitled';
   const authorName = 'Our Vadodara';
   const viewCount = post.analytics?.views ?? post.views ?? 0;
 

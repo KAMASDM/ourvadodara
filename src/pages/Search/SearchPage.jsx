@@ -8,6 +8,7 @@ import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { Search, Calendar, Tag, X, Newspaper, Clapperboard } from 'lucide-react';
 import LoadingSpinner from '../../components/Common/LoadingSpinner';
 import { POST_TYPES } from '../../utils/mediaSchema';
+import { getLocalizedText } from '../../utils/textUtils';
 
 const categories = [
   'all',
@@ -22,12 +23,6 @@ const categories = [
   'weather',
   'world'
 ];
-
-const getLocalizedText = (value, language = 'en') => {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  return value[language] || value.en || value.gu || value.hi || '';
-};
 
 const normalizeDate = (post) => new Date(post.publishedAt || post.createdAt || post.updatedAt || 0);
 
@@ -240,7 +235,7 @@ const SearchPage = ({ onPostClick, onShowReels = () => {} }) => {
                       </h2>
                       {excerpt && (
                         <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-slate-600">
-                          {excerpt.replace(/<[^>]*>/g, '')}
+                          {excerpt}
                         </p>
                       )}
                     </div>

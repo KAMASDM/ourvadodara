@@ -32,6 +32,13 @@ import { useTranslation } from 'react-i18next';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../../firebase-config';
 import EventRegistration from './EventRegistration';
+import {
+  getEventStartDate,
+  getEventStartTime,
+  getTicketTypes,
+  getVenueName,
+  normalizeEvent
+} from '../../utils/eventUtils';
 
 const EventDetail = ({ eventId, onBack }) => {
   const { t } = useTranslation();
@@ -48,7 +55,7 @@ const EventDetail = ({ eventId, onBack }) => {
       const unsubscribe = onValue(eventRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          setEvent({ id: eventId, ...data });
+          setEvent(normalizeEvent(data, eventId));
         }
         setLoading(false);
       });
@@ -90,7 +97,7 @@ const EventDetail = ({ eventId, onBack }) => {
 
   const getEventStatus = () => {
     const now = new Date();
-    const eventDate = new Date(event.startDate);
+    const eventDate = new Date(getEventStartDate(event));
     const daysDiff = Math.ceil((eventDate - now) / (1000 * 60 * 60 * 24));
 
     if (daysDiff < 0) return { text: 'Past Event', color: 'text-gray-500', bg: 'bg-gray-100' };
@@ -177,7 +184,7 @@ const EventDetail = ({ eventId, onBack }) => {
             <div className="flex flex-wrap items-center gap-6 text-lg">
               <div className="flex items-center">
                 <Calendar className="w-6 h-6 mr-2" />
-                <span>{new Date(event.startDate).toLocaleDateString('en-IN', { 
+                <span>{new Date(getEventStartDate(event)).toLocaleDateString('en-IN', { 
                   weekday: 'long', 
                   month: 'long', 
                   day: 'numeric',
@@ -186,11 +193,11 @@ const EventDetail = ({ eventId, onBack }) => {
               </div>
               <div className="flex items-center">
                 <Clock className="w-6 h-6 mr-2" />
-                <span>{event.startTime}</span>
+                <span>{getEventStartTime(event)}</span>
               </div>
               <div className="flex items-center">
                 <MapPin className="w-6 h-6 mr-2" />
-                <span>{event.venue?.name}</span>
+                <span>{getVenueName(event.venue)}</span>
               </div>
             </div>
           </div>
@@ -371,18 +378,18 @@ const EventDetail = ({ eventId, onBack }) => {
             <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-6">
               <div className="text-center mb-6">
                 <div className="text-3xl font-bold text-gray-900 mb-2">
-                  {formatPrice(event.ticketTypes?.[0]?.price)}
-                  {event.ticketTypes?.length > 1 && (
+                  {formatPrice(getTicketTypes(event)?.[0]?.price)}
+                  {getTicketTypes(event)?.length > 1 && (
                     <span className="text-lg text-gray-500 font-normal"> onwards</span>
                   )}
                 </div>
                 <p className="text-gray-600">per person</p>
               </div>
 
-              {event.ticketTypes?.length > 0 && (
+              {getTicketTypes(event)?.length > 0 && (
                 <div className="space-y-3 mb-6">
                   <h4 className="font-semibold text-gray-900">Available Tickets</h4>
-                  {event.ticketTypes.map((ticket, index) => (
+                  {getTicketTypes(event).map((ticket, index) => (
                     <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
                         <div className="font-medium text-gray-900">{ticket.name}</div>

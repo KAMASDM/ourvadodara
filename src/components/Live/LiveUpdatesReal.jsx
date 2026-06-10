@@ -8,6 +8,7 @@ import { ref, onValue } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { DATABASE_PATHS } from '../../utils/databaseSchema';
 import { Radio, Clock, MapPin, AlertCircle } from 'lucide-react';
+import { getLocalizedText } from '../../utils/textUtils';
 
 const LiveUpdatesReal = () => {
   const [liveUpdates, setLiveUpdates] = useState([]);
@@ -98,11 +99,11 @@ const LiveUpdatesReal = () => {
                     )}
                     
                     <h3 className="font-medium text-gray-900 mb-1">
-                      {update.title?.en || 'Live Update'}
+                      {getLocalizedText(update.title, 'en') || 'Live Update'}
                     </h3>
                     
                     <p className="text-sm text-gray-700 mb-2">
-                      {update.content?.en || 'No content available'}
+                      {getLocalizedText(update.content, 'en') || 'No content available'}
                     </p>
                     
                     <div className="flex items-center space-x-3 text-xs text-gray-500">

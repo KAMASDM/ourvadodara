@@ -21,6 +21,7 @@ import {
   Pause
 } from 'lucide-react';
 import { POST_TYPES } from '../../utils/mediaSchema';
+import { getLocalizedText } from '../../utils/textUtils';
 import ShareSheet from '../../components/Common/ShareSheet';
 
 const EnhancedReelsPage = ({ onBack, initialReelId = null }) => {
@@ -271,8 +272,8 @@ const EnhancedReelsPage = ({ onBack, initialReelId = null }) => {
   const handleShare = (reel) => {
     const shareUrl = `${window.location.origin}/reels/${reel.id}`;
     setShareData({
-      title: reel.title?.en || 'Check out this reel',
-      text: reel.excerpt?.en || reel.description?.en || '',
+      title: getLocalizedText(reel.title, 'en') || 'Check out this reel',
+      text: getLocalizedText(reel.excerpt || reel.description, 'en'),
       url: shareUrl
     });
     setShareSheetOpen(true);
@@ -486,11 +487,11 @@ const ReelCard = ({
         </div>
 
         {/* Title/Description */}
-        {reel.title?.en && (
-          <h3 className="font-semibold text-lg mb-2">{reel.title.en}</h3>
+        {getLocalizedText(reel.title, 'en') && (
+          <h3 className="font-semibold text-lg mb-2">{getLocalizedText(reel.title, 'en')}</h3>
         )}
-        {reel.excerpt?.en && (
-          <p className="text-sm opacity-90 mb-2 line-clamp-2">{reel.excerpt.en}</p>
+        {getLocalizedText(reel.excerpt || reel.description, 'en') && (
+          <p className="text-sm opacity-90 mb-2 line-clamp-2">{getLocalizedText(reel.excerpt || reel.description, 'en')}</p>
         )}
 
         {/* Hashtags */}

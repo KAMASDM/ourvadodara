@@ -423,6 +423,33 @@ body {
   border-color: rgba(255,255,255,0.12);
 }
 
+@media (max-width: 767px) {
+  .liquid-glass,
+  .liquid-panel {
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+  }
+
+  .liquid-card,
+  .card {
+    box-shadow: var(--glass-shadow-soft);
+    backdrop-filter: blur(10px) saturate(145%);
+    -webkit-backdrop-filter: blur(10px) saturate(145%);
+  }
+
+  .liquid-card::after,
+  .liquid-glass::before,
+  .liquid-panel::before {
+    opacity: 0.42;
+  }
+
+  .liquid-action,
+  .liquid-chip {
+    backdrop-filter: blur(8px) saturate(140%);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+  }
+}
+
 .grecaptcha-badge {
   visibility: hidden !important;
   opacity: 0 !important;

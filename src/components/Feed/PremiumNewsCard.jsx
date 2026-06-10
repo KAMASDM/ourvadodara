@@ -11,12 +11,13 @@ import {
 import { useLanguage } from '../../context/Language/LanguageContext';
 import EmojiReactions from '../Common/EmojiReactions';
 import { formatTimeAgo, formatNumber } from '../../utils/helpers';
+import { getLocalizedText } from '../../utils/textUtils';
 
 /* ── helpers ─────────────────────────────────────────────── */
 const useNormalizedPost = (post) => {
   const { currentLanguage } = useLanguage();
-  const title   = post.title?.[currentLanguage]   || post.title?.en   || 'Untitled';
-  const excerpt = post.excerpt?.[currentLanguage] || post.excerpt?.en || '';
+  const title   = getLocalizedText(post.title, currentLanguage) || 'Untitled';
+  const excerpt = getLocalizedText(post.excerpt, currentLanguage);
   const media   = post.mediaContent?.items || (Array.isArray(post.media) ? post.media : []);
   const image   = media[0]?.url || media[0]?.src || post.image;
   const hasMulti= media.length > 1;

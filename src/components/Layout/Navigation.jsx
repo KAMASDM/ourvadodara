@@ -15,6 +15,8 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
   const handleChange = onTabChange || setActiveTab;
   const [isHidden, setIsHidden] = useState(false);
   const lastScrollY = useRef(typeof window !== 'undefined' ? window.scrollY : 0);
+  const hiddenRef = useRef(false);
+  const tickingRef = useRef(false);
 
   const { data: notificationsObject } = useRealtimeData(
     user ? `notifications/${user.uid}` : null
@@ -25,21 +27,33 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
     : 0;
 
   useEffect(() => {
-    const showNav = () => setIsHidden(false);
+    const setHiddenIfChanged = (nextHidden) => {
+      if (hiddenRef.current === nextHidden) return;
+      hiddenRef.current = nextHidden;
+      setIsHidden(nextHidden);
+    };
+
+    const showNav = () => setHiddenIfChanged(false);
 
     const handleScroll = () => {
-      const currentY = Math.max(window.scrollY, 0);
-      const delta = currentY - lastScrollY.current;
-      const nearTop = currentY < 48;
-      const nearBottom = window.innerHeight + currentY >= document.documentElement.scrollHeight - 96;
+      if (tickingRef.current) return;
 
-      if (nearTop || nearBottom || delta < -8) {
-        setIsHidden(false);
-      } else if (delta > 10 && currentY > 120) {
-        setIsHidden(true);
-      }
+      tickingRef.current = true;
+      requestAnimationFrame(() => {
+        const currentY = Math.max(window.scrollY, 0);
+        const delta = currentY - lastScrollY.current;
+        const nearTop = currentY < 48;
+        const nearBottom = window.innerHeight + currentY >= document.documentElement.scrollHeight - 96;
 
-      lastScrollY.current = currentY;
+        if (nearTop || nearBottom || delta < -8) {
+          setHiddenIfChanged(false);
+        } else if (delta > 10 && currentY > 120) {
+          setHiddenIfChanged(true);
+        }
+
+        lastScrollY.current = currentY;
+        tickingRef.current = false;
+      });
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -74,7 +88,7 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
       onFocusCapture={() => setIsHidden(false)}
     >
       <div className="max-w-app mx-auto mb-2 px-2">
-        <div className="liquid-glass flex h-[64px] rounded-3xl border border-white/60 dark:border-white/10">
+        <div className="liquid-glass relative flex h-[64px] rounded-3xl border border-white/60 dark:border-white/10">
         {navItems.map(({ id, Icon, label, alert, badge }) => {
           const active = activeTab === id;
           const color = active

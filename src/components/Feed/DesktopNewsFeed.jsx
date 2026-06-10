@@ -18,6 +18,7 @@ import {
 import { POST_TYPES } from '../../utils/mediaSchema';
 import { formatTimeAgo } from '../../utils/helpers';
 import ShareSheet from '../Common/ShareSheet';
+import { getLocalizedText } from '../../utils/textUtils';
 
 // Media component with error handling for both images and videos
 const PostMedia = ({ src, alt, className, fallback = true, post }) => {
@@ -219,7 +220,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
   const handleShare = (post, e) => {
     e.stopPropagation();
     setShareData({
-      title: post.title?.[currentLanguage] || post.title?.en || '',
+      title: getLocalizedText(post.title, currentLanguage),
       url: `${window.location.origin}/post/${post.id}`
     });
     setShareSheetOpen(true);
@@ -257,27 +258,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
   };
 
   const getPostDescription = (post) => {
-    // Try description first, then fall back to content
-    let text = post.description?.[currentLanguage] || 
-               post.description?.en || 
-               post.description?.gu ||
-               post.description?.hi ||
-               post.content?.[currentLanguage] || 
-               post.content?.en || 
-               post.content?.gu ||
-               post.content?.hi ||
-               '';
-    
-    // If description/content is an object but we haven't extracted a string yet
-    if (typeof text === 'object' && text !== null) {
-      text = text[currentLanguage] || text.en || text.gu || text.hi || '';
-    }
-    
-    // Ensure we have a string
-    const textStr = typeof text === 'string' ? text : '';
-    
-    // Strip HTML tags
-    const stripped = textStr.replace(/<[^>]*>/g, '');
+    const stripped = getLocalizedText(post.description, currentLanguage) || getLocalizedText(post.content, currentLanguage);
     return stripped.slice(0, 150) + (stripped.length > 150 ? '...' : '');
   };
 

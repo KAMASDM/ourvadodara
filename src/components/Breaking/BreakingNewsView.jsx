@@ -15,6 +15,7 @@ import {
 import { ref, onValue } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { useLanguage } from '../../context/Language/LanguageContext';
+import { getLocalizedText } from '../../utils/textUtils';
 import { useTranslation } from 'react-i18next';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -52,12 +53,7 @@ const BreakingNewsView = ({ onPostClick }) => {
   }, []);
 
   const getTextContent = (content) => {
-    if (!content) return '';
-    if (typeof content === 'string') return content;
-    if (typeof content === 'object') {
-      return content[currentLanguage] || content.en || content.hi || content.gu || Object.values(content)[0] || '';
-    }
-    return '';
+    return getLocalizedText(content, currentLanguage);
   };
 
   const getPriorityColor = (priority) => {

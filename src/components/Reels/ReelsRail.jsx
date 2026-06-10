@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Play, Eye } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { POST_TYPES } from '../../utils/mediaSchema';
+import { getLocalizedText } from '../../utils/textUtils';
 
 const ReelsRail = ({ onSelectReel }) => {
   const { t } = useTranslation();
@@ -81,7 +82,7 @@ const ReelsRail = ({ onSelectReel }) => {
         {reels.map((reel) => {
           const thumbnail = resolveThumbnail(reel);
           const viewsLabel = formatViews(reel.analytics?.views);
-          const title = reel.title?.en || reel.title?.default || t('reel_default_title', 'Our Vadodara Reel');
+          const title = getLocalizedText(reel.title, 'en') || reel.title?.default || t('reel_default_title', 'Our Vadodara Reel');
 
           return (
             <button

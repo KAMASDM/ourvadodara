@@ -26,8 +26,16 @@ import {
 import { ref, onValue, push, update, get } from 'firebase/database';
 import { db } from '../../firebase-config';
 import QRCode from 'qrcode';
+import {
+  getEventStartDate,
+  getEventStartTime,
+  getTicketTypes,
+  getVenueAddress,
+  getVenueName,
+  normalizeEvent
+} from '../../utils/eventUtils';
 
-const EventRegistration = ({ eventId, onClose }) => {
+const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => {
   const { user } = useAuth();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -64,24 +72,29 @@ const EventRegistration = ({ eventId, onClose }) => {
   });
 
   useEffect(() => {
+    if (initialEvent) {
+      setEvent(normalizeEvent(initialEvent, initialEvent.id || eventId));
+      setLoading(false);
+    }
+
     if (eventId) {
       const eventRef = ref(db, `events/${eventId}`);
       const unsubscribe = onValue(eventRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          setEvent({ id: eventId, ...data });
+          setEvent(normalizeEvent(data, eventId));
         }
         setLoading(false);
       });
 
       return () => unsubscribe();
     }
-  }, [eventId]);
+  }, [eventId, initialEvent]);
 
   const calculateTotal = () => {
     let total = 0;
     Object.entries(registrationData.selectedTickets).forEach(([ticketTypeId, quantity]) => {
-      const ticketType = event.ticketTypes.find(t => t.id.toString() === ticketTypeId);
+      const ticketType = getTicketTypes(event).find(t => t.id.toString() === ticketTypeId);
       if (ticketType) {
         total += ticketType.price * quantity;
       }
@@ -104,7 +117,7 @@ const EventRegistration = ({ eventId, onClose }) => {
   }, [event, registrationData.selectedTickets, registrationData.discount]);
 
   const updateTicketQuantity = (ticketTypeId, change) => {
-    if (!event || !event.ticketTypes || event.ticketTypes.length === 0) {
+    if (!event || getTicketTypes(event).length === 0) {
       setError('Event ticket information is not available');
       return;
     }
@@ -112,7 +125,7 @@ const EventRegistration = ({ eventId, onClose }) => {
     const currentQuantity = registrationData.selectedTickets[ticketTypeId] || 0;
     const newQuantity = Math.max(0, currentQuantity + change);
     
-    const ticketType = event.ticketTypes.find(t => t.id.toString() === ticketTypeId.toString());
+    const ticketType = getTicketTypes(event).find(t => t.id.toString() === ticketTypeId.toString());
     if (!ticketType) {
       setError('Ticket type not found');
       return;
@@ -227,6 +240,10 @@ const EventRegistration = ({ eventId, onClose }) => {
 
     try {
       // Validate required fields
+      if (!user?.uid) {
+        throw new Error('Please sign in before registering for this event');
+      }
+
       if (registrationData.attendees.some(a => !a.name || !a.email)) {
         throw new Error('Please fill in all required attendee information');
       }
@@ -333,8 +350,8 @@ const EventRegistration = ({ eventId, onClose }) => {
         <div class="ticket">
           <h1>${event.title}</h1>
           <div class="event-details">
-            <p><strong>Date:</strong> ${event.startDate} ${event.startTime}</p>
-            <p><strong>Venue:</strong> ${event.venue.name}, ${event.venue.address}</p>
+            <p><strong>Date:</strong> ${getEventStartDate(event)} ${getEventStartTime(event)}</p>
+            <p><strong>Venue:</strong> ${getVenueName(event.venue)}, ${getVenueAddress(event.venue)}</p>
             <p><strong>Registration ID:</strong> ${registrationId}</p>
           </div>
           <div class="attendee-info">
@@ -422,9 +439,9 @@ const EventRegistration = ({ eventId, onClose }) => {
       {step === 1 && (
         <div className="space-y-6">
           <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-white/95 dark:bg-gray-900/95 overflow-hidden shadow-sm shadow-gray-200/40 dark:shadow-black/30">
-            {event.images && event.images.length > 0 && (
+            {event.media?.images?.length > 0 && (
               <img
-                src={event.images[0]}
+                src={event.media.images[0].url}
                 alt={event.title}
                 className="w-full h-64 object-cover"
               />
@@ -436,15 +453,15 @@ const EventRegistration = ({ eventId, onClose }) => {
                   <div className="flex items-center text-gray-600 dark:text-gray-300">
                     <Calendar className="w-5 h-5 mr-3" />
                     <div>
-                      <div className="font-medium text-gray-900 dark:text-gray-100">{event.startDate}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">{event.startTime} - {event.endTime}</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">{getEventStartDate(event)}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">{getEventStartTime(event)} - {event.endTime}</div>
                     </div>
                   </div>
                   <div className="flex items-center text-gray-600 dark:text-gray-300">
                     <MapPin className="w-5 h-5 mr-3" />
                     <div>
-                      <div className="font-medium text-gray-900 dark:text-gray-100">{event.venue.name}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">{event.venue.address}, {event.venue.city}</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">{getVenueName(event.venue)}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">{getVenueAddress(event.venue)}</div>
                     </div>
                   </div>
                   <div className="flex items-center text-gray-600 dark:text-gray-300">
@@ -507,7 +524,7 @@ const EventRegistration = ({ eventId, onClose }) => {
           <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-white/95 dark:bg-gray-900/95 p-6 shadow-sm shadow-gray-200/40 dark:shadow-black/30">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Select Tickets</h2>
             
-            {!event || !event.ticketTypes || event.ticketTypes.length === 0 ? (
+            {!event || getTicketTypes(event).length === 0 ? (
               <div className="text-center py-8">
                 <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Tickets Available</h3>
@@ -515,7 +532,7 @@ const EventRegistration = ({ eventId, onClose }) => {
               </div>
             ) : (
               <div className="space-y-4 mb-6">
-                {event.ticketTypes.map((ticketType) => (
+                {getTicketTypes(event).map((ticketType) => (
                 <div key={ticketType.id} className="border border-gray-200/70 dark:border-gray-800/70 rounded-2xl p-4 bg-white/80 dark:bg-gray-900/80">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -591,7 +608,8 @@ const EventRegistration = ({ eventId, onClose }) => {
               <div className="space-y-2">
                 {Object.entries(registrationData.selectedTickets).map(([ticketTypeId, quantity]) => {
                   if (quantity === 0) return null;
-                  const ticketType = event.ticketTypes.find(t => t.id.toString() === ticketTypeId);
+                  const ticketType = getTicketTypes(event).find(t => t.id.toString() === ticketTypeId);
+                  if (!ticketType) return null;
                   return (
                     <div key={ticketTypeId} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                       <span>{ticketType.name} x {quantity}</span>
@@ -862,7 +880,8 @@ const EventRegistration = ({ eventId, onClose }) => {
               <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
                 {Object.entries(registrationData.selectedTickets).map(([ticketTypeId, quantity]) => {
                   if (quantity === 0) return null;
-                  const ticketType = event.ticketTypes.find(t => t.id.toString() === ticketTypeId);
+                  const ticketType = getTicketTypes(event).find(t => t.id.toString() === ticketTypeId);
+                  if (!ticketType) return null;
                   return (
                     <div key={ticketTypeId} className="flex justify-between">
                       <span>{ticketType.name} x {quantity}</span>
@@ -950,8 +969,8 @@ const EventRegistration = ({ eventId, onClose }) => {
             <div className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-4 mb-6">
               <div className="text-sm space-y-2 text-gray-700 dark:text-gray-300">
                 <div><strong className="text-gray-900 dark:text-gray-100">Registration ID:</strong> {registrationId}</div>
-                <div><strong className="text-gray-900 dark:text-gray-100">Event Date:</strong> {event.startDate} {event.startTime}</div>
-                <div><strong className="text-gray-900 dark:text-gray-100">Venue:</strong> {event.venue.name}</div>
+                <div><strong className="text-gray-900 dark:text-gray-100">Event Date:</strong> {getEventStartDate(event)} {getEventStartTime(event)}</div>
+                <div><strong className="text-gray-900 dark:text-gray-100">Venue:</strong> {getVenueName(event.venue)}</div>
                 <div><strong className="text-gray-900 dark:text-gray-100">Total Amount:</strong> ₹{registrationData.finalAmount.toLocaleString()}</div>
               </div>
             </div>
@@ -981,7 +1000,7 @@ const EventRegistration = ({ eventId, onClose }) => {
                 onClick={() => {
                   const shareData = {
                     title: `Registered for ${event.title}`,
-                    text: `I just registered for ${event.title} on ${event.startDate}!`,
+                    text: `I just registered for ${event.title} on ${getEventStartDate(event)}!`,
                     url: window.location.href
                   };
                   

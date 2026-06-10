@@ -28,6 +28,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { POST_TYPES } from '../../utils/mediaSchema';
+import { getLocalizedText } from '../../utils/textUtils';
 
 const ReelsPage = ({ onBack, initialReelId = null }) => {
   const { user } = useAuth();
@@ -507,8 +508,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: reel.title?.en || 'Check out this reel!',
-          text: reel.description?.en,
+          title: getLocalizedText(reel.title, 'en') || 'Check out this reel!',
+          text: getLocalizedText(reel.description || reel.excerpt, 'en'),
           url: window.location.origin + `/reel/${reel.id}`
         });
         
@@ -716,15 +717,15 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           {/* Author Info & Content */}
           <div className="absolute bottom-20 left-4 right-20 text-white z-20 reel-content">
             {/* Title & Description */}
-            {currentReel.title?.en && (
+            {getLocalizedText(currentReel.title, 'en') && (
               <h2 className="font-semibold text-base mb-1 drop-shadow-lg line-clamp-2">
-                {currentReel.title.en}
+                {getLocalizedText(currentReel.title, 'en')}
               </h2>
             )}
             
-            {currentReel.description?.en && (
+            {getLocalizedText(currentReel.description || currentReel.excerpt, 'en') && (
               <p className="text-sm opacity-95 leading-relaxed mb-2 drop-shadow-lg line-clamp-2">
-                {currentReel.description.en}
+                {getLocalizedText(currentReel.description || currentReel.excerpt, 'en')}
               </p>
             )}
             

@@ -18,6 +18,7 @@ import EventsCalendar from '../../components/Events/EventsCalendar';
 import PollWidget from '../../components/Polls/PollWidget';
 import AIPicksReal from '../../components/AI/AIPicksReal';
 import ReadingStreak from '../../components/Gamification/ReadingStreak';
+import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import {
   Cloud,
   TrendingUp,
@@ -164,16 +165,24 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
               {/* Row 1: section title + focus button */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  {activeSection && (
-                    <span className={`w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-lg ${sections.find(s => s.id === activeSection)?.color}`}>
-                      {React.createElement(sections.find(s => s.id === activeSection)?.icon, { className: 'w-3.5 h-3.5 text-white' })}
-                    </span>
-                  )}
-                  <h2 className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
-                    {activeSection
-                      ? sections.find(s => s.id === activeSection)?.name
-                      : t('top_stories', 'Top Stories')}
-                  </h2>
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/80 shadow-inner ring-1 ring-white/70">
+                    <img src={logoImage} alt="Our Vadodara" className="h-10 w-10 object-contain" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-700">Our Vadodara</p>
+                    <div className="flex items-center gap-1.5">
+                      {activeSection && (
+                        <span className={`w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-lg ${sections.find(s => s.id === activeSection)?.color}`}>
+                          {React.createElement(sections.find(s => s.id === activeSection)?.icon, { className: 'w-3 h-3 text-white' })}
+                        </span>
+                      )}
+                      <h2 className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
+                        {activeSection
+                          ? sections.find(s => s.id === activeSection)?.name
+                          : t('top_stories', 'Top Stories')}
+                      </h2>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {activeSection && (
