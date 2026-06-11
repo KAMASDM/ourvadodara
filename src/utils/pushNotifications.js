@@ -76,7 +76,7 @@ class PushNotificationService {
         'breaking-news'
       ];
 
-      const allTopics = [...defaultTopics, ...topics];
+      const allTopics = [...new Set([...defaultTopics, ...topics])];
 
       // Store FCM token in Firebase Database with user info
       const { db } = await import('../firebase-config');
@@ -220,7 +220,7 @@ class PushNotificationService {
     return localStorage.getItem('authToken') || '';
   }
 
-  async init(userId) {
+  async init(userId, topics = []) {
     try {
       if (!this.isSupported) {
         console.warn('Push notifications not supported');
@@ -240,7 +240,7 @@ class PushNotificationService {
       }
 
       // Subscribe to topics
-      await this.subscribeToTopic(userId);
+      await this.subscribeToTopic(userId, topics);
 
       // Setup message listener
       this.setupForegroundMessageListener();

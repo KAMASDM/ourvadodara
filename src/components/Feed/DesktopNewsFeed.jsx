@@ -13,7 +13,8 @@ import {
   BookmarkCheck,
   Eye,
   ImageOff,
-  Play
+  Play,
+  Megaphone
 } from 'lucide-react';
 import { POST_TYPES } from '../../utils/mediaSchema';
 import { formatTimeAgo } from '../../utils/helpers';
@@ -204,6 +205,11 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
     }
   };
 
+  const handleAdvertiseClick = () => {
+    window.history.pushState({ view: 'advertise' }, '', '/advertise');
+    window.dispatchEvent(new Event('popstate'));
+  };
+
   const handleSave = (postId, e) => {
     e.stopPropagation();
     setSavedPosts(prev => {
@@ -285,15 +291,27 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
 
   return (
     <div className="w-full">
-      <div className="max-w-[1600px] mx-auto px-2 py-4">
+      <div className="mx-auto w-full max-w-[1600px] px-0 py-4">
         {/* Header Section */}
         <div className="liquid-panel rounded-3xl px-6 py-5 mb-8">
-          <h1 className="text-3xl font-bold text-slate-950 dark:text-white mb-2">
-            {category ? `${category.charAt(0).toUpperCase() + category.slice(1)} News` : 'Latest News'}
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400">
-            Stay updated with the latest news and stories
-          </p>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-950 dark:text-white mb-2">
+                {category ? `${category.charAt(0).toUpperCase() + category.slice(1)} News` : 'Latest News'}
+              </h1>
+              <p className="text-slate-600 dark:text-slate-400">
+                Stay updated with the latest news and stories
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAdvertiseClick}
+              className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700 active:scale-95"
+            >
+              <Megaphone className="h-4 w-4" />
+              Contact us to advertise on Our Vadodara
+            </button>
+          </div>
         </div>
 
         {/* Featured Story Section */}

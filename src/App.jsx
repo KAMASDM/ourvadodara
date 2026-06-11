@@ -28,6 +28,7 @@ import GuestModePrompt from './components/Auth/GuestModePrompt.jsx';
 import FirebaseSetupGuide from './components/Auth/FirebaseSetupGuide.jsx';
 import ReelsPage from './pages/Reels/ReelsPage.jsx';
 import RoundupPage from './pages/Roundup/RoundupPage.jsx';
+import AdvertisePage from './pages/Advertise/AdvertisePage.jsx';
 import EventsCalendar from './components/Events/EventsCalendar.jsx';
 import FirebaseSetup from './components/Admin/FirebaseSetup.jsx';
 import AdminUpgrade from './components/Admin/AdminUpgrade.jsx';
@@ -101,8 +102,21 @@ function AppContent() {
       return;
     }
 
+    if (path === '/advertise' || path === '/enquiry' || path === '/brand-solutions') {
+      setCurrentView({ type: 'advertise', data: null });
+      setActiveTab('advertise');
+      return;
+    }
+
     if (path === '/search') {
       setCurrentView({ type: 'search', data: null });
+      setActiveTab('home');
+      return;
+    }
+
+    if (path.startsWith('/category/')) {
+      const category = decodeURIComponent(path.replace('/category/', ''));
+      setCurrentView({ type: 'category', data: { category } });
       setActiveTab('home');
       return;
     }
@@ -110,6 +124,36 @@ function AppContent() {
     if (path === '/breaking') {
       setCurrentView({ type: 'breaking', data: null });
       setActiveTab('breaking');
+      return;
+    }
+
+    if (path === '/reels') {
+      setCurrentView({ type: 'reels', data: null });
+      setActiveTab('reels');
+      return;
+    }
+
+    if (path === '/events') {
+      setCurrentView({ type: 'events', data: null });
+      setActiveTab('events');
+      return;
+    }
+
+    if (path === '/saved') {
+      setCurrentView({ type: 'saved', data: null });
+      setActiveTab('home');
+      return;
+    }
+
+    if (path === '/profile') {
+      setCurrentView({ type: 'profile', data: null });
+      setActiveTab('profile');
+      return;
+    }
+
+    if (path === '/settings' || path === '/notifications-settings') {
+      setCurrentView({ type: path === '/settings' ? 'settings' : 'notifications-settings', data: null });
+      setActiveTab('home');
       return;
     }
 
@@ -205,7 +249,7 @@ function AppContent() {
   useEffect(() => {
     if (user && !user.isAnonymous) {
       console.log('Initializing push notifications for user:', user.uid);
-      pushNotificationService.init(user.uid)
+      pushNotificationService.init(user.uid, user.role === 'admin' ? ['admin-leads'] : [])
         .then(success => {
           if (success) {
             console.log('Push notifications initialized successfully');
@@ -233,7 +277,8 @@ function AppContent() {
     'admin', 
     'firebase-setup', 
     'admin-upgrade',
-    'qr-scanner'
+    'qr-scanner',
+    'advertise'
   ].includes(currentView.type);
   const hasMobileHeader = !isDesktop && currentView.type !== 'news-detail' && !isFullWidthView;
 
@@ -289,7 +334,7 @@ function AppContent() {
       }
       
       // Check authentication for protected views
-      if (['profile', 'saved', 'admin', 'notifications'].includes(type) && !user) {
+      if (['profile', 'saved', 'admin', 'notifications', 'notifications-settings', 'settings'].includes(type) && !user) {
         setShowLogin(true);
         return;
       }
@@ -301,6 +346,8 @@ function AppContent() {
         setActiveTab('home');
       } else if (type === 'reels') {
         setActiveTab('reels');
+      } else if (type === 'events') {
+        setActiveTab('events');
       } else if (type === 'profile') {
         setActiveTab('profile');
       }
@@ -321,6 +368,9 @@ function AppContent() {
     } else if (viewData === '/reels') {
       setCurrentView({ type: 'reels', data: null });
       setActiveTab('reels');
+    } else if (viewData === '/advertise') {
+      setCurrentView({ type: 'advertise', data: null });
+      setActiveTab('advertise');
     } else if (viewData === '/saved') {
       if (!user) {
         setShowLogin(true);
@@ -374,10 +424,22 @@ function AppContent() {
         );
       case 'home':
         return <HomePage onPostClick={handlePostClick} onShowReels={handleShowReels} />;
+      case 'category':
+        return (
+          <HomePage
+            onPostClick={handlePostClick}
+            onShowReels={handleShowReels}
+            initialCategory={currentView.data?.category || 'all'}
+          />
+        );
       case 'search':
         return <SearchPage onPostClick={handlePostClick} onShowReels={handleShowReels} />;
       case 'roundup':
         return <RoundupPage onBack={handleBackToHome} />;
+      case 'advertise':
+        return <AdvertisePage onBack={handleBackToHome} />;
+      case 'events':
+        return <EventsCalendar />;
       case 'profile':
         return <ProfilePage />;
       case 'admin':
@@ -395,6 +457,7 @@ function AppContent() {
       case 'saved':
         return <SavedPosts onPostClick={handlePostClick} />;
       case 'notifications-settings':
+      case 'settings':
         return <NotificationSettings />;
       case 'reels':
         return <ReelsPage onBack={handleBackToHome} initialReelId={currentView.data?.reelId} />;

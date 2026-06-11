@@ -18,6 +18,7 @@ import EventsCalendar from '../../components/Events/EventsCalendar';
 import PollWidget from '../../components/Polls/PollWidget';
 import AIPicksReal from '../../components/AI/AIPicksReal';
 import ReadingStreak from '../../components/Gamification/ReadingStreak';
+import CampaignAssistantChat from '../../components/Leads/CampaignAssistantChat';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import {
   Cloud,
@@ -28,12 +29,13 @@ import {
   Radio,
   ChevronRight,
   SlidersHorizontal,
+  Megaphone,
   X
 } from 'lucide-react';
 
-const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
+const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all' }) => {
   const { t } = useTranslation();
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeCategory, setActiveCategory] = useState(initialCategory || 'all');
   const [activeSection, setActiveSection] = useState(null); // null means show news
   const [isSectionSheetOpen, setSectionSheetOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -49,6 +51,10 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    setActiveCategory(initialCategory || 'all');
+  }, [initialCategory]);
 
   // Pull-to-refresh implementation
   const handleRefresh = async () => {
@@ -124,6 +130,11 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
     setSectionSheetOpen(false);
   };
 
+  const handleAdvertiseClick = () => {
+    window.history.pushState({ view: 'advertise' }, '', '/advertise');
+    window.dispatchEvent(new Event('popstate'));
+  };
+
   const ActiveSectionComponent = activeSection 
     ? sections.find(s => s.id === activeSection)?.component 
     : null;
@@ -143,7 +154,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
 
       {/* Desktop view */}
       {isDesktop ? (
-        <div className="pt-6">
+        <div className="pt-1">
           <DesktopNewsFeed
             key={refreshKey}
             category={activeCategory === 'all' ? null : activeCategory}
@@ -157,8 +168,8 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
 
           {/* ── Sticky control bar ── */}
           <div
-            className="sticky z-30 px-2 pt-1"
-            style={{ top: 'calc(56px + env(safe-area-inset-top) + 4px)' }}
+            className="sticky z-[55] -mt-12 px-2 pt-0"
+            style={{ top: 'env(safe-area-inset-top)' }}
           >
             <div className="liquid-panel rounded-[1.35rem] px-3 py-2.5 space-y-2.5 border border-white/60 dark:border-white/10">
 
@@ -210,24 +221,37 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
                 </div>
               </div>
 
-              {/* Row 2: Feed tabs */}
-              <div className="liquid-chip flex items-center gap-1 p-1 w-fit">
-                {[
-                  { id: 'for-you', label: t('for_you', 'For You') },
-                  { id: 'all', label: t('all', 'All') },
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setFeedTab(tab.id)}
-                    className={`px-3.5 py-1 text-xs font-semibold rounded-full transition ${
-                      feedTab === tab.id
-                        ? 'bg-white/80 dark:bg-white/10 text-blue-700 dark:text-sky-300 shadow-sm'
-                        : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+              {/* Row 2: Feed tabs + business CTA */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="liquid-chip flex items-center gap-1 p-1 w-fit">
+                  {[
+                    { id: 'for-you', label: t('for_you', 'For You') },
+                    { id: 'all', label: t('all', 'All') },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setFeedTab(tab.id)}
+                      className={`px-3.5 py-1 text-xs font-semibold rounded-full transition ${
+                        feedTab === tab.id
+                          ? 'bg-white/80 dark:bg-white/10 text-blue-700 dark:text-sky-300 shadow-sm'
+                          : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAdvertiseClick}
+                  className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-blue-600 px-3 py-1.5 text-[11px] font-bold leading-none text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700 active:scale-95 min-[430px]:max-w-[190px]"
+                >
+                  <Megaphone className="h-3.5 w-3.5" />
+                  <span className="truncate">
+                    <span className="min-[390px]:hidden">Advertise</span>
+                    <span className="hidden min-[390px]:inline">Advertise with us</span>
+                  </span>
+                </button>
               </div>
 
               {/* Row 3: Category filter */}
@@ -278,6 +302,11 @@ const HomePage = ({ onPostClick, onShowReels = () => {} }) => {
           </div>
         </div>
       )}
+
+      <CampaignAssistantChat
+        showFab
+        fabBottomClass={isDesktop ? 'bottom-6' : 'bottom-[94px]'}
+      />
 
       {/* ── Focus Bottom Sheet ── */}
       {isSectionSheetOpen && (

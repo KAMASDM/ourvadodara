@@ -6,6 +6,263 @@ const admin = require('firebase-admin');
 
 admin.initializeApp();
 
+const PUBLIC_LEAD_PATH = 'leads';
+const LEAD_TEMPLATE_PATH = 'leadMessageTemplates';
+const LEAD_NOTIFICATION_LOG_PATH = 'leadNotificationLogs';
+
+function cleanString(value, maxLength = 500) {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, maxLength);
+}
+
+function cleanOptionalString(value, maxLength = 500) {
+  return cleanString(value || '', maxLength);
+}
+
+function requirePublicLeadString(data, field, label, maxLength = 160) {
+  const value = cleanString(data?.[field], maxLength);
+  if (!value) {
+    throw new functions.https.HttpsError('invalid-argument', `${label} is required`);
+  }
+  return value;
+}
+
+function publicLeadActivity(message, note = '') {
+  return {
+    message,
+    note,
+    at: new Date().toISOString(),
+    by: 'Campaign Assistant',
+    byUid: 'public-enquiry'
+  };
+}
+
+function stripHtml(value) {
+  return cleanOptionalString(String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' '), 450);
+}
+
+function interpolateLeadMessage(template, lead) {
+  const stage = lead.stage || lead.status || 'new';
+  const values = {
+    companyName: lead.companyName || 'Lead',
+    contactName: lead.contactName || 'Contact',
+    city: lead.city || '',
+    stage,
+    packageInterest: lead.packageInterest || '',
+    followUpDate: lead.followUpDate || '',
+    assignedTo: lead.assignedTo || '',
+    serviceType: lead.serviceType || ''
+  };
+
+  return String(template || '').replace(/\{\{(\w+)\}\}/g, (_, key) => values[key] || '');
+}
+
+function getLeadTriggerIds(beforeLead, afterLead, created) {
+  const triggers = created ? ['lead_created'] : ['lead_updated'];
+  const beforeStage = beforeLead?.stage || beforeLead?.status || '';
+  const afterStage = afterLead?.stage || afterLead?.status || '';
+
+  if (afterStage && afterStage !== beforeStage) {
+    triggers.push(`stage_${afterStage}`);
+  }
+
+  if (afterLead?.followUpDate && afterLead.followUpDate !== beforeLead?.followUpDate) {
+    const dueAt = new Date(`${afterLead.followUpDate}T23:59:59`);
+    if (!Number.isNaN(dueAt.getTime()) && dueAt <= new Date()) {
+      triggers.push('followup_due');
+    }
+  }
+
+  return triggers;
+}
+
+exports.createPublicLead = functions.https.onCall(async (data) => {
+  const contactName = requirePublicLeadString(data, 'contactName', 'Name');
+  const companyName = requirePublicLeadString(data, 'companyName', 'Brand name');
+  const city = requirePublicLeadString(data, 'city', 'City');
+  const phone = cleanOptionalString(data?.phone, 40);
+  const email = cleanOptionalString(data?.email, 180);
+
+  if (!phone && !email) {
+    throw new functions.https.HttpsError('invalid-argument', 'Phone or email is required');
+  }
+
+  const businessCategory = cleanOptionalString(data?.businessCategory, 120);
+  const now = new Date().toISOString();
+
+  try {
+    const leadRef = admin.database().ref(PUBLIC_LEAD_PATH).push();
+    await leadRef.set({
+      companyName,
+      contactName,
+      phone,
+      email,
+      city,
+      businessCategory,
+      source: 'Campaign Assistant',
+      serviceType: 'combined',
+      packageInterest: 'General campaign enquiry',
+      budget: null,
+      expectedValue: null,
+      stage: 'new',
+      status: 'new',
+      priority: 'warm',
+      followUpDate: '',
+      expectedCloseDate: '',
+      assignedTo: 'Sales Team',
+      requirements: '',
+      notes: 'Lead captured before assistant flow',
+      createdAt: now,
+      updatedAt: now,
+      createdBy: 'public-enquiry',
+      createdByName: 'Campaign Assistant',
+      updatedBy: 'public-enquiry',
+      updatedByName: 'Campaign Assistant',
+      lastActivityAt: now,
+      activityLog: [
+        publicLeadActivity('Lead captured before bot conversation', `${companyName} from ${city}`)
+      ]
+    });
+
+    return { success: true, leadId: leadRef.key };
+  } catch (error) {
+    console.error('Error creating public lead:', error);
+    throw new functions.https.HttpsError('internal', 'Unable to create lead');
+  }
+});
+
+exports.updatePublicLead = functions.https.onCall(async (data) => {
+  const leadId = cleanString(data?.leadId, 120);
+  if (!leadId || !/^[A-Za-z0-9_-]+$/.test(leadId)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Valid lead id is required');
+  }
+
+  const message = cleanOptionalString(data?.message, 180) || 'Campaign assistant update';
+  const note = cleanOptionalString(data?.note, 1200);
+  const serviceType = cleanOptionalString(data?.serviceType, 60) || 'combined';
+  const packageInterest = cleanOptionalString(data?.packageInterest, 180) || 'General campaign enquiry';
+  const priority = ['hot', 'warm', 'cold'].includes(data?.priority) ? data.priority : 'warm';
+  const budgetRange = cleanOptionalString(data?.budgetRange, 120);
+  const now = new Date().toISOString();
+
+  try {
+    const leadRef = admin.database().ref(`${PUBLIC_LEAD_PATH}/${leadId}`);
+    const snapshot = await leadRef.once('value');
+    if (!snapshot.exists()) {
+      throw new functions.https.HttpsError('not-found', 'Lead not found');
+    }
+
+    const lead = snapshot.val() || {};
+    const currentLog = Array.isArray(lead.activityLog) ? lead.activityLog : [];
+    await leadRef.update({
+      serviceType,
+      packageInterest,
+      requirements: note || lead.requirements || '',
+      notes: budgetRange ? `Budget range: ${budgetRange}` : lead.notes || 'Budget not shared',
+      priority,
+      updatedAt: now,
+      updatedBy: 'public-enquiry',
+      updatedByName: 'Campaign Assistant',
+      lastActivityAt: now,
+      activityLog: [
+        ...currentLog,
+        publicLeadActivity(message, note)
+      ].slice(-30)
+    });
+
+    return { success: true };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    console.error('Error updating public lead:', error);
+    throw new functions.https.HttpsError('internal', 'Unable to update lead');
+  }
+});
+
+exports.sendLeadMessageNotifications = functions.database
+  .ref('/leads/{leadId}')
+  .onWrite(async (change, context) => {
+    if (!change.after.exists()) return null;
+
+    const leadId = context.params.leadId;
+    const beforeLead = change.before.exists() ? change.before.val() : null;
+    const afterLead = change.after.val() || {};
+    const created = !change.before.exists();
+    const triggerIds = getLeadTriggerIds(beforeLead, afterLead, created);
+
+    try {
+      const templatesSnapshot = await admin.database().ref(LEAD_TEMPLATE_PATH).once('value');
+      const templates = templatesSnapshot.val() || {};
+      const enabledTemplates = Object.entries(templates)
+        .map(([id, template]) => ({ id, ...template }))
+        .filter(template => template.enabled !== false)
+        .filter(template => {
+          const templateTriggers = Array.isArray(template.triggers) ? template.triggers : [];
+          return templateTriggers.some(trigger => triggerIds.includes(trigger));
+        });
+
+      if (enabledTemplates.length === 0) {
+        console.log('No lead message templates matched triggers:', triggerIds);
+        return null;
+      }
+
+      const responses = await Promise.all(enabledTemplates.map(async (template) => {
+        const rawBody = template.editorMode === 'html' ? template.html : template.richText;
+        const title = interpolateLeadMessage(template.title || 'Lead update', afterLead).slice(0, 120);
+        const body = stripHtml(interpolateLeadMessage(rawBody || '', afterLead)).slice(0, 240);
+        const topic = cleanOptionalString(template.audienceTopic, 80) || 'admin-leads';
+
+        const payload = {
+          topic,
+          notification: {
+            title,
+            body: body || `${afterLead.companyName || 'A lead'} was updated`,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-72x72.png',
+            tag: `lead-${leadId}-${template.id}`
+          },
+          data: {
+            type: 'lead',
+            leadId,
+            templateId: template.id,
+            triggers: triggerIds.join(','),
+            url: '/admin',
+            timestamp: new Date().toISOString()
+          },
+          webpush: {
+            headers: {
+              Urgency: triggerIds.includes('lead_created') || triggerIds.includes('followup_due') ? 'high' : 'normal',
+              TTL: '86400'
+            },
+            fcm_options: {
+              link: '/admin'
+            }
+          }
+        };
+
+        const response = await admin.messaging().send(payload);
+        await admin.database().ref(LEAD_NOTIFICATION_LOG_PATH).push({
+          leadId,
+          templateId: template.id,
+          topic,
+          title,
+          body: payload.notification.body,
+          triggers: triggerIds,
+          response,
+          sentAt: new Date().toISOString()
+        });
+        return response;
+      }));
+
+      console.log('Lead message notifications sent:', responses.length);
+      return responses;
+    } catch (error) {
+      console.error('Error sending lead message notifications:', error);
+      return null;
+    }
+  });
+
 // Send push notification when new news is published (main posts path)
 exports.sendNewNewsNotification = functions.database
   .ref('/posts/{postId}')

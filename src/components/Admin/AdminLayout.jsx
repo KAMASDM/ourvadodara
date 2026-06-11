@@ -23,7 +23,8 @@ import {
   Zap,
   MapPin,
   Film,
-  Newspaper
+  Newspaper,
+  Handshake
 } from 'lucide-react';
 import EnhancedDashboard from './EnhancedDashboard';
 import UserManager from './UserManager';
@@ -40,6 +41,7 @@ import AuthenticationManager from './AuthenticationManager';
 import CityManagement from './CityManagement';
 import RoundupManagement from './RoundupManagement';
 import MediaContentManagement from './MediaContentManagement';
+import LeadManagement from './LeadManagement';
 
 const AdminLayout = () => {
   const { user } = useAuth();
@@ -78,6 +80,7 @@ const AdminLayout = () => {
     { id: 'media-management', label: 'Media Manager', icon: Film },
     { id: 'content-management', label: 'Content Manager', icon: FileText },
     { id: 'news-roundup', label: 'News Roundup', icon: Newspaper },
+    { id: 'lead-management', label: 'Lead Management', icon: Handshake },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'city-management', label: 'City Management', icon: MapPin },
     { id: 'auth-management', label: 'Authentication', icon: Globe },
@@ -114,6 +117,8 @@ const AdminLayout = () => {
         return isMobile ? <MobileContentWarning /> : <ContentManagement />;
       case 'news-roundup':
         return isMobile ? <MobileContentWarning /> : <RoundupManagement />;
+      case 'lead-management':
+        return isMobile ? <MobileContentWarning /> : <LeadManagement />;
       case 'users':
         return <UserManager />;
       case 'city-management':
@@ -287,7 +292,8 @@ const getPageDescription = (section) => {
     'create-post': 'Create and publish new articles with multi-language support',
     'create-media': 'Create stories, reels, and media-rich content',
     'content-management': 'Manage all your published content across cities',
-  'media-management': 'Manage stories, reels, and carousel media posts',
+    'media-management': 'Manage stories, reels, and carousel media posts',
+    'lead-management': 'Track advertising and digital marketing leads',
     'users': 'Manage user accounts and permissions',
     'city-management': 'Add and manage cities with logos',
     'auth-management': 'Manage authentication and security settings',
