@@ -217,10 +217,7 @@ exports.sendLeadMessageNotifications = functions.database
           topic,
           notification: {
             title,
-            body: body || `${afterLead.companyName || 'A lead'} was updated`,
-            icon: '/icons/icon-192x192.png',
-            badge: '/icons/icon-72x72.png',
-            tag: `lead-${leadId}-${template.id}`
+            body: body || `${afterLead.companyName || 'A lead'} was updated`
           },
           data: {
             type: 'lead',
@@ -234,6 +231,11 @@ exports.sendLeadMessageNotifications = functions.database
             headers: {
               Urgency: triggerIds.includes('lead_created') || triggerIds.includes('followup_due') ? 'high' : 'normal',
               TTL: '86400'
+            },
+            notification: {
+              icon: '/icons/icon-192x192.png',
+              badge: '/icons/icon-72x72.png',
+              tag: `lead-${leadId}-${template.id}`
             },
             fcm_options: {
               link: '/admin'
