@@ -19,6 +19,7 @@ import HomePage from './pages/Home/HomePage.jsx';
 import SearchPage from './pages/Search/SearchPage.jsx';
 import ProfilePage from './pages/Profile/ProfilePage.jsx';
 import AdminDashboard from './pages/Admin/AdminDashboard.jsx';
+import MarketingDashboard from './pages/Marketing/MarketingDashboard.jsx';
 import NewsDetailPage from './pages/NewsDetail/NewsDetailPage.jsx';
 import SavedPosts from './components/Bookmarks/SavedPosts.jsx';
 import NotificationSettings from './components/Settings/NotificationSettings.jsx';
@@ -87,6 +88,12 @@ function AppContent() {
       const eventIdentifier = scannerMatch[1];
       setCurrentView({ type: 'qr-scanner', data: { eventId: eventIdentifier } });
       setActiveTab('qr-scanner');
+      return;
+    }
+
+    if (path === '/marketing') {
+      setCurrentView({ type: 'marketing', data: null });
+      setActiveTab('marketing');
       return;
     }
 
@@ -275,6 +282,7 @@ function AppContent() {
   // Define which views should take up the full screen width
   const isFullWidthView = [
     'admin', 
+    'marketing',
     'firebase-setup', 
     'admin-upgrade',
     'qr-scanner',
@@ -444,6 +452,8 @@ function AppContent() {
         return <ProfilePage />;
       case 'admin':
         return <AdminDashboard />;
+      case 'marketing':
+        return <MarketingDashboard />;
       case 'breaking':
         return user?.role === 'admin' ? (
           <BreakingNewsManager />

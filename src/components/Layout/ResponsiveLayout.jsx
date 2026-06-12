@@ -10,6 +10,7 @@ const DesktopLayout = React.lazy(() => import('./DesktopLayout'));
 
 const MOBILE_ONLY = new Set([
   'admin', 'login', 'signup', 'admin-upgrade', 'firebase-setup', 'qr-scanner',
+  'marketing',
   'advertise',
 ]);
 
