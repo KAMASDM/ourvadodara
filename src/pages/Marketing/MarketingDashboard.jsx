@@ -246,6 +246,29 @@ const isDue = (lead) => {
   return new Date(`${lead.followUpDate}T23:59:59`) <= new Date();
 };
 
+const getFollowUps = (lead) => Array.isArray(lead?.followUps)
+  ? lead.followUps
+  : lead?.followUpDate
+    ? [{
+        id: 'legacy-follow-up',
+        parentId: '',
+        date: lead.followUpDate,
+        note: lead.followUpNote || 'Follow-up scheduled',
+        status: 'open',
+        createdAt: lead.updatedAt || lead.createdAt || new Date().toISOString(),
+        createdByName: lead.updatedByName || 'Marketing'
+      }]
+    : [];
+
+const getNextOpenFollowUpDate = (followUps) => {
+  const openItems = followUps
+    .filter(item => item.status !== 'completed' && item.status !== 'cancelled' && item.date)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  return openItems[0]?.date || '';
+};
+
+const makeFollowUpId = () => `fu_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
 const parseCommaButtons = (value) => String(value || '')
   .split(',')
   .map(item => item.trim())
@@ -298,6 +321,7 @@ const MarketingDashboard = () => {
   const [noteText, setNoteText] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpNote, setFollowUpNote] = useState('');
+  const [followUpParentId, setFollowUpParentId] = useState('');
   const [whatsAppForm, setWhatsAppForm] = useState(EMPTY_WHATSAPP_FORM);
   const [whatsAppSending, setWhatsAppSending] = useState(false);
   const [whatsAppResult, setWhatsAppResult] = useState(null);
@@ -553,25 +577,85 @@ const MarketingDashboard = () => {
     if (!selectedLead || !followUpDate) return;
     const now = new Date().toISOString();
     const activityLog = Array.isArray(selectedLead.activityLog) ? selectedLead.activityLog : [];
+    const existingFollowUps = getFollowUps(selectedLead).filter(item => item.id !== 'legacy-follow-up');
+    const nextFollowUp = {
+      id: makeFollowUpId(),
+      parentId: followUpParentId,
+      date: followUpDate,
+      note: followUpNote.trim() || 'Follow-up scheduled',
+      status: 'open',
+      createdAt: now,
+      createdBy: user?.uid || null,
+      createdByName: user?.displayName || user?.email || 'Marketing',
+      completedAt: '',
+      completedByName: ''
+    };
+    const followUps = [...existingFollowUps, nextFollowUp];
     await update(ref(db, `${LEAD_PATH}/${selectedLead.id}`), {
-      followUpDate,
+      followUpDate: getNextOpenFollowUpDate(followUps),
+      followUps,
       updatedAt: now,
       lastActivityAt: now,
-      activityLog: [...activityLog, buildActivityEntry('Follow-up scheduled', followUpNote || formatDate(followUpDate))].slice(-40)
+      activityLog: [...activityLog, buildActivityEntry('Follow-up scheduled', `${formatDate(followUpDate)}${followUpParentId ? ' as next step' : ''}: ${nextFollowUp.note}`)].slice(-40)
     });
     setFollowUpDate('');
     setFollowUpNote('');
+    setFollowUpParentId('');
   };
 
   const addFollowUpTomorrow = async (lead) => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
+    const date = tomorrow.toISOString().slice(0, 10);
+    const now = new Date().toISOString();
+    const existingFollowUps = getFollowUps(lead).filter(item => item.id !== 'legacy-follow-up');
+    const followUps = [
+      ...existingFollowUps,
+      {
+        id: makeFollowUpId(),
+        parentId: '',
+        date,
+        note: 'Tomorrow',
+        status: 'open',
+        createdAt: now,
+        createdBy: user?.uid || null,
+        createdByName: user?.displayName || user?.email || 'Marketing',
+        completedAt: '',
+        completedByName: ''
+      }
+    ];
     await update(ref(db, `${LEAD_PATH}/${lead.id}`), {
-      followUpDate: tomorrow.toISOString().slice(0, 10),
-      updatedAt: new Date().toISOString(),
+      followUpDate: getNextOpenFollowUpDate(followUps),
+      followUps,
+      updatedAt: now,
       activityLog: [
         ...(Array.isArray(lead.activityLog) ? lead.activityLog : []),
         buildActivityEntry('Follow-up scheduled', 'Tomorrow')
+      ].slice(-40)
+    });
+  };
+
+  const updateFollowUpStatus = async (lead, followUpId, status) => {
+    const now = new Date().toISOString();
+    const followUps = getFollowUps(lead)
+      .filter(item => item.id !== 'legacy-follow-up')
+      .map(item => item.id === followUpId
+        ? {
+            ...item,
+            status,
+            completedAt: status === 'completed' ? now : item.completedAt || '',
+            completedByName: status === 'completed' ? user?.displayName || user?.email || 'Marketing' : item.completedByName || ''
+          }
+        : item);
+    const item = followUps.find(entry => entry.id === followUpId);
+    await update(ref(db, `${LEAD_PATH}/${lead.id}`), {
+      followUps,
+      followUpDate: getNextOpenFollowUpDate(followUps),
+      updatedAt: now,
+      lastActivityAt: now,
+      activityLog: [
+        ...(Array.isArray(lead.activityLog) ? lead.activityLog : []),
+        buildActivityEntry(`Follow-up ${status}`, item ? `${formatDate(item.date)}: ${item.note}` : '')
       ].slice(-40)
     });
   };
@@ -986,6 +1070,7 @@ const MarketingDashboard = () => {
             noteText={noteText}
             followUpDate={followUpDate}
             followUpNote={followUpNote}
+            followUpParentId={followUpParentId}
             whatsAppForm={whatsAppForm}
             whatsAppSending={whatsAppSending}
             whatsAppResult={whatsAppResult}
@@ -996,7 +1081,9 @@ const MarketingDashboard = () => {
             onAddNote={addLeadNote}
             onFollowUpDateChange={setFollowUpDate}
             onFollowUpNoteChange={setFollowUpNote}
+            onFollowUpParentChange={setFollowUpParentId}
             onScheduleFollowUp={scheduleFollowUp}
+            onFollowUpStatus={(followUpId, status) => updateFollowUpStatus(selectedLead, followUpId, status)}
             onWhatsAppChange={(field, value) => {
               setWhatsAppForm(prev => ({ ...prev, [field]: value }));
               setWhatsAppResult(null);
@@ -1107,6 +1194,7 @@ const LeadDetail = ({
   noteText,
   followUpDate,
   followUpNote,
+  followUpParentId,
   whatsAppForm,
   whatsAppSending,
   whatsAppResult,
@@ -1117,13 +1205,16 @@ const LeadDetail = ({
   onAddNote,
   onFollowUpDateChange,
   onFollowUpNoteChange,
+  onFollowUpParentChange,
   onScheduleFollowUp,
+  onFollowUpStatus,
   onWhatsAppChange,
   onSendWhatsApp
 }) => {
   const stage = getStageConfig(getStage(lead));
   const priority = getPriorityConfig(lead.priority);
   const activities = Array.isArray(lead.activityLog) ? lead.activityLog.slice().reverse() : [];
+  const followUps = getFollowUps(lead);
   return (
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="space-y-4">
@@ -1172,10 +1263,20 @@ const LeadDetail = ({
           <form onSubmit={onScheduleFollowUp} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="text-base font-semibold">Schedule Follow-up</h3>
             <input type="date" value={followUpDate} onChange={(event) => onFollowUpDateChange(event.target.value)} className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <select value={followUpParentId} onChange={(event) => onFollowUpParentChange(event.target.value)} className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="">Start new follow-up branch</option>
+              {followUps.map(item => (
+                <option key={item.id} value={item.id}>
+                  After {formatDate(item.date)} - {item.note || 'Follow-up'}
+                </option>
+              ))}
+            </select>
             <textarea value={followUpNote} onChange={(event) => onFollowUpNoteChange(event.target.value)} rows={3} className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Purpose of follow-up" />
             <button className="mt-3 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white">Schedule</button>
           </form>
         </div>
+
+        <FollowUpTree followUps={followUps} onStatusChange={onFollowUpStatus} />
 
         <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="flex items-center gap-2 text-base font-semibold"><FileText className="h-4 w-4" />Lead History</h3>
@@ -1394,6 +1495,77 @@ const AutomationWorkspace = ({ templates, botnexSettings, botnexSaving, botnexMe
         ))}
       </div>
     </section>
+  );
+};
+
+const FollowUpTree = ({ followUps, onStatusChange }) => {
+  const roots = followUps.filter(item => !item.parentId || !followUps.some(parent => parent.id === item.parentId));
+  if (!followUps.length) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
+        No follow-ups have been scheduled yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-base font-semibold"><CalendarClock className="h-4 w-4" />Follow-up Tree</h3>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{followUps.length} total</p>
+      </div>
+      <div className="mt-4 space-y-3">
+        {roots.map(item => (
+          <FollowUpNode key={item.id} item={item} allItems={followUps} depth={0} onStatusChange={onStatusChange} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const FollowUpNode = ({ item, allItems, depth, onStatusChange }) => {
+  const children = allItems
+    .filter(child => child.parentId === item.id)
+    .sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
+  const isCompleted = item.status === 'completed';
+  const isCancelled = item.status === 'cancelled';
+  const isOverdue = !isCompleted && !isCancelled && item.date && new Date(`${item.date}T23:59:59`) < new Date();
+
+  return (
+    <div className={depth ? 'ml-5 border-l border-slate-200 pl-4' : ''}>
+      <div className={`rounded-lg border p-3 ${isCompleted ? 'border-emerald-100 bg-emerald-50' : isCancelled ? 'border-slate-200 bg-slate-50' : isOverdue ? 'border-rose-100 bg-rose-50' : 'border-slate-100 bg-slate-50'}`}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold text-slate-950">{formatDate(item.date)}</p>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isCompleted ? 'bg-emerald-100 text-emerald-700' : isCancelled ? 'bg-slate-200 text-slate-600' : isOverdue ? 'bg-rose-100 text-rose-700' : 'bg-blue-100 text-blue-700'}`}>
+                {isCompleted ? 'Done' : isCancelled ? 'Cancelled' : isOverdue ? 'Overdue' : 'Open'}
+              </span>
+            </div>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{item.note || 'No note added.'}</p>
+            <p className="mt-2 text-xs text-slate-400">Created by {item.createdByName || 'Marketing'}{item.completedAt ? ` | completed ${formatDate(item.completedAt)}` : ''}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {item.status !== 'completed' && (
+              <button type="button" onClick={() => onStatusChange(item.id, 'completed')} className="rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700">Done</button>
+            )}
+            {item.status === 'completed' && (
+              <button type="button" onClick={() => onStatusChange(item.id, 'open')} className="rounded-md border border-blue-200 px-2 py-1 text-xs font-semibold text-blue-700">Reopen</button>
+            )}
+            {item.status !== 'cancelled' && (
+              <button type="button" onClick={() => onStatusChange(item.id, 'cancelled')} className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-600">Cancel</button>
+            )}
+          </div>
+        </div>
+      </div>
+      {children.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {children.map(child => (
+            <FollowUpNode key={child.id} item={child} allItems={allItems} depth={depth + 1} onStatusChange={onStatusChange} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
