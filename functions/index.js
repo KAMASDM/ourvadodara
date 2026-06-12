@@ -149,7 +149,11 @@ function cleanOptionalString(value, maxLength = 500) {
 }
 
 function cleanPhoneNumber(value) {
-  return cleanOptionalString(value, 40).replace(/\D/g, '');
+  const phoneNumber = cleanOptionalString(value, 40).replace(/\D/g, '');
+  if (/^[6-9]\d{9}$/.test(phoneNumber)) {
+    return `91${phoneNumber}`;
+  }
+  return phoneNumber;
 }
 
 async function assertAdmin(context) {
@@ -175,6 +179,11 @@ function getBotnexConfig() {
   }
 
   return { apiToken, phoneNumberId };
+}
+
+async function getBotnexSettings() {
+  const snapshot = await admin.database().ref('integrations/botnex').once('value');
+  return snapshot.val() || {};
 }
 
 function normalizeBotnexParams(operation, params = {}, defaultPhoneNumberId = '') {
@@ -211,14 +220,14 @@ function validateBotnexParams(config, params) {
   }
 }
 
-async function callBotnex(operation, params = {}) {
+async function callBotnex(operation, params = {}, options = {}) {
   const operationConfig = BOTNEX_OPERATIONS[operation];
   if (!operationConfig) {
     throw new functions.https.HttpsError('invalid-argument', 'Unsupported Botnex operation');
   }
 
   const { apiToken, phoneNumberId } = getBotnexConfig();
-  const normalizedParams = normalizeBotnexParams(operation, params, phoneNumberId);
+  const normalizedParams = normalizeBotnexParams(operation, params, options.phoneNumberId || phoneNumberId);
   validateBotnexParams(operationConfig, normalizedParams);
 
   const body = new URLSearchParams();
@@ -615,6 +624,8 @@ exports.sendLeadMessageNotifications = functions
         return null;
       }
 
+      const botnexSettings = await getBotnexSettings();
+      const defaultPhoneNumberId = cleanOptionalString(botnexSettings.phoneNumberId, 120);
       const responses = await Promise.all(enabledTemplates.map(async (template) => {
         const rawBody = template.editorMode === 'html' ? template.html : template.richText;
         const title = interpolateLeadMessage(template.title || 'Lead update', afterLead).slice(0, 120);
@@ -678,7 +689,12 @@ exports.sendLeadMessageNotifications = functions
             return templateResponses;
           }
 
-          const phoneNumberId = cleanOptionalString(template.phoneNumberId, 120);
+          const phoneNumberId = cleanOptionalString(template.phoneNumberId, 120) || defaultPhoneNumberId;
+          if (!phoneNumberId) {
+            console.log('Botnex phone number id missing, skipping WhatsApp template:', template.id);
+            return templateResponses;
+          }
+
           const messageType = cleanOptionalString(template.whatsAppMessageType || 'text', 40);
           const whatsappBody = fullBody || body || `Hi ${afterLead.contactName || 'there'}, thank you for contacting Our Vadodara.`;
           let operation = 'sendText';
@@ -693,7 +709,7 @@ exports.sendLeadMessageNotifications = functions
               phoneNumber,
               phoneNumberID: phoneNumberId,
               name: cleanOptionalString(afterLead.contactName || afterLead.companyName || 'Lead', 160)
-            });
+            }, { phoneNumberId });
           } catch (subscriberError) {
             console.log('Botnex subscriber create skipped or failed:', subscriberError.message);
           }
@@ -707,7 +723,7 @@ exports.sendLeadMessageNotifications = functions
             delete params.message;
           }
 
-          const { data: response, params: sentParams } = await callBotnex(operation, params);
+          const { data: response, params: sentParams } = await callBotnex(operation, params, { phoneNumberId });
           await admin.database().ref(LEAD_WHATSAPP_LOG_PATH).push({
             leadId,
             templateId: template.id,

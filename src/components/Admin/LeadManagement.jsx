@@ -4,7 +4,7 @@
 // =============================================
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
-import { ref, onValue, push, update, remove } from 'firebase/database';
+import { ref, onValue, push, update, remove, set } from 'firebase/database';
 import { db, functions, httpsCallable } from '../../firebase-config';
 import {
   AlertCircle,
@@ -312,6 +312,11 @@ const EMPTY_BOTNEX_FORM = {
   extraJson: '{}'
 };
 
+const EMPTY_BOTNEX_SETTINGS = {
+  phoneNumberId: '',
+  accountLabel: 'Our Vadodara (+919099004346)'
+};
+
 const getStage = (lead) => lead.stage || lead.status || 'new';
 const getStageConfig = (stage) => LEAD_STAGES.find(item => item.id === stage) || LEAD_STAGES[0];
 const getPriorityConfig = (priority) => PRIORITIES.find(item => item.id === priority) || PRIORITIES[1];
@@ -402,6 +407,9 @@ const LeadManagement = () => {
   const [botnexForm, setBotnexForm] = useState(EMPTY_BOTNEX_FORM);
   const [botnexLoading, setBotnexLoading] = useState(false);
   const [botnexResult, setBotnexResult] = useState(null);
+  const [botnexSettings, setBotnexSettings] = useState(EMPTY_BOTNEX_SETTINGS);
+  const [botnexSettingsSaving, setBotnexSettingsSaving] = useState(false);
+  const [botnexSettingsMessage, setBotnexSettingsMessage] = useState('');
 
   useEffect(() => {
     const leadsRef = ref(db, LEAD_PATH);
@@ -425,6 +433,18 @@ const LeadManagement = () => {
         : [];
       list.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
       setTemplates(list);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const settingsRef = ref(db, 'integrations/botnex');
+    const unsubscribe = onValue(settingsRef, (snapshot) => {
+      setBotnexSettings({
+        ...EMPTY_BOTNEX_SETTINGS,
+        ...(snapshot.val() || {})
+      });
     });
 
     return () => unsubscribe();
@@ -559,6 +579,11 @@ const LeadManagement = () => {
     setBotnexResult(null);
   };
 
+  const updateBotnexSetting = (field, value) => {
+    setBotnexSettings(prev => ({ ...prev, [field]: value }));
+    setBotnexSettingsMessage('');
+  };
+
   const resetForm = () => {
     setFormData({ ...EMPTY_FORM, assignedTo: user?.displayName || user?.email || '' });
     setEditingLead(null);
@@ -618,15 +643,19 @@ const LeadManagement = () => {
 
   const openWhatsAppForm = (lead) => {
     setWhatsAppLead(lead);
-    setWhatsAppForm(EMPTY_WHATSAPP_FORM);
+    setWhatsAppForm({
+      ...EMPTY_WHATSAPP_FORM,
+      phoneNumberId: botnexSettings.phoneNumberId || ''
+    });
     setWhatsAppResult(null);
   };
 
   const buildBotnexParams = () => {
+    const phoneNumberId = botnexForm.phoneNumberId.trim() || botnexSettings.phoneNumberId.trim();
     const params = {
       ...parseJsonObject(botnexForm.extraJson),
-      phone_number_id: botnexForm.phoneNumberId.trim(),
-      phoneNumberID: botnexForm.phoneNumberId.trim(),
+      phone_number_id: phoneNumberId,
+      phoneNumberID: phoneNumberId,
       phone_number: botnexForm.phoneNumber.trim(),
       phoneNumber: botnexForm.phoneNumber.trim(),
       message: botnexForm.message.trim(),
@@ -677,8 +706,8 @@ const LeadManagement = () => {
     if (channels.length === 0) nextErrors.channels = 'Select at least one delivery channel';
     if (channels.includes('push') && !templateForm.title.trim()) nextErrors.title = 'Push title is required for team notifications';
     if (!templateForm.richText.trim()) nextErrors.body = 'Message copy is required';
-    if (channels.includes('whatsapp') && !templateForm.phoneNumberId.trim()) {
-      nextErrors.phoneNumberId = 'WhatsApp Account Phone Number ID is required for automatic WhatsApp messages';
+    if (channels.includes('whatsapp') && !templateForm.phoneNumberId.trim() && !botnexSettings.phoneNumberId.trim()) {
+      nextErrors.phoneNumberId = 'Add the WhatsApp Account Phone Number ID here or in Botnex setup';
     }
     if (channels.includes('whatsapp') && templateForm.whatsAppMessageType === 'buttons' && parseCommaButtons(templateForm.buttons).length === 0) {
       nextErrors.buttons = 'Add at least one button label';
@@ -823,7 +852,7 @@ const LeadManagement = () => {
       const result = await sendLeadWhatsAppMessage({
         leadId: whatsAppLead.id,
         messageType: whatsAppForm.messageType,
-        phoneNumberId: whatsAppForm.phoneNumberId.trim(),
+        phoneNumberId: whatsAppForm.phoneNumberId.trim() || botnexSettings.phoneNumberId.trim(),
         message: interpolateLeadText(whatsAppForm.message, whatsAppLead),
         botFlowUniqueId: whatsAppForm.botFlowUniqueId.trim(),
         mediaUrl: whatsAppForm.mediaUrl.trim(),
@@ -844,6 +873,28 @@ const LeadManagement = () => {
       });
     } finally {
       setWhatsAppSending(false);
+    }
+  };
+
+  const handleSaveBotnexSettings = async (event) => {
+    event.preventDefault();
+    setBotnexSettingsSaving(true);
+    setBotnexSettingsMessage('');
+
+    try {
+      await set(ref(db, 'integrations/botnex'), {
+        phoneNumberId: botnexSettings.phoneNumberId.trim(),
+        accountLabel: botnexSettings.accountLabel.trim() || EMPTY_BOTNEX_SETTINGS.accountLabel,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.uid || null,
+        updatedByName: user?.displayName || user?.email || 'Admin'
+      });
+      setBotnexSettingsMessage('Botnex setup saved.');
+    } catch (error) {
+      console.error('Error saving Botnex settings:', error);
+      setBotnexSettingsMessage('Unable to save Botnex setup.');
+    } finally {
+      setBotnexSettingsSaving(false);
     }
   };
 
@@ -992,6 +1043,38 @@ const LeadManagement = () => {
           </div>
         </div>
 
+        <form onSubmit={handleSaveBotnexSettings} className="grid gap-4 border-b border-gray-200 bg-emerald-50/40 p-5 dark:border-gray-700 dark:bg-emerald-950/10 lg:grid-cols-[1fr_1fr_auto]">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">WhatsApp Account</label>
+            <input
+              value={botnexSettings.accountLabel}
+              onChange={(e) => updateBotnexSetting('accountLabel', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="Our Vadodara (+919099004346)"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Botnex Phone Number ID</label>
+            <input
+              value={botnexSettings.phoneNumberId}
+              onChange={(e) => updateBotnexSetting('phoneNumberId', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="Paste Botnex phone_number_id"
+            />
+            {botnexSettingsMessage && <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{botnexSettingsMessage}</p>}
+          </div>
+          <div className="flex items-end">
+            <button
+              type="submit"
+              disabled={botnexSettingsSaving}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 lg:w-auto"
+            >
+              <CheckCircle className="h-4 w-4" />
+              {botnexSettingsSaving ? 'Saving...' : 'Save Setup'}
+            </button>
+          </div>
+        </form>
+
         <form onSubmit={handleRunBotnexOperation} className="grid gap-4 p-5 lg:grid-cols-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium">Operation</label>
@@ -1015,7 +1098,7 @@ const LeadManagement = () => {
               value={botnexForm.phoneNumberId}
               onChange={(e) => updateBotnexField('phoneNumberId', e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
-              placeholder="Uses function config if blank"
+              placeholder={botnexSettings.phoneNumberId ? `Saved: ${botnexSettings.phoneNumberId}` : 'Paste phone_number_id'}
             />
           </div>
           <div>
@@ -1614,7 +1697,7 @@ const LeadManagement = () => {
                       value={templateForm.phoneNumberId}
                       onChange={(e) => updateTemplateField('phoneNumberId', e.target.value)}
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-gray-700 dark:bg-gray-800"
-                      placeholder="Botnex phone number id"
+                      placeholder={botnexSettings.phoneNumberId ? 'Uses saved Botnex setup if blank' : 'Paste Botnex phone_number_id'}
                     />
                     {templateErrors.phoneNumberId && <p className="mt-1 text-xs text-red-600">{templateErrors.phoneNumberId}</p>}
                   </div>
