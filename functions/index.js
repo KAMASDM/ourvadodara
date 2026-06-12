@@ -9,6 +9,135 @@ admin.initializeApp();
 const PUBLIC_LEAD_PATH = 'leads';
 const LEAD_TEMPLATE_PATH = 'leadMessageTemplates';
 const LEAD_NOTIFICATION_LOG_PATH = 'leadNotificationLogs';
+const LEAD_WHATSAPP_LOG_PATH = 'leadWhatsAppLogs';
+const BOTNEX_BASE_URL = 'https://app.botnex.io/api/v1';
+
+const BOTNEX_OPERATIONS = {
+  connectAccount: {
+    endpoint: '/whatsapp/account/connect',
+    required: ['user_id', 'whatsapp_business_account_id', 'access_token']
+  },
+  sendText: {
+    endpoint: '/whatsapp/send',
+    required: ['phone_number_id', 'phone_number', 'message']
+  },
+  sendInteractiveButtons: {
+    endpoint: '/whatsapp/send/interactive-buttons',
+    required: ['phone_number_id', 'phone_number', 'message', 'buttons']
+  },
+  sendFile: {
+    endpoint: '/whatsapp/send/file',
+    required: ['phone_number_id', 'phone_number']
+  },
+  getConversation: {
+    endpoint: '/whatsapp/get/conversation',
+    required: ['phone_number_id', 'phone_number', 'limit']
+  },
+  getPostBackList: {
+    endpoint: '/whatsapp/get/post-back-list',
+    required: ['phone_number_id']
+  },
+  getMessageStatus: {
+    endpoint: '/whatsapp/get/message-status',
+    required: ['wa_message_id', 'whatsapp_bot_id']
+  },
+  listTemplates: {
+    endpoint: '/whatsapp/template/list',
+    required: ['phone_number_id']
+  },
+  triggerBotFlow: {
+    endpoint: '/whatsapp/trigger-bot',
+    required: ['phone_number_id', 'bot_flow_unique_id', 'phone_number']
+  },
+  getSubscriber: {
+    endpoint: '/whatsapp/subscriber/get',
+    required: ['phone_number_id', 'phone_number']
+  },
+  listSubscribers: {
+    endpoint: '/whatsapp/subscriber/list',
+    required: ['phone_number_id', 'limit']
+  },
+  createSubscriber: {
+    endpoint: '/whatsapp/subscriber/create',
+    required: ['phoneNumberID', 'name', 'phoneNumber']
+  },
+  updateSubscriber: {
+    endpoint: '/whatsapp/subscriber/update',
+    required: ['phone_number_id', 'phone_number']
+  },
+  deleteSubscriber: {
+    endpoint: '/whatsapp/subscriber/delete',
+    required: ['phone_number_id', 'phone_number']
+  },
+  resetUserInputFlow: {
+    endpoint: '/whatsapp/subscriber/reset/user-input-flow',
+    required: ['phone_number_id', 'phone_number']
+  },
+  assignTeamMember: {
+    endpoint: '/whatsapp/subscriber/chat/assign-to-team-member',
+    required: ['phone_number_id', 'phone_number', 'team_member_id']
+  },
+  assignCustomFields: {
+    endpoint: '/whatsapp/subscriber/chat/assign-custom-fields',
+    required: ['phone_number_id', 'phone_number', 'custom_fields']
+  },
+  listCustomFields: {
+    endpoint: '/whatsapp/subscriber/custom-fields/list',
+    required: []
+  },
+  assignLabels: {
+    endpoint: '/whatsapp/subscriber/chat/assign-labels',
+    required: ['phone_number_id', 'phone_number', 'label_ids']
+  },
+  removeLabels: {
+    endpoint: '/whatsapp/subscriber/chat/remove-labels',
+    required: ['phone_number_id', 'phone_number', 'label_ids']
+  },
+  assignSequence: {
+    endpoint: '/whatsapp/subscriber/chat/assign-sequence',
+    required: ['phone_number_id', 'phone_number', 'sequence_ids']
+  },
+  removeSequence: {
+    endpoint: '/whatsapp/subscriber/chat/remove-sequence',
+    required: ['phone_number_id', 'phone_number', 'sequence_ids']
+  },
+  addNotes: {
+    endpoint: '/whatsapp/subscriber/chat/add-notes',
+    required: ['phone_number_id', 'phone_number', 'note_text']
+  },
+  listLabels: {
+    endpoint: '/whatsapp/label/list',
+    required: ['phone_number_id']
+  },
+  createLabel: {
+    endpoint: '/whatsapp/label/create',
+    required: ['phone_number_id', 'label_name']
+  },
+  listCatalogs: {
+    endpoint: '/whatsapp/catalog/list',
+    required: []
+  },
+  syncCatalog: {
+    endpoint: '/whatsapp/catalog/sync',
+    required: ['whatsapp_catalog_id']
+  },
+  listCatalogOrders: {
+    endpoint: '/whatsapp/catalog/order/list',
+    required: []
+  },
+  changeCatalogOrderStatus: {
+    endpoint: '/whatsapp/catalog/order/status-change',
+    required: ['order_unique_id', 'cart_status']
+  },
+  getDirectLoginUrl: {
+    endpoint: '/user/get/direct-login-url',
+    required: ['email']
+  },
+  getDirectLoginUrlOnlyNewUsers: {
+    endpoint: '/user/get/direct-login-url/only-new-users',
+    required: ['email', 'package_id', 'expired_date']
+  }
+};
 
 function cleanString(value, maxLength = 500) {
   if (typeof value !== 'string') return '';
@@ -17,6 +146,110 @@ function cleanString(value, maxLength = 500) {
 
 function cleanOptionalString(value, maxLength = 500) {
   return cleanString(value || '', maxLength);
+}
+
+function cleanPhoneNumber(value) {
+  return cleanOptionalString(value, 40).replace(/\D/g, '');
+}
+
+async function assertAdmin(context) {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const userSnapshot = await admin.database().ref(`users/${context.auth.uid}/role`).once('value');
+  if (userSnapshot.val() !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Admin access is required');
+  }
+}
+
+function getBotnexConfig() {
+  const apiToken = process.env.BOTNEX_API_TOKEN || '';
+  const phoneNumberId = process.env.BOTNEX_PHONE_NUMBER_ID || '';
+
+  if (!apiToken) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Botnex API token is not configured on Firebase Functions'
+    );
+  }
+
+  return { apiToken, phoneNumberId };
+}
+
+function normalizeBotnexParams(operation, params = {}, defaultPhoneNumberId = '') {
+  const next = {};
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    next[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  });
+
+  if (defaultPhoneNumberId) {
+    if (!next.phone_number_id) next.phone_number_id = defaultPhoneNumberId;
+    if (!next.phoneNumberID) next.phoneNumberID = defaultPhoneNumberId;
+  }
+
+  if (next.phone_number) next.phone_number = cleanPhoneNumber(next.phone_number);
+  if (next.phoneNumber) next.phoneNumber = cleanPhoneNumber(next.phoneNumber);
+  if (operation === 'createSubscriber') {
+    if (!next.phoneNumber && next.phone_number) next.phoneNumber = next.phone_number;
+    if (!next.phoneNumberID && next.phone_number_id) next.phoneNumberID = next.phone_number_id;
+  }
+
+  return next;
+}
+
+function validateBotnexParams(config, params) {
+  config.required.forEach((field) => {
+    if (!params[field]) {
+      throw new functions.https.HttpsError('invalid-argument', `${field} is required`);
+    }
+  });
+
+  if (config.endpoint === '/whatsapp/send/file' && !params.media_url && !params.media_id) {
+    throw new functions.https.HttpsError('invalid-argument', 'media_url or media_id is required');
+  }
+}
+
+async function callBotnex(operation, params = {}) {
+  const operationConfig = BOTNEX_OPERATIONS[operation];
+  if (!operationConfig) {
+    throw new functions.https.HttpsError('invalid-argument', 'Unsupported Botnex operation');
+  }
+
+  const { apiToken, phoneNumberId } = getBotnexConfig();
+  const normalizedParams = normalizeBotnexParams(operation, params, phoneNumberId);
+  validateBotnexParams(operationConfig, normalizedParams);
+
+  const body = new URLSearchParams();
+  body.set('apiToken', apiToken);
+  Object.entries(normalizedParams).forEach(([key, value]) => body.set(key, value));
+
+  const response = await fetch(`${BOTNEX_BASE_URL}${operationConfig.endpoint}`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body
+  });
+
+  const text = await response.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (error) {
+    data = { status: '0', message: text || 'Invalid Botnex response' };
+  }
+
+  if (!response.ok) {
+    throw new functions.https.HttpsError(
+      'internal',
+      data?.message || `Botnex request failed with status ${response.status}`
+    );
+  }
+
+  return { data, params: normalizedParams };
 }
 
 function requirePublicLeadString(data, field, label, maxLength = 160) {
@@ -74,6 +307,35 @@ function getLeadTriggerIds(beforeLead, afterLead, created) {
   }
 
   return triggers;
+}
+
+function getTemplateChannels(template) {
+  if (Array.isArray(template.channels) && template.channels.length) {
+    return template.channels;
+  }
+
+  if (template.sendWhatsApp === true) {
+    return template.sendPush === false ? ['whatsapp'] : ['push', 'whatsapp'];
+  }
+
+  return ['push'];
+}
+
+function getTemplateButtons(template) {
+  if (!Array.isArray(template.buttons)) return [];
+  return template.buttons
+    .map((button) => {
+      if (typeof button === 'string') {
+        const title = cleanOptionalString(button, 20);
+        return title ? { id: title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''), title } : null;
+      }
+
+      const title = cleanOptionalString(button?.title || button?.label, 20);
+      const id = cleanOptionalString(button?.id, 60) || title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      return title ? { id, title } : null;
+    })
+    .filter(Boolean)
+    .slice(0, 3);
 }
 
 exports.createPublicLead = functions.https.onCall(async (data) => {
@@ -180,7 +442,153 @@ exports.updatePublicLead = functions.https.onCall(async (data) => {
   }
 });
 
-exports.sendLeadMessageNotifications = functions.database
+exports.botnexWhatsAppOperation = functions
+  .runWith({ secrets: ['BOTNEX_API_TOKEN'] })
+  .https.onCall(async (data, context) => {
+  await assertAdmin(context);
+
+  const operation = cleanString(data?.operation, 80);
+  if (!operation) {
+    throw new functions.https.HttpsError('invalid-argument', 'Operation is required');
+  }
+
+  try {
+    const { data: response, params } = await callBotnex(operation, data?.params || {});
+    await admin.database().ref('botnexOperationLogs').push({
+      operation,
+      status: response?.status ?? null,
+      message: typeof response?.message === 'string' ? response.message : '',
+      waMessageId: response?.wa_message_id || '',
+      phoneNumber: params.phone_number || params.phoneNumber || '',
+      createdAt: new Date().toISOString(),
+      createdBy: context.auth.uid
+    });
+
+    return { success: response?.status === '1' || response?.status === true, response };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    console.error('Botnex operation failed:', error);
+    throw new functions.https.HttpsError('internal', 'Botnex operation failed');
+  }
+});
+
+exports.sendLeadWhatsAppMessage = functions
+  .runWith({ secrets: ['BOTNEX_API_TOKEN'] })
+  .https.onCall(async (data, context) => {
+  await assertAdmin(context);
+
+  const leadId = cleanString(data?.leadId, 120);
+  const messageType = cleanString(data?.messageType || 'text', 40);
+  if (!leadId || !/^[A-Za-z0-9_-]+$/.test(leadId)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Valid lead id is required');
+  }
+
+  try {
+    const leadRef = admin.database().ref(`${PUBLIC_LEAD_PATH}/${leadId}`);
+    const leadSnapshot = await leadRef.once('value');
+    if (!leadSnapshot.exists()) {
+      throw new functions.https.HttpsError('not-found', 'Lead not found');
+    }
+
+    const lead = leadSnapshot.val() || {};
+    const phoneNumber = cleanPhoneNumber(data?.phone_number || lead.phone);
+    if (!phoneNumber) {
+      throw new functions.https.HttpsError('invalid-argument', 'Lead WhatsApp phone number is required');
+    }
+
+    let operation = 'sendText';
+    const params = { ...(data?.params || {}), phone_number: phoneNumber };
+    if (data?.phoneNumberId) params.phone_number_id = cleanString(data.phoneNumberId, 80);
+
+    if (messageType === 'buttons') {
+      operation = 'sendInteractiveButtons';
+      params.message = cleanString(data?.message || params.message, 900);
+      params.buttons = data?.buttons || params.buttons;
+    } else if (messageType === 'file') {
+      operation = 'sendFile';
+      params.media_url = cleanOptionalString(data?.mediaUrl || params.media_url, 1000);
+      params.media_id = cleanOptionalString(data?.mediaId || params.media_id, 200);
+      params.media_type = cleanOptionalString(data?.mediaType || params.media_type, 40);
+      params.media_caption_text = cleanOptionalString(data?.message || params.media_caption_text, 900);
+    } else if (messageType === 'botFlow') {
+      operation = 'triggerBotFlow';
+      params.bot_flow_unique_id = cleanString(data?.botFlowUniqueId || params.bot_flow_unique_id, 180);
+    } else {
+      operation = 'sendText';
+      params.message = cleanString(data?.message || params.message, 1200);
+    }
+
+    if (data?.createSubscriber !== false) {
+      const subscriberName = cleanOptionalString(lead.contactName || lead.companyName || 'Lead', 160);
+      try {
+        await callBotnex('createSubscriber', {
+          phoneNumber: phoneNumber,
+          name: subscriberName,
+          phoneNumberID: params.phone_number_id
+        });
+      } catch (subscriberError) {
+        console.log('Botnex subscriber create skipped or failed:', subscriberError.message);
+      }
+    }
+
+    const { data: response, params: sentParams } = await callBotnex(operation, params);
+    const now = new Date().toISOString();
+    const adminName = context.auth.token.name || context.auth.token.email || 'Admin';
+    const activityLog = Array.isArray(lead.activityLog) ? lead.activityLog : [];
+    const responseMessage = typeof response?.message === 'string' ? response.message : 'WhatsApp operation completed';
+
+    await Promise.all([
+      leadRef.update({
+        lastContactedAt: now.slice(0, 10),
+        communicationPreference: 'WhatsApp',
+        updatedAt: now,
+        updatedBy: context.auth.uid,
+        updatedByName: adminName,
+        lastActivityAt: now,
+        activityLog: [
+          ...activityLog,
+          {
+            message: messageType === 'botFlow' ? 'WhatsApp bot flow triggered' : 'WhatsApp message sent',
+            note: responseMessage,
+            at: now,
+            by: adminName,
+            byUid: context.auth.uid
+          }
+        ].slice(-30)
+      }),
+      admin.database().ref(LEAD_WHATSAPP_LOG_PATH).push({
+        leadId,
+        operation,
+        messageType,
+        phoneNumber,
+        request: {
+          phone_number_id: sentParams.phone_number_id || sentParams.phoneNumberID || '',
+          message: sentParams.message || sentParams.media_caption_text || '',
+          media_type: sentParams.media_type || '',
+          bot_flow_unique_id: sentParams.bot_flow_unique_id || ''
+        },
+        response,
+        sentAt: now,
+        sentBy: context.auth.uid,
+        sentByName: adminName
+      })
+    ]);
+
+    return { success: response?.status === '1' || response?.status === true, response };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    console.error('Error sending lead WhatsApp message:', error);
+    throw new functions.https.HttpsError('internal', 'Unable to send WhatsApp message');
+  }
+});
+
+exports.sendLeadMessageNotifications = functions
+  .runWith({ secrets: ['BOTNEX_API_TOKEN'] })
+  .database
   .ref('/leads/{leadId}')
   .onWrite(async (change, context) => {
     if (!change.after.exists()) return null;
@@ -210,54 +618,120 @@ exports.sendLeadMessageNotifications = functions.database
       const responses = await Promise.all(enabledTemplates.map(async (template) => {
         const rawBody = template.editorMode === 'html' ? template.html : template.richText;
         const title = interpolateLeadMessage(template.title || 'Lead update', afterLead).slice(0, 120);
-        const body = stripHtml(interpolateLeadMessage(rawBody || '', afterLead)).slice(0, 240);
+        const fullBody = stripHtml(interpolateLeadMessage(rawBody || '', afterLead));
+        const body = fullBody.slice(0, 240);
         const topic = cleanOptionalString(template.audienceTopic, 80) || 'admin-leads';
+        const channels = getTemplateChannels(template);
+        const shouldSendPush = template.sendPush !== false && channels.includes('push');
+        const shouldSendWhatsApp = template.sendWhatsApp === true || channels.includes('whatsapp');
+        const templateResponses = [];
 
-        const payload = {
-          topic,
-          notification: {
-            title,
-            body: body || `${afterLead.companyName || 'A lead'} was updated`
-          },
-          data: {
-            type: 'lead',
+        if (shouldSendPush) {
+          const payload = {
+            topic,
+            notification: {
+              title,
+              body: body || `${afterLead.companyName || 'A lead'} was updated`
+            },
+            data: {
+              type: 'lead',
+              leadId,
+              templateId: template.id,
+              triggers: triggerIds.join(','),
+              url: '/admin',
+              timestamp: new Date().toISOString()
+            },
+            webpush: {
+              headers: {
+                Urgency: triggerIds.includes('lead_created') || triggerIds.includes('followup_due') ? 'high' : 'normal',
+                TTL: '86400'
+              },
+              notification: {
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/icon-72x72.png',
+                tag: `lead-${leadId}-${template.id}`
+              },
+              fcm_options: {
+                link: '/admin'
+              }
+            }
+          };
+
+          const response = await admin.messaging().send(payload);
+          await admin.database().ref(LEAD_NOTIFICATION_LOG_PATH).push({
             leadId,
             templateId: template.id,
-            triggers: triggerIds.join(','),
-            url: '/admin',
-            timestamp: new Date().toISOString()
-          },
-          webpush: {
-            headers: {
-              Urgency: triggerIds.includes('lead_created') || triggerIds.includes('followup_due') ? 'high' : 'normal',
-              TTL: '86400'
-            },
-            notification: {
-              icon: '/icons/icon-192x192.png',
-              badge: '/icons/icon-72x72.png',
-              tag: `lead-${leadId}-${template.id}`
-            },
-            fcm_options: {
-              link: '/admin'
-            }
-          }
-        };
+            topic,
+            title,
+            body: payload.notification.body,
+            triggers: triggerIds,
+            response,
+            sentAt: new Date().toISOString()
+          });
+          templateResponses.push({ channel: 'push', response });
+        }
 
-        const response = await admin.messaging().send(payload);
-        await admin.database().ref(LEAD_NOTIFICATION_LOG_PATH).push({
-          leadId,
-          templateId: template.id,
-          topic,
-          title,
-          body: payload.notification.body,
-          triggers: triggerIds,
-          response,
-          sentAt: new Date().toISOString()
-        });
-        return response;
+        if (shouldSendWhatsApp) {
+          const phoneNumber = cleanPhoneNumber(afterLead.phone);
+          if (!phoneNumber) {
+            console.log('Lead has no WhatsApp phone number, skipping template:', template.id);
+            return templateResponses;
+          }
+
+          const phoneNumberId = cleanOptionalString(template.phoneNumberId, 120);
+          const messageType = cleanOptionalString(template.whatsAppMessageType || 'text', 40);
+          const whatsappBody = fullBody || body || `Hi ${afterLead.contactName || 'there'}, thank you for contacting Our Vadodara.`;
+          let operation = 'sendText';
+          const params = {
+            phone_number: phoneNumber,
+            phone_number_id: phoneNumberId,
+            message: whatsappBody.slice(0, 1200)
+          };
+
+          try {
+            await callBotnex('createSubscriber', {
+              phoneNumber,
+              phoneNumberID: phoneNumberId,
+              name: cleanOptionalString(afterLead.contactName || afterLead.companyName || 'Lead', 160)
+            });
+          } catch (subscriberError) {
+            console.log('Botnex subscriber create skipped or failed:', subscriberError.message);
+          }
+
+          if (messageType === 'buttons') {
+            operation = 'sendInteractiveButtons';
+            params.buttons = getTemplateButtons(template);
+          } else if (messageType === 'botFlow') {
+            operation = 'triggerBotFlow';
+            params.bot_flow_unique_id = cleanString(template.botFlowUniqueId, 180);
+            delete params.message;
+          }
+
+          const { data: response, params: sentParams } = await callBotnex(operation, params);
+          await admin.database().ref(LEAD_WHATSAPP_LOG_PATH).push({
+            leadId,
+            templateId: template.id,
+            operation,
+            messageType,
+            phoneNumber,
+            request: {
+              phone_number_id: sentParams.phone_number_id || sentParams.phoneNumberID || '',
+              message: sentParams.message || '',
+              bot_flow_unique_id: sentParams.bot_flow_unique_id || '',
+              buttons: sentParams.buttons || ''
+            },
+            triggers: triggerIds,
+            response,
+            automated: true,
+            sentAt: new Date().toISOString()
+          });
+          templateResponses.push({ channel: 'whatsapp', response });
+        }
+
+        return templateResponses;
       }));
 
-      console.log('Lead message notifications sent:', responses.length);
+      console.log('Lead message automation sent:', responses.flat().length);
       return responses;
     } catch (error) {
       console.error('Error sending lead message notifications:', error);

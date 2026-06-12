@@ -5,7 +5,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { ref, onValue, push, update, remove } from 'firebase/database';
-import { db } from '../../firebase-config';
+import { db, functions, httpsCallable } from '../../firebase-config';
 import {
   AlertCircle,
   BarChart3,
@@ -23,6 +23,7 @@ import {
   Plus,
   Search,
   Send,
+  Smartphone,
   Target,
   Trash2,
   UserRound,
@@ -116,6 +117,73 @@ const MESSAGE_AUDIENCES = [
   { id: 'breaking-news', label: 'Breaking-news subscribers' }
 ];
 
+const TEMPLATE_PURPOSES = [
+  {
+    id: 'new_lead_welcome',
+    label: 'Instant enquiry reply',
+    description: 'Send a warm WhatsApp reply as soon as a person submits the enquiry form.',
+    name: 'Instant WhatsApp reply',
+    title: 'New enquiry received',
+    triggers: ['lead_created'],
+    channels: ['whatsapp'],
+    whatsAppMessageType: 'buttons',
+    buttons: 'View Packages,Talk to Sales,Call Me',
+    richText: 'Hi {{contactName}}, thank you for contacting Our Vadodara. We received your enquiry for {{packageInterest}} and our team will reach out shortly. You can also choose an option below so we can help faster.'
+  },
+  {
+    id: 'team_alert',
+    label: 'Team alert',
+    description: 'Notify the internal lead team when a fresh enquiry comes in.',
+    name: 'New lead team alert',
+    title: 'New advertising lead',
+    triggers: ['lead_created'],
+    channels: ['push'],
+    whatsAppMessageType: 'text',
+    buttons: 'Interested,Share Packages,Talk to Sales',
+    richText: '{{companyName}} from {{city}} submitted an enquiry for {{packageInterest}}. Contact person: {{contactName}}.'
+  },
+  {
+    id: 'proposal_followup',
+    label: 'Proposal follow-up',
+    description: 'Send a polite WhatsApp nudge when a lead reaches proposal stage.',
+    name: 'Proposal follow-up',
+    title: 'Proposal follow-up due',
+    triggers: ['stage_proposal'],
+    channels: ['whatsapp'],
+    whatsAppMessageType: 'buttons',
+    buttons: 'Looks Good,Need Changes,Talk to Sales',
+    richText: 'Hi {{contactName}}, we hope the Our Vadodara proposal for {{companyName}} was helpful. Would you like us to make any changes or help you finalize the campaign?'
+  },
+  {
+    id: 'followup_reminder',
+    label: 'Follow-up reminder',
+    description: 'Remind the sales team when a planned follow-up is due.',
+    name: 'Follow-up reminder',
+    title: 'Lead follow-up due',
+    triggers: ['followup_due'],
+    channels: ['push'],
+    whatsAppMessageType: 'text',
+    buttons: 'Interested,Share Packages,Talk to Sales',
+    richText: '{{companyName}} has a follow-up due today. Package: {{packageInterest}}. Owner: {{assignedTo}}.'
+  }
+];
+
+const PERSONALIZATION_FIELDS = [
+  { label: 'Contact name', token: '{{contactName}}' },
+  { label: 'Brand', token: '{{companyName}}' },
+  { label: 'City', token: '{{city}}' },
+  { label: 'Package', token: '{{packageInterest}}' },
+  { label: 'Follow-up date', token: '{{followUpDate}}' },
+  { label: 'Owner', token: '{{assignedTo}}' }
+];
+
+const TEMPLATE_TONES = [
+  { id: 'friendly', label: 'Friendly' },
+  { id: 'premium', label: 'Premium' },
+  { id: 'direct', label: 'Direct' },
+  { id: 'urgent', label: 'Urgent' }
+];
+
 const EMPTY_FORM = {
   companyName: '',
   contactName: '',
@@ -142,14 +210,106 @@ const EMPTY_FORM = {
 };
 
 const EMPTY_TEMPLATE = {
-  name: '',
-  title: '',
+  purpose: 'new_lead_welcome',
+  tone: 'friendly',
+  name: 'Instant WhatsApp reply',
+  title: 'New enquiry received',
   editorMode: 'rich',
-  richText: '',
+  richText: 'Hi {{contactName}}, thank you for contacting Our Vadodara. We received your enquiry for {{packageInterest}} and our team will reach out shortly. You can also choose an option below so we can help faster.',
   html: '',
   triggers: ['lead_created'],
+  channels: ['whatsapp'],
+  sendPush: false,
+  sendWhatsApp: true,
   audienceTopic: 'admin-leads',
+  phoneNumberId: '',
+  whatsAppMessageType: 'buttons',
+  botFlowUniqueId: '',
+  buttons: 'View Packages,Talk to Sales,Call Me',
   enabled: true
+};
+
+const EMPTY_WHATSAPP_FORM = {
+  phoneNumberId: '',
+  message: 'Hello {{contactName}}, this is Our Vadodara. We received your advertising enquiry for {{packageInterest}}. How can we help you today?',
+  messageType: 'text',
+  botFlowUniqueId: '',
+  mediaUrl: '',
+  mediaType: 'image',
+  buttons: 'Interested,Share Packages,Talk to Sales'
+};
+
+const BOTNEX_OPERATION_GROUPS = [
+  {
+    label: 'Messages',
+    operations: [
+      { id: 'sendText', label: 'Send text' },
+      { id: 'sendInteractiveButtons', label: 'Send buttons' },
+      { id: 'sendFile', label: 'Send file/media' },
+      { id: 'triggerBotFlow', label: 'Trigger bot flow' }
+    ]
+  },
+  {
+    label: 'Subscribers',
+    operations: [
+      { id: 'getSubscriber', label: 'Get subscriber' },
+      { id: 'listSubscribers', label: 'List subscribers' },
+      { id: 'createSubscriber', label: 'Create subscriber' },
+      { id: 'updateSubscriber', label: 'Update subscriber' },
+      { id: 'deleteSubscriber', label: 'Delete subscriber' },
+      { id: 'resetUserInputFlow', label: 'Reset input flow' }
+    ]
+  },
+  {
+    label: 'Labels & CRM',
+    operations: [
+      { id: 'listLabels', label: 'List labels' },
+      { id: 'createLabel', label: 'Create label' },
+      { id: 'assignLabels', label: 'Assign labels' },
+      { id: 'removeLabels', label: 'Remove labels' },
+      { id: 'assignSequence', label: 'Assign sequence' },
+      { id: 'removeSequence', label: 'Remove sequence' },
+      { id: 'addNotes', label: 'Add note' },
+      { id: 'assignCustomFields', label: 'Assign custom fields' },
+      { id: 'listCustomFields', label: 'List custom fields' },
+      { id: 'assignTeamMember', label: 'Assign team member' }
+    ]
+  },
+  {
+    label: 'Templates & Reports',
+    operations: [
+      { id: 'listTemplates', label: 'List templates' },
+      { id: 'getConversation', label: 'Get conversation' },
+      { id: 'getPostBackList', label: 'Get postbacks' },
+      { id: 'getMessageStatus', label: 'Get message status' },
+      { id: 'listCatalogs', label: 'List catalogs' },
+      { id: 'listCatalogOrders', label: 'List catalog orders' },
+      { id: 'changeCatalogOrderStatus', label: 'Change order status' }
+    ]
+  }
+];
+
+const EMPTY_BOTNEX_FORM = {
+  operation: 'listTemplates',
+  phoneNumberId: '',
+  phoneNumber: '',
+  message: '',
+  buttons: 'Yes,No',
+  mediaUrl: '',
+  mediaId: '',
+  mediaType: 'image',
+  botFlowUniqueId: '',
+  limit: 10,
+  offset: 0,
+  labelIds: '',
+  sequenceIds: '',
+  labelName: '',
+  noteText: '',
+  teamMemberId: '',
+  waMessageId: '',
+  whatsappBotId: '',
+  customFields: '{ "lead_source": "Our Vadodara" }',
+  extraJson: '{}'
 };
 
 const getStage = (lead) => lead.stage || lead.status || 'new';
@@ -179,6 +339,36 @@ const isFollowUpDue = (lead) => {
   return new Date(`${lead.followUpDate}T23:59:59`) <= new Date();
 };
 
+const interpolateLeadText = (text, lead) => String(text || '').replace(/\{\{(\w+)\}\}/g, (_, key) => {
+  const values = {
+    companyName: lead?.companyName || '',
+    contactName: lead?.contactName || '',
+    city: lead?.city || '',
+    stage: getStage(lead || {}),
+    packageInterest: lead?.packageInterest || '',
+    followUpDate: lead?.followUpDate || '',
+    assignedTo: lead?.assignedTo || '',
+    serviceType: lead?.serviceType || ''
+  };
+  return values[key] || '';
+});
+
+const parseCommaButtons = (value) => String(value || '')
+  .split(',')
+  .map(item => item.trim())
+  .filter(Boolean)
+  .slice(0, 3)
+  .map(item => ({ id: item.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 60) || item, title: item.slice(0, 20) }));
+
+const parseJsonObject = (value, fallback = {}) => {
+  try {
+    const parsed = JSON.parse(value || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+  } catch (error) {
+    return fallback;
+  }
+};
+
 const normalizeLead = ([id, value]) => ({
   id,
   ...value,
@@ -205,6 +395,13 @@ const LeadManagement = () => {
   const [stageFilter, setStageFilter] = useState('all');
   const [serviceFilter, setServiceFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [whatsAppLead, setWhatsAppLead] = useState(null);
+  const [whatsAppForm, setWhatsAppForm] = useState(EMPTY_WHATSAPP_FORM);
+  const [whatsAppSending, setWhatsAppSending] = useState(false);
+  const [whatsAppResult, setWhatsAppResult] = useState(null);
+  const [botnexForm, setBotnexForm] = useState(EMPTY_BOTNEX_FORM);
+  const [botnexLoading, setBotnexLoading] = useState(false);
+  const [botnexResult, setBotnexResult] = useState(null);
 
   useEffect(() => {
     const leadsRef = ref(db, LEAD_PATH);
@@ -268,6 +465,17 @@ const LeadManagement = () => {
     });
   }, [leads, query, stageFilter, serviceFilter, priorityFilter]);
 
+  const templatePreviewLead = useMemo(() => ({
+    companyName: 'Shree Foods',
+    contactName: 'Riya Shah',
+    city: 'Vadodara',
+    stage: 'new',
+    packageInterest: 'Monthly banner package',
+    followUpDate: new Date().toISOString().slice(0, 10),
+    assignedTo: user?.displayName || user?.email || 'Sales team',
+    serviceType: 'advertising'
+  }), [user]);
+
   const updateField = (field, value) => {
     setFormData(prev => {
       const next = { ...prev, [field]: value };
@@ -295,6 +503,62 @@ const LeadManagement = () => {
     setTemplateErrors(prev => ({ ...prev, triggers: null, submit: null }));
   };
 
+  const toggleTemplateChannel = (channelId) => {
+    setTemplateForm(prev => {
+      const channels = Array.isArray(prev.channels) ? prev.channels : [];
+      const nextChannels = channels.includes(channelId)
+        ? channels.filter(item => item !== channelId)
+        : [...channels, channelId];
+      return {
+        ...prev,
+        channels: nextChannels.length ? nextChannels : [channelId],
+        sendPush: nextChannels.includes('push'),
+        sendWhatsApp: nextChannels.includes('whatsapp')
+      };
+    });
+    setTemplateErrors(prev => ({ ...prev, channels: null, submit: null }));
+  };
+
+  const applyTemplatePurpose = (purposeId) => {
+    const purpose = TEMPLATE_PURPOSES.find(item => item.id === purposeId);
+    if (!purpose) return;
+
+    setTemplateForm(prev => ({
+      ...prev,
+      purpose: purpose.id,
+      name: purpose.name,
+      title: purpose.title,
+      richText: purpose.richText,
+      html: '',
+      editorMode: 'rich',
+      triggers: purpose.triggers,
+      channels: purpose.channels,
+      sendPush: purpose.channels.includes('push'),
+      sendWhatsApp: purpose.channels.includes('whatsapp'),
+      whatsAppMessageType: purpose.whatsAppMessageType,
+      buttons: purpose.buttons
+    }));
+    setTemplateErrors({});
+  };
+
+  const insertTemplateVariable = (token) => {
+    setTemplateForm(prev => ({
+      ...prev,
+      richText: `${prev.richText}${prev.richText.endsWith(' ') || !prev.richText ? '' : ' '}${token}`
+    }));
+    setTemplateErrors(prev => ({ ...prev, body: null, submit: null }));
+  };
+
+  const updateWhatsAppField = (field, value) => {
+    setWhatsAppForm(prev => ({ ...prev, [field]: value }));
+    setWhatsAppResult(null);
+  };
+
+  const updateBotnexField = (field, value) => {
+    setBotnexForm(prev => ({ ...prev, [field]: value }));
+    setBotnexResult(null);
+  };
+
   const resetForm = () => {
     setFormData({ ...EMPTY_FORM, assignedTo: user?.displayName || user?.email || '' });
     setEditingLead(null);
@@ -307,7 +571,7 @@ const LeadManagement = () => {
   };
 
   const resetTemplateForm = () => {
-    setTemplateForm(EMPTY_TEMPLATE);
+    setTemplateForm({ ...EMPTY_TEMPLATE });
     setEditingTemplate(null);
     setTemplateErrors({});
   };
@@ -318,7 +582,17 @@ const LeadManagement = () => {
       setTemplateForm({
         ...EMPTY_TEMPLATE,
         ...template,
-        triggers: Array.isArray(template.triggers) && template.triggers.length ? template.triggers : ['lead_created']
+        triggers: Array.isArray(template.triggers) && template.triggers.length ? template.triggers : ['lead_created'],
+        channels: Array.isArray(template.channels) && template.channels.length
+          ? template.channels
+          : template.sendWhatsApp
+            ? ['whatsapp']
+            : ['push'],
+        sendPush: template.sendPush !== false && (!template.channels || template.channels.includes('push')),
+        sendWhatsApp: template.sendWhatsApp === true || template.channels?.includes('whatsapp'),
+        buttons: Array.isArray(template.buttons)
+          ? template.buttons.map(button => (typeof button === 'string' ? button : button.title || button.label || '')).filter(Boolean).join(',')
+          : template.buttons || EMPTY_TEMPLATE.buttons
       });
     } else {
       resetTemplateForm();
@@ -342,6 +616,49 @@ const LeadManagement = () => {
     setShowForm(true);
   };
 
+  const openWhatsAppForm = (lead) => {
+    setWhatsAppLead(lead);
+    setWhatsAppForm(EMPTY_WHATSAPP_FORM);
+    setWhatsAppResult(null);
+  };
+
+  const buildBotnexParams = () => {
+    const params = {
+      ...parseJsonObject(botnexForm.extraJson),
+      phone_number_id: botnexForm.phoneNumberId.trim(),
+      phoneNumberID: botnexForm.phoneNumberId.trim(),
+      phone_number: botnexForm.phoneNumber.trim(),
+      phoneNumber: botnexForm.phoneNumber.trim(),
+      message: botnexForm.message.trim(),
+      buttons: parseCommaButtons(botnexForm.buttons),
+      media_url: botnexForm.mediaUrl.trim(),
+      media_id: botnexForm.mediaId.trim(),
+      media_type: botnexForm.mediaType,
+      bot_flow_unique_id: botnexForm.botFlowUniqueId.trim(),
+      limit: String(botnexForm.limit || 10),
+      offset: String(botnexForm.offset || 0),
+      label_ids: botnexForm.labelIds.trim(),
+      sequence_ids: botnexForm.sequenceIds.trim(),
+      label_name: botnexForm.labelName.trim(),
+      note_text: botnexForm.noteText.trim(),
+      team_member_id: botnexForm.teamMemberId.trim(),
+      wa_message_id: botnexForm.waMessageId.trim(),
+      whatsapp_bot_id: botnexForm.whatsappBotId.trim(),
+      custom_fields: parseJsonObject(botnexForm.customFields)
+    };
+
+    Object.keys(params).forEach((key) => {
+      if (params[key] === '' || params[key] === null || params[key] === undefined) {
+        delete params[key];
+      }
+      if (Array.isArray(params[key]) && params[key].length === 0) {
+        delete params[key];
+      }
+    });
+
+    return params;
+  };
+
   const validateForm = () => {
     const nextErrors = {};
     if (!formData.companyName.trim()) nextErrors.companyName = 'Company or brand name is required';
@@ -355,10 +672,17 @@ const LeadManagement = () => {
 
   const validateTemplateForm = () => {
     const nextErrors = {};
+    const channels = Array.isArray(templateForm.channels) ? templateForm.channels : [];
     if (!templateForm.name.trim()) nextErrors.name = 'Template name is required';
-    if (!templateForm.title.trim()) nextErrors.title = 'Notification title is required';
-    if (templateForm.editorMode === 'html' && !templateForm.html.trim()) nextErrors.body = 'HTML message is required';
-    if (templateForm.editorMode === 'rich' && !templateForm.richText.trim()) nextErrors.body = 'Rich text message is required';
+    if (channels.length === 0) nextErrors.channels = 'Select at least one delivery channel';
+    if (channels.includes('push') && !templateForm.title.trim()) nextErrors.title = 'Push title is required for team notifications';
+    if (!templateForm.richText.trim()) nextErrors.body = 'Message copy is required';
+    if (channels.includes('whatsapp') && !templateForm.phoneNumberId.trim()) {
+      nextErrors.phoneNumberId = 'WhatsApp Account Phone Number ID is required for automatic WhatsApp messages';
+    }
+    if (channels.includes('whatsapp') && templateForm.whatsAppMessageType === 'buttons' && parseCommaButtons(templateForm.buttons).length === 0) {
+      nextErrors.buttons = 'Add at least one button label';
+    }
     if (!Array.isArray(templateForm.triggers) || templateForm.triggers.length === 0) nextErrors.triggers = 'Select at least one trigger';
     setTemplateErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
@@ -446,13 +770,22 @@ const LeadManagement = () => {
     try {
       const now = new Date().toISOString();
       const adminName = user?.displayName || user?.email || 'Admin';
+      const channels = Array.isArray(templateForm.channels) && templateForm.channels.length ? templateForm.channels : ['push'];
       const payload = {
         ...templateForm,
         name: templateForm.name.trim(),
         title: templateForm.title.trim(),
         richText: templateForm.richText.trim(),
-        html: templateForm.html.trim(),
+        html: '',
+        editorMode: 'rich',
         triggers: templateForm.triggers,
+        channels,
+        sendPush: channels.includes('push'),
+        sendWhatsApp: channels.includes('whatsapp'),
+        phoneNumberId: templateForm.phoneNumberId.trim(),
+        whatsAppMessageType: templateForm.whatsAppMessageType,
+        botFlowUniqueId: templateForm.botFlowUniqueId.trim(),
+        buttons: parseCommaButtons(templateForm.buttons),
         updatedAt: now,
         updatedBy: user?.uid || null,
         updatedByName: adminName
@@ -476,6 +809,67 @@ const LeadManagement = () => {
       setTemplateErrors({ submit: 'Unable to save message template. Please try again.' });
     } finally {
       setTemplateSaving(false);
+    }
+  };
+
+  const handleSendLeadWhatsApp = async (event) => {
+    event.preventDefault();
+    if (!whatsAppLead) return;
+
+    setWhatsAppSending(true);
+    setWhatsAppResult(null);
+    try {
+      const sendLeadWhatsAppMessage = httpsCallable(functions, 'sendLeadWhatsAppMessage');
+      const result = await sendLeadWhatsAppMessage({
+        leadId: whatsAppLead.id,
+        messageType: whatsAppForm.messageType,
+        phoneNumberId: whatsAppForm.phoneNumberId.trim(),
+        message: interpolateLeadText(whatsAppForm.message, whatsAppLead),
+        botFlowUniqueId: whatsAppForm.botFlowUniqueId.trim(),
+        mediaUrl: whatsAppForm.mediaUrl.trim(),
+        mediaType: whatsAppForm.mediaType,
+        buttons: parseCommaButtons(whatsAppForm.buttons)
+      });
+
+      setWhatsAppResult({
+        type: result.data?.success ? 'success' : 'warning',
+        message: result.data?.response?.message || 'WhatsApp operation completed',
+        response: result.data?.response
+      });
+    } catch (error) {
+      console.error('Error sending WhatsApp message:', error);
+      setWhatsAppResult({
+        type: 'error',
+        message: error.message || 'Unable to send WhatsApp message'
+      });
+    } finally {
+      setWhatsAppSending(false);
+    }
+  };
+
+  const handleRunBotnexOperation = async (event) => {
+    event.preventDefault();
+    setBotnexLoading(true);
+    setBotnexResult(null);
+    try {
+      const botnexWhatsAppOperation = httpsCallable(functions, 'botnexWhatsAppOperation');
+      const result = await botnexWhatsAppOperation({
+        operation: botnexForm.operation,
+        params: buildBotnexParams()
+      });
+
+      setBotnexResult({
+        type: result.data?.success ? 'success' : 'warning',
+        response: result.data?.response
+      });
+    } catch (error) {
+      console.error('Botnex operation failed:', error);
+      setBotnexResult({
+        type: 'error',
+        response: { message: error.message || 'Botnex operation failed' }
+      });
+    } finally {
+      setBotnexLoading(false);
     }
   };
 
@@ -583,6 +977,217 @@ const LeadManagement = () => {
             </div>
           );
         })}
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-700 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <Smartphone className="h-5 w-5 text-emerald-600" />
+              Botnex WhatsApp Operations
+            </h2>
+            <p className="text-sm text-gray-500">
+              Send WhatsApp messages, manage subscribers, labels, templates, bot flows, and conversation lookups.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleRunBotnexOperation} className="grid gap-4 p-5 lg:grid-cols-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Operation</label>
+            <select
+              value={botnexForm.operation}
+              onChange={(e) => updateBotnexField('operation', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+            >
+              {BOTNEX_OPERATION_GROUPS.map(group => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.operations.map(operation => (
+                    <option key={operation.id} value={operation.id}>{operation.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Phone Number ID</label>
+            <input
+              value={botnexForm.phoneNumberId}
+              onChange={(e) => updateBotnexField('phoneNumberId', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="Uses function config if blank"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Subscriber Phone</label>
+            <input
+              value={botnexForm.phoneNumber}
+              onChange={(e) => updateBotnexField('phoneNumber', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="919099004346"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Limit / Offset</label>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                min="1"
+                value={botnexForm.limit}
+                onChange={(e) => updateBotnexField('limit', e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              />
+              <input
+                type="number"
+                min="0"
+                value={botnexForm.offset}
+                onChange={(e) => updateBotnexField('offset', e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              />
+            </div>
+          </div>
+
+          <div className="lg:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium">Message / Caption</label>
+            <textarea
+              rows={3}
+              value={botnexForm.message}
+              onChange={(e) => updateBotnexField('message', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="Message text for send operations"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Buttons</label>
+            <input
+              value={botnexForm.buttons}
+              onChange={(e) => updateBotnexField('buttons', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="Yes,No,Call me"
+            />
+            <label className="mb-1.5 mt-3 block text-sm font-medium">Bot Flow ID</label>
+            <input
+              value={botnexForm.botFlowUniqueId}
+              onChange={(e) => updateBotnexField('botFlowUniqueId', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Media</label>
+            <input
+              value={botnexForm.mediaUrl}
+              onChange={(e) => updateBotnexField('mediaUrl', e.target.value)}
+              className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="https://..."
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                value={botnexForm.mediaId}
+                onChange={(e) => updateBotnexField('mediaId', e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+                placeholder="media_id"
+              />
+              <select
+                value={botnexForm.mediaType}
+                onChange={(e) => updateBotnexField('mediaType', e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              >
+                {['image', 'video', 'audio', 'document'].map(type => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Labels / Sequences</label>
+            <input
+              value={botnexForm.labelIds}
+              onChange={(e) => updateBotnexField('labelIds', e.target.value)}
+              className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="label ids: 1,4,5"
+            />
+            <input
+              value={botnexForm.sequenceIds}
+              onChange={(e) => updateBotnexField('sequenceIds', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="sequence ids"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Label / Note / Team</label>
+            <input
+              value={botnexForm.labelName}
+              onChange={(e) => updateBotnexField('labelName', e.target.value)}
+              className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="new label name"
+            />
+            <input
+              value={botnexForm.noteText}
+              onChange={(e) => updateBotnexField('noteText', e.target.value)}
+              className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="note text"
+            />
+            <input
+              value={botnexForm.teamMemberId}
+              onChange={(e) => updateBotnexField('teamMemberId', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="team member id"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Message Status</label>
+            <input
+              value={botnexForm.waMessageId}
+              onChange={(e) => updateBotnexField('waMessageId', e.target.value)}
+              className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="wa_message_id"
+            />
+            <input
+              value={botnexForm.whatsappBotId}
+              onChange={(e) => updateBotnexField('whatsappBotId', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              placeholder="whatsapp_bot_id"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Custom Fields JSON</label>
+            <textarea
+              rows={4}
+              value={botnexForm.customFields}
+              onChange={(e) => updateBotnexField('customFields', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs dark:border-gray-700 dark:bg-gray-800"
+            />
+          </div>
+
+          <div className="lg:col-span-4">
+            <label className="mb-1.5 block text-sm font-medium">Extra Parameters JSON</label>
+            <textarea
+              rows={3}
+              value={botnexForm.extraJson}
+              onChange={(e) => updateBotnexField('extraJson', e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs dark:border-gray-700 dark:bg-gray-800"
+              placeholder='{ "order_unique_id": "...", "cart_status": "Approved" }'
+            />
+          </div>
+
+          {botnexResult && (
+            <div className={`rounded-lg border px-3 py-3 text-sm lg:col-span-4 ${
+              botnexResult.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+            }`}>
+              <pre className="max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs">{JSON.stringify(botnexResult.response, null, 2)}</pre>
+            </div>
+          )}
+
+          <div className="flex justify-end lg:col-span-4">
+            <button
+              type="submit"
+              disabled={botnexLoading}
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" />
+              {botnexLoading ? 'Running...' : 'Run Operation'}
+            </button>
+          </div>
+        </form>
       </div>
 
       {showForm && (
@@ -897,7 +1502,7 @@ const LeadManagement = () => {
               Lead Message Automation
             </h2>
             <p className="text-sm text-gray-500">
-              Create rich text or HTML push messages and choose the lead triggers that send them.
+              Create customer WhatsApp replies and team alerts from simple campaign-style templates.
             </p>
           </div>
           <button
@@ -911,112 +1516,238 @@ const LeadManagement = () => {
         </div>
 
         {showTemplateForm && (
-          <form onSubmit={handleTemplateSubmit} className="grid gap-5 border-b border-gray-200 p-5 dark:border-gray-700 lg:grid-cols-3">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">Template Name *</label>
-              <input
-                value={templateForm.name}
-                onChange={(e) => updateTemplateField('name', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
-                placeholder="Hot lead alert"
-              />
-              {templateErrors.name && <p className="mt-1 text-xs text-red-600">{templateErrors.name}</p>}
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">Push Title *</label>
-              <input
-                value={templateForm.title}
-                onChange={(e) => updateTemplateField('title', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
-                placeholder="New advertising lead"
-              />
-              {templateErrors.title && <p className="mt-1 text-xs text-red-600">{templateErrors.title}</p>}
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">Audience Topic</label>
-              <select
-                value={templateForm.audienceTopic}
-                onChange={(e) => updateTemplateField('audienceTopic', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
-              >
-                {MESSAGE_AUDIENCES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
-            </div>
+          <form onSubmit={handleTemplateSubmit} className="grid gap-5 border-b border-gray-200 p-5 dark:border-gray-700 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="space-y-5">
+              <div>
+                <label className="mb-2 block text-sm font-medium">Start with a goal</label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {TEMPLATE_PURPOSES.map(purpose => (
+                    <button
+                      key={purpose.id}
+                      type="button"
+                      onClick={() => applyTemplatePurpose(purpose.id)}
+                      className={`rounded-lg border p-4 text-left transition ${
+                        templateForm.purpose === purpose.id
+                          ? 'border-blue-500 bg-blue-50 text-blue-950 ring-2 ring-blue-500/20 dark:bg-blue-950/30 dark:text-blue-100'
+                          : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <span className="block text-sm font-semibold">{purpose.label}</span>
+                      <span className="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">{purpose.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            <div className="lg:col-span-3">
-              <label className="mb-2 block text-sm font-medium">Editor Mode</label>
-              <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
-                {[
-                  { id: 'rich', label: 'Rich text' },
-                  { id: 'html', label: 'HTML' }
-                ].map(mode => (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    onClick={() => updateTemplateField('editorMode', mode.id)}
-                    className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
-                      templateForm.editorMode === mode.id ? 'bg-white text-blue-700 shadow-sm dark:bg-gray-900' : 'text-gray-600 dark:text-gray-300'
-                    }`}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">Template Name *</label>
+                  <input
+                    value={templateForm.name}
+                    onChange={(e) => updateTemplateField('name', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
+                    placeholder="Instant WhatsApp reply"
+                  />
+                  {templateErrors.name && <p className="mt-1 text-xs text-red-600">{templateErrors.name}</p>}
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">Tone</label>
+                  <select
+                    value={templateForm.tone}
+                    onChange={(e) => updateTemplateField('tone', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
                   >
-                    {mode.label}
-                  </button>
-                ))}
+                    {TEMPLATE_TONES.map(tone => <option key={tone.id} value={tone.id}>{tone.label}</option>)}
+                  </select>
+                </div>
               </div>
-            </div>
 
-            <div className="lg:col-span-3">
-              <label className="mb-1.5 block text-sm font-medium">
-                {templateForm.editorMode === 'html' ? 'HTML Message *' : 'Rich Text Message *'}
-              </label>
-              <textarea
-                rows={templateForm.editorMode === 'html' ? 8 : 5}
-                value={templateForm.editorMode === 'html' ? templateForm.html : templateForm.richText}
-                onChange={(e) => updateTemplateField(templateForm.editorMode === 'html' ? 'html' : 'richText', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
-                placeholder={templateForm.editorMode === 'html' ? '<strong>{{companyName}}</strong> needs follow-up.' : '{{companyName}} from {{city}} needs a follow-up. Package: {{packageInterest}}'}
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Variables: {'{{companyName}}'}, {'{{contactName}}'}, {'{{city}}'}, {'{{stage}}'}, {'{{packageInterest}}'}, {'{{followUpDate}}'}
-              </p>
-              {templateErrors.body && <p className="mt-1 text-xs text-red-600">{templateErrors.body}</p>}
-            </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium">Send when *</label>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {MESSAGE_TRIGGERS.map(trigger => (
+                    <label key={trigger.id} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={templateForm.triggers.includes(trigger.id)}
+                        onChange={() => toggleTemplateTrigger(trigger.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                      />
+                      <span>{trigger.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {templateErrors.triggers && <p className="mt-1 text-xs text-red-600">{templateErrors.triggers}</p>}
+              </div>
 
-            <div className="lg:col-span-3">
-              <label className="mb-2 block text-sm font-medium">Send Triggers *</label>
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                {MESSAGE_TRIGGERS.map(trigger => (
-                  <label key={trigger.id} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+              <div>
+                <label className="mb-2 block text-sm font-medium">Send through *</label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {[
+                    { id: 'whatsapp', title: 'WhatsApp to customer', copy: 'Best for enquiry replies and sales follow-ups.' },
+                    { id: 'push', title: 'Team push notification', copy: 'Best for internal alerts and reminders.' }
+                  ].map(channel => (
+                    <label key={channel.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 ${
+                      templateForm.channels?.includes(channel.id) ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20' : 'border-gray-200 dark:border-gray-700'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={templateForm.channels?.includes(channel.id)}
+                        onChange={() => toggleTemplateChannel(channel.id)}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold">{channel.title}</span>
+                        <span className="mt-1 block text-xs leading-5 text-gray-500">{channel.copy}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {templateErrors.channels && <p className="mt-1 text-xs text-red-600">{templateErrors.channels}</p>}
+              </div>
+
+              {templateForm.channels?.includes('whatsapp') && (
+                <div className="grid gap-4 rounded-lg border border-emerald-100 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/10 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium">WhatsApp Account Phone Number ID *</label>
                     <input
-                      type="checkbox"
-                      checked={templateForm.triggers.includes(trigger.id)}
-                      onChange={() => toggleTemplateTrigger(trigger.id)}
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                      value={templateForm.phoneNumberId}
+                      onChange={(e) => updateTemplateField('phoneNumberId', e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-gray-700 dark:bg-gray-800"
+                      placeholder="Botnex phone number id"
                     />
-                    <span>{trigger.label}</span>
-                  </label>
-                ))}
+                    {templateErrors.phoneNumberId && <p className="mt-1 text-xs text-red-600">{templateErrors.phoneNumberId}</p>}
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium">WhatsApp Style</label>
+                    <select
+                      value={templateForm.whatsAppMessageType}
+                      onChange={(e) => updateTemplateField('whatsAppMessageType', e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-gray-700 dark:bg-gray-800"
+                    >
+                      <option value="text">Simple message</option>
+                      <option value="buttons">Message with quick buttons</option>
+                      <option value="botFlow">Start a Botnex bot flow</option>
+                    </select>
+                  </div>
+                  {templateForm.whatsAppMessageType === 'botFlow' ? (
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Bot Flow ID</label>
+                      <input
+                        value={templateForm.botFlowUniqueId}
+                        onChange={(e) => updateTemplateField('botFlowUniqueId', e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-gray-700 dark:bg-gray-800"
+                        placeholder="bot_flow_unique_id"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Quick Buttons</label>
+                      <input
+                        value={templateForm.buttons}
+                        onChange={(e) => updateTemplateField('buttons', e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-gray-700 dark:bg-gray-800"
+                        placeholder="View Packages,Talk to Sales,Call Me"
+                        disabled={templateForm.whatsAppMessageType !== 'buttons'}
+                      />
+                      {templateErrors.buttons && <p className="mt-1 text-xs text-red-600">{templateErrors.buttons}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {templateForm.channels?.includes('push') && (
+                <div className="grid gap-4 rounded-lg border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/10 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium">Push Title *</label>
+                    <input
+                      value={templateForm.title}
+                      onChange={(e) => updateTemplateField('title', e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
+                      placeholder="New advertising lead"
+                    />
+                    {templateErrors.title && <p className="mt-1 text-xs text-red-600">{templateErrors.title}</p>}
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium">Team Audience</label>
+                    <select
+                      value={templateForm.audienceTopic}
+                      onChange={(e) => updateTemplateField('audienceTopic', e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
+                    >
+                      {MESSAGE_AUDIENCES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium">Message *</label>
+                <textarea
+                  rows={7}
+                  value={templateForm.richText}
+                  onChange={(e) => updateTemplateField('richText', e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm leading-6 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
+                  placeholder="Write the message your customer or team should receive..."
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {PERSONALIZATION_FIELDS.map(field => (
+                    <button
+                      key={field.token}
+                      type="button"
+                      onClick={() => insertTemplateVariable(field.token)}
+                      className="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:text-gray-300"
+                    >
+                      {field.label}
+                    </button>
+                  ))}
+                </div>
+                {templateErrors.body && <p className="mt-1 text-xs text-red-600">{templateErrors.body}</p>}
               </div>
-              {templateErrors.triggers && <p className="mt-1 text-xs text-red-600">{templateErrors.triggers}</p>}
+
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={templateForm.enabled}
+                  onChange={(e) => updateTemplateField('enabled', e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                />
+                Enabled
+              </label>
             </div>
 
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input
-                type="checkbox"
-                checked={templateForm.enabled}
-                onChange={(e) => updateTemplateField('enabled', e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600"
-              />
-              Enabled
-            </label>
+            <aside className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Preview</p>
+                <h3 className="mt-1 text-base font-semibold text-gray-950 dark:text-white">
+                  {templateForm.channels?.includes('push') ? templateForm.title || 'Push title' : 'WhatsApp message'}
+                </h3>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm leading-6 text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                {interpolateLeadText(templateForm.richText, templatePreviewLead) || 'Your message preview will appear here.'}
+              </div>
+              {templateForm.channels?.includes('whatsapp') && templateForm.whatsAppMessageType === 'buttons' && (
+                <div className="flex flex-wrap gap-2">
+                  {parseCommaButtons(templateForm.buttons).map(button => (
+                    <span key={button.id} className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                      {button.title}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                Automatic WhatsApp messages will be sent only when this template is enabled, the trigger matches, and the lead has a phone number.
+              </div>
+            </aside>
 
             {templateErrors.submit && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 lg:col-span-3">
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 xl:col-span-2">
                 <AlertCircle className="h-4 w-4" />
                 {templateErrors.submit}
               </div>
             )}
 
-            <div className="flex justify-end gap-3 lg:col-span-3">
+            <div className="flex justify-end gap-3 xl:col-span-2">
               <button
                 type="button"
                 onClick={() => {
@@ -1042,7 +1773,7 @@ const LeadManagement = () => {
         <div className="grid gap-3 p-5 xl:grid-cols-2">
           {templates.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 xl:col-span-2">
-              No message templates yet. Create one to automate lead push updates.
+              No message templates yet. Create one to automate WhatsApp replies or team alerts.
             </div>
           ) : templates.map(template => (
             <div key={template.id} className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
@@ -1053,9 +1784,13 @@ const LeadManagement = () => {
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${template.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
                       {template.enabled ? 'Enabled' : 'Paused'}
                     </span>
-                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                      {template.editorMode === 'html' ? 'HTML' : 'Rich text'}
-                    </span>
+                    {(Array.isArray(template.channels) && template.channels.length ? template.channels : template.sendWhatsApp ? ['whatsapp'] : ['push']).map(channel => (
+                      <span key={channel} className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        channel === 'whatsapp' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
+                      }`}>
+                        {channel === 'whatsapp' ? 'WhatsApp' : 'Push'}
+                      </span>
+                    ))}
                   </div>
                   <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-300">{template.title}</p>
                   <p className="mt-2 line-clamp-2 text-sm text-gray-500">
@@ -1130,6 +1865,133 @@ const LeadManagement = () => {
           </select>
         </div>
       </div>
+
+      {whatsAppLead && (
+        <div className="rounded-xl border border-emerald-200 bg-white shadow-sm dark:border-emerald-900 dark:bg-gray-900">
+          <div className="flex items-center justify-between border-b border-emerald-100 px-5 py-4 dark:border-emerald-900">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Smartphone className="h-5 w-5 text-emerald-600" />
+                WhatsApp: {whatsAppLead.companyName}
+              </h2>
+              <p className="text-sm text-gray-500">{whatsAppLead.contactName} - {whatsAppLead.phone || 'No phone number'}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setWhatsAppLead(null);
+                setWhatsAppResult(null);
+              }}
+              className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+              aria-label="Close WhatsApp composer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSendLeadWhatsApp} className="grid gap-4 p-5 lg:grid-cols-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Message Type</label>
+              <select
+                value={whatsAppForm.messageType}
+                onChange={(e) => updateWhatsAppField('messageType', e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              >
+                <option value="text">Text message</option>
+                <option value="buttons">Interactive buttons</option>
+                <option value="file">File / media</option>
+                <option value="botFlow">Bot flow</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Phone Number ID</label>
+              <input
+                value={whatsAppForm.phoneNumberId}
+                onChange={(e) => updateWhatsAppField('phoneNumberId', e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+                placeholder="Uses function config if blank"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Bot Flow ID</label>
+              <input
+                value={whatsAppForm.botFlowUniqueId}
+                onChange={(e) => updateWhatsAppField('botFlowUniqueId', e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+                disabled={whatsAppForm.messageType !== 'botFlow'}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Buttons</label>
+              <input
+                value={whatsAppForm.buttons}
+                onChange={(e) => updateWhatsAppField('buttons', e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+                disabled={whatsAppForm.messageType !== 'buttons'}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Media Type</label>
+              <select
+                value={whatsAppForm.mediaType}
+                onChange={(e) => updateWhatsAppField('mediaType', e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+                disabled={whatsAppForm.messageType !== 'file'}
+              >
+                {['image', 'video', 'audio', 'document'].map(type => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </div>
+            <div className="lg:col-span-4">
+              <label className="mb-1.5 block text-sm font-medium">Message</label>
+              <textarea
+                rows={4}
+                value={whatsAppForm.message}
+                onChange={(e) => updateWhatsAppField('message', e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Variables: {'{{companyName}}'}, {'{{contactName}}'}, {'{{city}}'}, {'{{stage}}'}, {'{{packageInterest}}'}, {'{{followUpDate}}'}
+              </p>
+            </div>
+            <div className="lg:col-span-4">
+              <label className="mb-1.5 block text-sm font-medium">Media URL</label>
+              <input
+                value={whatsAppForm.mediaUrl}
+                onChange={(e) => updateWhatsAppField('mediaUrl', e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+                placeholder="Public HTTPS media URL"
+                disabled={whatsAppForm.messageType !== 'file'}
+              />
+            </div>
+
+            {whatsAppResult && (
+              <div className={`rounded-lg border px-3 py-2 text-sm lg:col-span-4 ${
+                whatsAppResult.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              }`}>
+                {whatsAppResult.message}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 lg:col-span-4">
+              <button
+                type="button"
+                onClick={() => setWhatsAppLead(null)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={whatsAppSending || !whatsAppLead.phone}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+                {whatsAppSending ? 'Sending...' : 'Send WhatsApp'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
         {loading ? (
@@ -1229,6 +2091,15 @@ const LeadManagement = () => {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => openWhatsAppForm(lead)}
+                        disabled={!lead.phone}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Smartphone className="h-4 w-4" />
+                        WhatsApp
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleQuickActivity(lead, 'Lead contacted', {
