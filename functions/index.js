@@ -156,6 +156,12 @@ function cleanPhoneNumber(value) {
   return phoneNumber;
 }
 
+function cleanPhoneNumberId(value) {
+  const phoneNumberId = cleanOptionalString(value, 120);
+  if (!/^\d{10,30}$/.test(phoneNumberId)) return '';
+  return phoneNumberId;
+}
+
 async function assertAdmin(context) {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
@@ -625,7 +631,7 @@ exports.sendLeadMessageNotifications = functions
       }
 
       const botnexSettings = await getBotnexSettings();
-      const defaultPhoneNumberId = cleanOptionalString(botnexSettings.phoneNumberId, 120);
+      const defaultPhoneNumberId = cleanPhoneNumberId(botnexSettings.phoneNumberId);
       const responses = await Promise.all(enabledTemplates.map(async (template) => {
         const rawBody = template.editorMode === 'html' ? template.html : template.richText;
         const title = interpolateLeadMessage(template.title || 'Lead update', afterLead).slice(0, 120);
@@ -689,7 +695,7 @@ exports.sendLeadMessageNotifications = functions
             return templateResponses;
           }
 
-          const phoneNumberId = cleanOptionalString(template.phoneNumberId, 120) || defaultPhoneNumberId;
+          const phoneNumberId = cleanPhoneNumberId(template.phoneNumberId) || defaultPhoneNumberId;
           if (!phoneNumberId) {
             console.log('Botnex phone number id missing, skipping WhatsApp template:', template.id);
             return templateResponses;
@@ -724,6 +730,12 @@ exports.sendLeadMessageNotifications = functions
           }
 
           const { data: response, params: sentParams } = await callBotnex(operation, params, { phoneNumberId });
+          const success = response?.status === '1' || response?.status === true;
+          const responseMessage = typeof response?.message === 'string'
+            ? response.message
+            : success
+              ? 'WhatsApp message sent'
+              : 'WhatsApp message failed';
           await admin.database().ref(LEAD_WHATSAPP_LOG_PATH).push({
             leadId,
             templateId: template.id,
@@ -738,10 +750,26 @@ exports.sendLeadMessageNotifications = functions
             },
             triggers: triggerIds,
             response,
+            success,
             automated: true,
             sentAt: new Date().toISOString()
           });
-          templateResponses.push({ channel: 'whatsapp', response });
+          const leadActivityLog = Array.isArray(afterLead.activityLog) ? afterLead.activityLog : [];
+          await admin.database().ref(`${PUBLIC_LEAD_PATH}/${leadId}`).update({
+            updatedAt: new Date().toISOString(),
+            lastActivityAt: new Date().toISOString(),
+            activityLog: [
+              ...leadActivityLog,
+              {
+                message: success ? 'WhatsApp automation sent' : 'WhatsApp automation failed',
+                note: responseMessage,
+                at: new Date().toISOString(),
+                by: 'Campaign Assistant',
+                byUid: 'lead-message-automation'
+              }
+            ].slice(-40)
+          });
+          templateResponses.push({ channel: 'whatsapp', response, success });
         }
 
         return templateResponses;

@@ -279,6 +279,8 @@ const parseCommaButtons = (value) => String(value || '')
     title: item.slice(0, 20)
   }));
 
+const isValidPhoneNumberId = (value) => !String(value || '').trim() || /^\d{10,30}$/.test(String(value || '').trim());
+
 const interpolateLeadText = (text, lead) => String(text || '').replace(/\{\{(\w+)\}\}/g, (_, key) => {
   const values = {
     companyName: lead?.companyName || '',
@@ -740,6 +742,10 @@ const MarketingDashboard = () => {
     }
     if (channels.includes('whatsapp') && templateForm.whatsAppMessageType === 'buttons' && parseCommaButtons(templateForm.buttons).length === 0) {
       setTemplateError('Button templates need at least one button.');
+      return;
+    }
+    if (!isValidPhoneNumberId(templateForm.phoneNumberId)) {
+      setTemplateError('Phone Number ID must be the numeric WhatsApp Phone Number ID, not the mobile number.');
       return;
     }
 
@@ -1413,6 +1419,12 @@ const TemplatesWorkspace = ({
       {templateForm.whatsAppMessageType === 'buttons' && <Field label="Button Labels" value={templateForm.buttons} onChange={(value) => onChange('buttons', value)} />}
       {templateForm.whatsAppMessageType === 'botFlow' && <Field label="Bot Flow Unique ID" value={templateForm.botFlowUniqueId} onChange={(value) => onChange('botFlowUniqueId', value)} />}
       <Field label="Optional Phone Number ID" value={templateForm.phoneNumberId} onChange={(value) => onChange('phoneNumberId', value)} />
+      <p className="text-xs text-slate-500">Leave blank to use Automation settings. Do not enter the customer-facing mobile number here.</p>
+      {templateForm.channels.includes('whatsapp') && templateForm.whatsAppMessageType !== 'botFlow' && (
+        <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          WhatsApp blocks normal text for first outbound contact. Use a Botnex approved template/bot flow for instant enquiry replies.
+        </p>
+      )}
       <label className="flex items-center gap-2 text-sm font-semibold">
         <input type="checkbox" checked={templateForm.enabled !== false} onChange={(event) => onChange('enabled', event.target.checked)} />
         Template enabled
