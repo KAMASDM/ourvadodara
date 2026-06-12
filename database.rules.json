@@ -1,0 +1,204 @@
+{
+  "rules": {
+    // Public read for published content
+    "posts": {
+      ".read": true,
+      "$postId": {
+        ".write": "auth != null",
+        "analytics": {
+          ".read": true,
+          ".write": true
+        }
+      }
+    },
+    
+    "stories": {
+      ".read": true,
+      "$storyId": {
+        ".write": "auth != null",
+        "analytics": {
+          ".read": true,
+          ".write": true
+        }
+      }
+    },
+    
+    "reels": {
+      ".read": true,
+      "$reelId": {
+        ".write": "auth != null",
+        "analytics": {
+          ".read": true,
+          ".write": true
+        }
+      }
+    },
+    
+    "carousels": {
+      ".read": true,
+      "$carouselId": {
+        ".write": "auth != null",
+        "analytics": {
+          ".read": true,
+          ".write": true
+        }
+      }
+    },
+    
+    // Comments - authenticated users can read and write
+    "comments": {
+      ".read": true,
+      "$postId": {
+        ".write": "auth != null",
+        "$commentId": {
+          "replies": {
+            ".write": "auth != null"
+          }
+        }
+      }
+    },
+    
+    // Users - users can read their own data and admins can read all
+    "users": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+      }
+    },
+    
+    // Notifications - users can read their own notifications
+    "notifications": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null"
+      }
+    },
+    
+    // Categories - public read, admin write
+    "categories": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+    
+    // Cities - public read, admin write
+    "cities": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+    
+    // Cities Config - public read, admin write
+    "cities-config": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+    
+    // Events - public read, authenticated write
+    "events": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    
+    // Polls - public read, authenticated write
+    "polls": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    
+    // Breaking News - public read, admin write
+    "breakingNews": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+    
+    // Live Updates - public read, admin write
+    "liveUpdates": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+    
+    // News Roundups - public read, admin write
+    "news-roundups": {
+      ".read": true,
+      "$roundupId": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+      }
+    },
+
+    // Leads - public submissions are written by Cloud Functions; admins manage them
+    "leads": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+
+    // Lead message templates - admin only
+    "leadMessageTemplates": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+
+    // Third-party integrations - admin only
+    "integrations": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+
+    // Lead notification logs - admin only, indexed for lead-specific lookups
+    "leadNotificationLogs": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".indexOn": ["leadId"]
+    },
+
+    // Lead WhatsApp logs - admin only, indexed for lead-specific lookups
+    "leadWhatsAppLogs": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".indexOn": ["leadId"]
+    },
+    
+    // Analytics - admin only
+    "analytics": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": "auth != null"
+    },
+    
+    // SOS - Blood Requests
+    "bloodRequests": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    
+    // Blood SOS - Emergency blood requests by city
+    "blood-sos": {
+      ".read": true,
+      "$city": {
+        ".write": "auth != null"
+      }
+    },
+    
+    // Bookmarks - users can access their own bookmarks
+    "bookmarks": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    
+    // Likes - users can like content
+    "likes": {
+      ".read": true,
+      "$postId": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      }
+    },
+    
+    // Views/Analytics tracking
+    "views": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}
