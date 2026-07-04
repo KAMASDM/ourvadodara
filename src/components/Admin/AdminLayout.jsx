@@ -42,6 +42,7 @@ import CityManagement from './CityManagement';
 import RoundupManagement from './RoundupManagement';
 import MediaContentManagement from './MediaContentManagement';
 import LeadManagement from './LeadManagement';
+import ErrorBoundary from '../Common/ErrorBoundary';
 
 const AdminLayout = () => {
   const { user } = useAuth();
@@ -249,7 +250,9 @@ const AdminLayout = () => {
           {/* Content Area */}
           <main className="flex-1 p-6 w-full max-w-none overflow-y-auto">
             <div className="w-full">
-              {renderContent()}
+              <ErrorBoundary key={activeSection}>
+                {renderContent()}
+              </ErrorBoundary>
             </div>
           </main>
         </div>

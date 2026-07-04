@@ -130,7 +130,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
   const [shareData, setShareData] = useState(null);
 
   // Fetch data - only posts initially, carousels and reels are optional for performance
-  const { data: postsData, loading: postsLoading } = useRealtimeData('posts');
+  const { data: postsData, loading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
   const { data: carouselsData } = useRealtimeData(null); // Disabled for performance
   const { data: reelsData } = useRealtimeData(null); // Disabled for performance
 
@@ -144,7 +144,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
         ...post,
         type: POST_TYPES.STANDARD,
         source: 'posts'
-      })).filter(post => post.status !== 'draft');
+      })).filter(post => post.status !== 'draft' && post.status !== 'scheduled');
     }
 
     if (carouselsData && feedType === 'all') {

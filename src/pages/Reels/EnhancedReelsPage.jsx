@@ -26,7 +26,7 @@ import ShareSheet from '../../components/Common/ShareSheet';
 
 const EnhancedReelsPage = ({ onBack, initialReelId = null }) => {
   const { user } = useAuth();
-  const { data: reelsData, isLoading } = useRealtimeData('reels');
+  const { data: reelsData, isLoading } = useRealtimeData('reels', { scope: 'global' });
   
   const [currentReelIndex, setCurrentReelIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);

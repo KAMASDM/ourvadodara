@@ -3,6 +3,7 @@
     // Public read for published content
     "posts": {
       ".read": true,
+      ".indexOn": ["status"],
       "$postId": {
         ".write": "auth != null",
         "analytics": {
@@ -115,6 +116,30 @@
     "liveUpdates": {
       ".read": true,
       ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+
+    // Trending Stories (auto-generated) - public read, admin write
+    "trendingStories": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+
+    // AI Picks (auto-generated) - public read, admin write
+    "aiPicks": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+
+    // Post analytics - public read, authenticated write
+    "postAnalytics": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+
+    // User interactions (for recommendations) - authenticated write
+    "userInteractions": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": "auth != null"
     },
     
     // News Roundups - public read, admin write

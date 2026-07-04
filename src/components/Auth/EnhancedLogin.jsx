@@ -487,7 +487,7 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
       <div className="liquid-panel max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[1.75rem] border border-white/70 shadow-2xl">
         {/* Header */}
         <div className="border-b border-white/60 p-6">

@@ -10,7 +10,7 @@ import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { sampleNews } from '../../data/newsData';
 
 const NewsFeed = ({ activeCategory, onPostClick }) => {
-  const { data: postsObject, isLoading, error } = useRealtimeData('posts');
+  const { data: postsObject, isLoading, error } = useRealtimeData('posts', { scope: 'global' });
 
   if (isLoading) {
     return (
@@ -46,7 +46,7 @@ const NewsFeed = ({ activeCategory, onPostClick }) => {
   const posts = postsObject && Object.keys(postsObject).length > 0
     ? Object.entries(postsObject)
         .map(([id, post]) => ({ id, ...post }))
-        .filter(post => (post.status || 'published') !== 'draft')
+        .filter(post => !['draft', 'scheduled'].includes(post.status || 'published'))
         .sort((a, b) => new Date(b.publishedAt || b.createdAt) - new Date(a.publishedAt || a.createdAt))
     : [...sampleNews].sort((a, b) => new Date(b.publishedAt || b.createdAt) - new Date(a.publishedAt || a.createdAt));
 

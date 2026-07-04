@@ -47,14 +47,23 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: [
-      'react', 
-      'react-dom', 
+      'react',
+      'react-dom',
       'firebase/app',
       'firebase/auth',
       'firebase/database',
-      'firebase/storage'
-    ],
-    force: true
+      'firebase/storage',
+      'axios',
+      'date-fns',
+      'i18next',
+      'react-i18next',
+      'i18next-browser-languagedetector',
+      '@tiptap/react',
+      '@tiptap/starter-kit',
+      '@tiptap/extension-placeholder',
+      'lucide-react',
+      'qrcode'
+    ]
   },
   build: {
     chunkSizeWarningLimit: 1000,

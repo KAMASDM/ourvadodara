@@ -38,7 +38,7 @@ const NewsDetailPage = ({ newsId, onBack }) => {
   const { success } = useToast();
   
   // Fetch real-time data from Firebase
-  const { data: postsObject, isLoading, error } = useRealtimeData('posts');
+  const { data: postsObject, isLoading, error } = useRealtimeData('posts', { scope: 'global' });
   const { data: userLikesData } = useRealtimeData(`users/${user?.uid}/likes`);
   const { data: userReadsData } = useRealtimeData(`users/${user?.uid}/reads`);
   const { data: userSharesData } = useRealtimeData(`users/${user?.uid}/shares`);
@@ -149,7 +149,7 @@ const NewsDetailPage = ({ newsId, onBack }) => {
     setIsLiked(!isLiked);
     setNews(prev => ({
       ...prev,
-      likes: prev.likes + (isLiked ? -1 : 1)
+      likes: (prev.likes ?? 0) + (isLiked ? -1 : 1)
     }));
     success(isLiked ? 'Removed from likes' : 'Added to likes');
   };
@@ -362,11 +362,25 @@ const NewsDetailPage = ({ newsId, onBack }) => {
                 </div>
                 <div className="flex items-center space-x-1">
                   <Calendar className="w-4 h-4" />
-                  <span>{format(new Date(news.publishedAt), 'MMM dd, yyyy')}</span>
+                  <span>
+                    {(() => {
+                      const publishDate = new Date(news.publishedAt || news.createdAt);
+                      return Number.isNaN(publishDate.getTime())
+                        ? 'Recently'
+                        : format(publishDate, 'MMM dd, yyyy');
+                    })()}
+                  </span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Clock className="w-4 h-4" />
-                  <span>{formatDistanceToNow(new Date(news.publishedAt), { addSuffix: true })}</span>
+                  <span>
+                    {(() => {
+                      const publishDate = new Date(news.publishedAt || news.createdAt);
+                      return Number.isNaN(publishDate.getTime())
+                        ? 'Recently'
+                        : formatDistanceToNow(publishDate, { addSuffix: true });
+                    })()}
+                  </span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Eye className="w-4 h-4" />

@@ -42,11 +42,14 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
   const { user } = useAuth();
   const { currentCity } = useCity();
   
-  // Fetch different types of posts
-  const { data: postsData, isLoading: postsLoading } = useRealtimeData('posts');
-  const { data: storiesData, isLoading: storiesLoading } = useRealtimeData('stories');
-  const { data: reelsData, isLoading: reelsLoading } = useRealtimeData('reels');
-  const { data: carouselsData, isLoading: carouselsLoading } = useRealtimeData('carousels');
+  // Fetch different types of posts.
+  // Read the global collections: they hold ALL posts (old posts predate the
+  // per-city mirrors, which only contain recent writes). City relevance is
+  // applied client-side via belongsToCurrentCity below.
+  const { data: postsData, isLoading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
+  const { data: storiesData, isLoading: storiesLoading } = useRealtimeData('stories', { scope: 'global' });
+  const { data: reelsData, isLoading: reelsLoading } = useRealtimeData('reels', { scope: 'global' });
+  const { data: carouselsData, isLoading: carouselsLoading } = useRealtimeData('carousels', { scope: 'global' });
 
   const [likedPosts, setLikedPosts] = useState(new Set());
   const [savedPosts, setSavedPosts] = useState(new Set());
@@ -55,6 +58,17 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
   const [shareData, setShareData] = useState(null);
 
   const isLoading = postsLoading || storiesLoading || reelsLoading || carouselsLoading;
+
+  // Posts created before multi-city support have no cities array; they are
+  // legacy Vadodara content.
+  const LEGACY_CITY_ID = 'vadodara';
+  const belongsToCurrentCity = (item) => {
+    if (!currentCity?.id) return true;
+    const itemCities = Array.isArray(item.cities) && item.cities.length > 0
+      ? item.cities
+      : [LEGACY_CITY_ID];
+    return itemCities.includes(currentCity.id);
+  };
 
   // Combine all posts from different sources
   const getAllPosts = () => {
@@ -67,7 +81,10 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
         ...post,
         type: post.type || POST_TYPES.STANDARD,
         source: 'posts'
-      })).filter(post => (post.status || 'published') !== 'draft');
+      })).filter(post => {
+        const status = post.status || 'published';
+        return status !== 'draft' && status !== 'scheduled';
+      });
       
       allPosts = [...allPosts, ...posts];
     }
@@ -110,6 +127,9 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
         }));
       allPosts = [...allPosts, ...carousels];
     }
+
+    // Keep only content targeted at the selected city (legacy items count as Vadodara)
+    allPosts = allPosts.filter(belongsToCurrentCity);
 
     // Only show sample data if we're still loading or explicitly have no data at all
     if (allPosts.length === 0 && !postsLoading && !storiesLoading && !reelsLoading && !carouselsLoading) {
@@ -852,19 +872,23 @@ const ReelCard = ({ post, onLike, onSave, onShare, isLiked, isSaved, currentLang
 
 // Utility functions
 const formatTimeAgo = (timestamp) => {
+  if (!timestamp) return 'Recently';
+
   const now = new Date();
   const time = new Date(timestamp);
+  if (Number.isNaN(time.getTime())) return 'Recently';
+
   const diffInMinutes = Math.floor((now - time) / (1000 * 60));
-  
+
   if (diffInMinutes < 1) return 'Just now';
   if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-  
+
   const diffInHours = Math.floor(diffInMinutes / 60);
   if (diffInHours < 24) return `${diffInHours}h ago`;
-  
+
   const diffInDays = Math.floor(diffInHours / 24);
   if (diffInDays < 7) return `${diffInDays}d ago`;
-  
+
   return time.toLocaleDateString();
 };
 

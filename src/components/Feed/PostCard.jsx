@@ -9,12 +9,14 @@ import { Heart, MessageCircle, Share, Bookmark, MoreHorizontal, Play, Pause } fr
 import { ref, update } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { formatTime } from '../../utils/helpers';
+import { useToast } from '../Common/Toast';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 
 const PostCard = ({ post, onPostClick }) => {
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
   const { user } = useAuth();
+  const { error: showError } = useToast();
   const [isLiked, setIsLiked] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
@@ -196,13 +198,17 @@ const PostCard = ({ post, onPostClick }) => {
 
   const handleLike = async (e) => {
     e.stopPropagation(); // Prevent triggering post click
+
+    if (!user?.uid) {
+      showError('Please log in to like posts');
+      return;
+    }
+
     const newLikedState = !isLiked;
     setIsLiked(newLikedState);
-    
+
     // Update likes count in Firebase
     try {
-      const postRef = ref(db, `posts/${post.id}`);
-      const likesRef = ref(db, `likes/${post.id}/${user?.uid}`);
       const currentLikes = post.likes || 0;
       
       const updates = {
@@ -377,7 +383,7 @@ const PostCard = ({ post, onPostClick }) => {
                 : (post.author || post.authorName || 'Our Vadodara')}
             </p>
             <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
-              {formatTime(post.publishedAt)}
+              {formatTime(post.publishedAt || post.createdAt)}
             </p>
           </div>
         </div>

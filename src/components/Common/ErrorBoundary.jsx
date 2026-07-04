@@ -40,6 +40,12 @@ class ErrorBoundary extends React.Component {
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               We're sorry for the inconvenience. The app encountered an unexpected error.
             </p>
+
+            {this.state.error && (
+              <p className="text-xs font-mono text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded p-2 mb-6 break-words">
+                {this.state.error.toString()}
+              </p>
+            )}
             
             <div className="space-y-3">
               <button
@@ -66,7 +72,7 @@ class ErrorBoundary extends React.Component {
                 <pre className="mt-2 text-xs bg-red-50 dark:bg-red-900/20 p-3 rounded border overflow-auto text-red-800 dark:text-red-300">
                   {this.state.error && this.state.error.toString()}
                   <br />
-                  {this.state.errorInfo.componentStack}
+                  {this.state.errorInfo?.componentStack}
                 </pre>
               </details>
             )}

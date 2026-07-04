@@ -32,7 +32,7 @@ import { getLocalizedText } from '../../utils/textUtils';
 
 const ReelsPage = ({ onBack, initialReelId = null }) => {
   const { user } = useAuth();
-  const { data: reelsData, isLoading } = useRealtimeData('reels');
+  const { data: reelsData, isLoading } = useRealtimeData('reels', { scope: 'global' });
   const { checkProfileComplete, showModal, closeModal, profileCompletion } = useProfileCompletionGuard();
   
   const [currentReelIndex, setCurrentReelIndex] = useState(0);

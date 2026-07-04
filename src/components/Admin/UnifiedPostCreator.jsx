@@ -539,15 +539,17 @@ const UnifiedPostCreator = () => {
                 thumbnailURL = await getDownloadURL(thumbnailSnapshot.ref);
               }
               
+              // Realtime Database rejects the whole write if any value is
+              // undefined, so normalize optional fields to null.
               resolve({
                 url: downloadURL,
                 thumbnailUrl: thumbnailURL || downloadURL,
-                type: mediaFile.type,
-                mimeType: mediaFile.mimeType,
-                width: mediaFile.width,
-                height: mediaFile.height,
-                size: mediaFile.size,
-                fileName: mediaFile.name
+                type: mediaFile.type || 'image',
+                mimeType: mediaFile.mimeType || null,
+                width: mediaFile.width ?? null,
+                height: mediaFile.height ?? null,
+                size: mediaFile.size ?? null,
+                fileName: mediaFile.name || null
               });
             } catch (error) {
               reject(error);
@@ -653,10 +655,23 @@ const UnifiedPostCreator = () => {
       const status = scheduledAt ? 'scheduled' : 'published';
       const isPublished = status === 'published';
       const primaryMedia = uploadedMedia[0] || null;
-      
+
+      // Strip editor-only fields; per-type settings are re-added below only
+      // for the matching post type.
+      const {
+        publishDate: _publishDate,
+        scheduledTime: _scheduledTime,
+        mediaContent: _mediaContentTemplate,
+        storySettings: _storySettingsTemplate,
+        reelSettings: _reelSettingsTemplate,
+        carouselSettings: _carouselSettingsTemplate,
+        media: _mediaTemplate,
+        ...contentFields
+      } = formData;
+
       // Prepare post data based on post type
       let postData = {
-        ...formData,
+        ...contentFields,
         cities: validSelectedCities,
         status,
         scheduledAt,
@@ -672,6 +687,9 @@ const UnifiedPostCreator = () => {
         timestamp: Date.now(),
         type: postType,
         isPublished,
+        // Scheduled posts get their real publishedAt from the
+        // publishScheduledPosts cloud function when they go live.
+        // (Writing null would just make RTDB drop the key.)
         publishedAt: isPublished ? nowIso : null,
         views: 0,
         likes: 0,
@@ -770,7 +788,11 @@ const UnifiedPostCreator = () => {
       
     } catch (error) {
       console.error('Post creation error:', error);
-      alert(`Failed to create ${postType}. Please try again.`);
+      const reason = error?.code === 'PERMISSION_DENIED'
+        ? 'Permission denied — make sure you are signed in with an admin account.'
+        : error?.message || 'Unknown error';
+      setErrors(prev => ({ ...prev, submit: `Failed to create ${postType.toLowerCase()}: ${reason}` }));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
     }
@@ -1514,6 +1536,12 @@ const UnifiedPostCreator = () => {
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <p className="text-sm font-medium">{errors.auth}</p>
+          </div>
+        )}
+        {errors.submit && (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <p className="text-sm font-medium">{errors.submit}</p>
           </div>
         )}
         <form id="unified-post-form" onSubmit={handleSubmit}>

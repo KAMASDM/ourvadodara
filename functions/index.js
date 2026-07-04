@@ -787,7 +787,7 @@ exports.sendLeadMessageNotifications = functions
 exports.sendNewNewsNotification = functions.database
   .ref('/posts/{postId}')
   .onCreate(async (snapshot, context) => {
-    return sendNotificationForNewPost(snapshot, context.params.postId);
+    return sendNotificationForNewPost(snapshot.val(), context.params.postId);
   });
 
 // Send push notification when new news is published in a city
@@ -795,13 +795,11 @@ exports.sendNewCityNewsNotification = functions.database
   .ref('/cities/{cityId}/posts/{postId}')
   .onCreate(async (snapshot, context) => {
     const cityId = context.params.cityId;
-    return sendNotificationForNewPost(snapshot, context.params.postId, cityId);
+    return sendNotificationForNewPost(snapshot.val(), context.params.postId, cityId);
   });
 
 // Shared function to send notification for new posts
-async function sendNotificationForNewPost(snapshot, postId, cityId = null) {
-  const post = snapshot.val();
-
+async function sendNotificationForNewPost(post, postId, cityId = null) {
   // City post entries are often mirrors of the canonical /posts entry.
   // The canonical post already targets city topics, so skip mirrored writes.
   if (cityId && post.mainPostId) {
@@ -948,6 +946,79 @@ async function sendNotificationForNewPost(snapshot, postId, cityId = null) {
     return null;
   }
 }
+
+// Publish scheduled posts once their scheduled time has arrived.
+// UnifiedPostCreator.jsx saves scheduled posts with status: 'scheduled',
+// isPublished: false, publishedAt: null (RTDB drops null keys), and a
+// scheduledAt ISO timestamp. Nothing else ever flips these to published,
+// so without this job scheduled posts stay stuck in the feed forever
+// with no publishedAt.
+exports.publishScheduledPosts = functions.pubsub
+  .schedule('every 5 minutes')
+  .onRun(async () => {
+    const nowIso = new Date().toISOString();
+
+    const snapshot = await admin.database()
+      .ref('posts')
+      .orderByChild('status')
+      .equalTo('scheduled')
+      .once('value');
+
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    const updates = {};
+    const duePosts = [];
+
+    snapshot.forEach(child => {
+      const post = child.val();
+      const postId = child.key;
+
+      if (!post.scheduledAt || post.scheduledAt > nowIso) {
+        return;
+      }
+
+      updates[`/posts/${postId}/status`] = 'published';
+      updates[`/posts/${postId}/isPublished`] = true;
+      updates[`/posts/${postId}/publishedAt`] = nowIso;
+      updates[`/posts/${postId}/updatedAt`] = nowIso;
+
+      if (Array.isArray(post.cities)) {
+        post.cities.forEach(cityId => {
+          updates[`/cities/${cityId}/posts/${postId}/status`] = 'published';
+          updates[`/cities/${cityId}/posts/${postId}/isPublished`] = true;
+          updates[`/cities/${cityId}/posts/${postId}/publishedAt`] = nowIso;
+          updates[`/cities/${cityId}/posts/${postId}/updatedAt`] = nowIso;
+        });
+      }
+
+      duePosts.push({
+        ...post,
+        id: postId,
+        status: 'published',
+        isPublished: true,
+        publishedAt: nowIso
+      });
+    });
+
+    if (Object.keys(updates).length === 0) {
+      return null;
+    }
+
+    await admin.database().ref().update(updates);
+    console.log(`Published ${duePosts.length} scheduled post(s):`, duePosts.map(p => p.id));
+
+    for (const post of duePosts) {
+      try {
+        await sendNotificationForNewPost(post, post.id);
+      } catch (error) {
+        console.error(`Error sending notification for scheduled post ${post.id}:`, error);
+      }
+    }
+
+    return null;
+  });
 
 // Send notification for breaking news updates
 exports.sendBreakingNewsNotification = functions.database

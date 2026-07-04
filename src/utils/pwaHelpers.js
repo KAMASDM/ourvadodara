@@ -30,7 +30,29 @@ export const hideInstallPrompt = () => {
 };
 
 export const registerServiceWorker = async () => {
-  if ('serviceWorker' in navigator) {
+  if (!('serviceWorker' in navigator)) return;
+
+  // The cache-first service worker must never run against the Vite dev
+  // server — it serves stale documents/modules and blanks the page. In dev,
+  // actively remove any previously installed worker and its caches.
+  if (import.meta.env.DEV) {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(registration => registration.unregister()));
+      if ('caches' in window) {
+        const cacheKeys = await caches.keys();
+        await Promise.all(cacheKeys.map(key => caches.delete(key)));
+      }
+      if (registrations.length > 0) {
+        console.log('Dev mode: unregistered stale service worker(s) and cleared caches');
+      }
+    } catch (error) {
+      console.log('Dev SW cleanup failed:', error);
+    }
+    return;
+  }
+
+  {
     try {
       const registration = await navigator.serviceWorker.register('/sw.js');
       console.log('SW registered: ', registration);
