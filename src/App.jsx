@@ -18,24 +18,27 @@ import Navigation from './components/Layout/Navigation.jsx';
 import HomePage from './pages/Home/HomePage.jsx';
 import SearchPage from './pages/Search/SearchPage.jsx';
 import ProfilePage from './pages/Profile/ProfilePage.jsx';
-import AdminDashboard from './pages/Admin/AdminDashboard.jsx';
-import MarketingDashboard from './pages/Marketing/MarketingDashboard.jsx';
-import NewsDetailPage from './pages/NewsDetail/NewsDetailPage.jsx';
-import SavedPosts from './components/Bookmarks/SavedPosts.jsx';
-import NotificationSettings from './components/Settings/NotificationSettings.jsx';
 import Login from './components/Auth/Login.jsx';
 import EnhancedLogin from './components/Auth/EnhancedLogin.jsx';
 import GuestModePrompt from './components/Auth/GuestModePrompt.jsx';
 import FirebaseSetupGuide from './components/Auth/FirebaseSetupGuide.jsx';
-import ReelsPage from './pages/Reels/ReelsPage.jsx';
-import RoundupPage from './pages/Roundup/RoundupPage.jsx';
-import AdvertisePage from './pages/Advertise/AdvertisePage.jsx';
-import EventsCalendar from './components/Events/EventsCalendar.jsx';
-import FirebaseSetup from './components/Admin/FirebaseSetup.jsx';
-import AdminUpgrade from './components/Admin/AdminUpgrade.jsx';
-import EventQRScanner from './components/Admin/EventQRScanner.jsx';
-import BreakingNewsManager from './components/Breaking/BreakingNewsManager.jsx';
-import BreakingNewsView from './components/Breaking/BreakingNewsView.jsx';
+
+// Heavy views are code-split so the home feed (the LCP path) loads a much
+// smaller initial bundle.
+const AdminDashboard = React.lazy(() => import('./pages/Admin/AdminDashboard.jsx'));
+const MarketingDashboard = React.lazy(() => import('./pages/Marketing/MarketingDashboard.jsx'));
+const NewsDetailPage = React.lazy(() => import('./pages/NewsDetail/NewsDetailPage.jsx'));
+const SavedPosts = React.lazy(() => import('./components/Bookmarks/SavedPosts.jsx'));
+const NotificationSettings = React.lazy(() => import('./components/Settings/NotificationSettings.jsx'));
+const ReelsPage = React.lazy(() => import('./pages/Reels/ReelsPage.jsx'));
+const RoundupPage = React.lazy(() => import('./pages/Roundup/RoundupPage.jsx'));
+const AdvertisePage = React.lazy(() => import('./pages/Advertise/AdvertisePage.jsx'));
+const EventsCalendar = React.lazy(() => import('./components/Events/EventsCalendar.jsx'));
+const FirebaseSetup = React.lazy(() => import('./components/Admin/FirebaseSetup.jsx'));
+const AdminUpgrade = React.lazy(() => import('./components/Admin/AdminUpgrade.jsx'));
+const EventQRScanner = React.lazy(() => import('./components/Admin/EventQRScanner.jsx'));
+const BreakingNewsManager = React.lazy(() => import('./components/Breaking/BreakingNewsManager.jsx'));
+const BreakingNewsView = React.lazy(() => import('./components/Breaking/BreakingNewsView.jsx'));
 import { BloodSOSProvider } from './context/SOS/BloodSOSContext.jsx';
 import { TopicFollowingProvider } from './context/Topics/TopicFollowingContext.jsx';
 import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
@@ -493,7 +496,15 @@ function AppContent() {
 
             {/* Apply the dynamic container class to the main element - only on mobile */}
             <main className={!isDesktop && !isFullWidthView ? mainContainerClass : ''}>
-              {renderContent()}
+              <React.Suspense
+                fallback={
+                  <div className="flex items-center justify-center py-24">
+                    <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
+                  </div>
+                }
+              >
+                {renderContent()}
+              </React.Suspense>
             </main>
             
             {/* Only show mobile navigation on mobile */}

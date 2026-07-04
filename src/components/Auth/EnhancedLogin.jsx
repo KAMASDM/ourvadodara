@@ -122,17 +122,35 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
 
       if (mode === 'signin') {
         await signInWithEmail(formData.email, formData.password);
-        
-        // Store auth method in user profile
+
         const { updateUserProfile } = await import('../../utils/adminSetup');
         const { firebaseAuth } = await import('../../firebase-config');
-        if (firebaseAuth.currentUser) {
-          await updateUserProfile(firebaseAuth.currentUser.uid, {
+        const currentUser = firebaseAuth.currentUser;
+
+        // Enforce email verification for password accounts: unverified
+        // users get the verification modal instead of a session.
+        const isPasswordAccount = currentUser?.providerData?.some(
+          (provider) => provider.providerId === 'password'
+        );
+        if (currentUser && isPasswordAccount && !currentUser.emailVerified) {
+          try {
+            await sendEmailVerification(currentUser);
+          } catch (verificationError) {
+            // Likely rate-limited from a previous send; the modal offers resend
+            console.warn('Verification email not re-sent:', verificationError?.code);
+          }
+          setVerificationUser(currentUser);
+          setShowEmailVerification(true);
+          return;
+        }
+
+        if (currentUser) {
+          await updateUserProfile(currentUser.uid, {
             authMethod: 'email',
             authEmail: formData.email
           });
         }
-        
+
         setSuccess('✅ Successfully signed in!');
         setTimeout(() => {
           onClose?.();
