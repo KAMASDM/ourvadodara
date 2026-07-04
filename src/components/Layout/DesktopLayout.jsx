@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useCity } from '../../context/CityContext';
+import SearchPage from '../../pages/Search/SearchPage';
 import {
   Search,
   Globe,
@@ -26,7 +27,8 @@ import {
   Zap,
   Play,
   Calendar,
-  Bookmark
+  Bookmark,
+  X
 } from 'lucide-react';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 
@@ -38,6 +40,7 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [showCityMenu, setShowCityMenu] = useState(false);
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
+  const [showSearchOverlay, setShowSearchOverlay] = useState(false);
 
   const languages = [
     { code: 'en', nativeName: 'English' },
@@ -105,7 +108,7 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
     <div className="h-screen overflow-hidden liquid-app-bg">
       <div className="flex h-screen min-w-0 flex-col">
         <header className="sticky top-0 z-50 px-4 pt-3">
-          <div className="liquid-panel rounded-3xl px-4 py-3" style={{ overflow: 'visible' }}>
+          <div className="liquid-panel relative z-50 rounded-3xl px-4 py-3" style={{ overflow: 'visible' }}>
             <div className="flex min-w-0 items-center justify-between gap-4">
               <button
                 type="button"
@@ -179,8 +182,10 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
 
                   {showCityMenu && (
                     <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowCityMenu(false)} />
-                      <div className="absolute right-0 top-full z-50 mt-2 max-h-64 w-48 overflow-y-auto rounded-2xl liquid-panel py-1">
+                      {/* liquid-panel is intentionally NOT used here: its
+                          position/overflow rules override .absolute and made
+                          this dropdown expand the header in normal flow. */}
+                      <div className="absolute right-0 top-full z-50 mt-2 max-h-64 w-48 overflow-y-auto rounded-2xl border border-white/70 bg-white/90 py-1 shadow-2xl shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/90">
                         {cities.map((city) => (
                           <button
                             key={city.id}
@@ -203,7 +208,13 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
 
                 <button
                   type="button"
-                  onClick={() => handleNavigation('search')}
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    setShowLanguageMenu(false);
+                    setShowCityMenu(false);
+                    setShowCategoryMenu(false);
+                    setShowSearchOverlay(true);
+                  }}
                   className="liquid-action rounded-2xl p-2 transition-colors"
                   title="Search"
                 >
@@ -222,8 +233,7 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
 
                   {showLanguageMenu && (
                     <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowLanguageMenu(false)} />
-                      <div className="absolute right-0 top-full z-50 mt-2 w-40 rounded-2xl liquid-panel py-1">
+                      <div className="absolute right-0 top-full z-50 mt-2 w-40 rounded-2xl border border-white/70 bg-white/90 py-1 shadow-2xl shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/90">
                         {languages.map((lang) => (
                           <button
                             key={lang.code}
@@ -279,6 +289,18 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
               </div>
             </div>
           </div>
+
+          {/* Click-away backdrops for the city/language dropdowns. They live
+              outside the liquid-panel because its backdrop-filter turns it
+              into the containing block for fixed descendants, which confined
+              the old backdrops to the header area. The panel carries z-50 so
+              it and its dropdowns stay above these z-40 backdrops. */}
+          {showCityMenu && (
+            <div className="fixed inset-0 z-40" onClick={() => setShowCityMenu(false)} />
+          )}
+          {showLanguageMenu && (
+            <div className="fixed inset-0 z-40" onClick={() => setShowLanguageMenu(false)} />
+          )}
 
           {showCategoryMenu && (
             <>
@@ -354,6 +376,43 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
           {children}
         </main>
       </div>
+
+      {/* Search overlay — floats above the current page instead of replacing it */}
+      {showSearchOverlay && (
+        <div className="fixed inset-0 z-[80] flex items-start justify-center">
+          <div
+            className="absolute inset-0 bg-slate-950/45 backdrop-blur-sm"
+            onClick={() => setShowSearchOverlay(false)}
+          />
+          <div className="relative z-10 mt-16 flex max-h-[80vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-2xl shadow-slate-900/20 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/95">
+            <div className="flex items-center justify-between border-b border-slate-200/70 px-5 py-3 dark:border-white/10">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-white">Search news</h2>
+              <button
+                type="button"
+                onClick={() => setShowSearchOverlay(false)}
+                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/10"
+                aria-label="Close search"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <SearchPage
+                embedded
+                onPostClick={(postId) => {
+                  setShowSearchOverlay(false);
+                  window.history.pushState({ view: 'news-detail', newsId: postId }, '', `/post/${postId}`);
+                  onNavigate({ type: 'news-detail', data: { newsId: postId } });
+                }}
+                onShowReels={(reelId) => {
+                  setShowSearchOverlay(false);
+                  onNavigate({ type: 'reels', data: { reelId } });
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

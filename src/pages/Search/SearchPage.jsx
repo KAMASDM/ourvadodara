@@ -26,7 +26,7 @@ const categories = [
 
 const normalizeDate = (post) => new Date(post.publishedAt || post.createdAt || post.updatedAt || 0);
 
-const SearchPage = ({ onPostClick, onShowReels = () => {} }) => {
+const SearchPage = ({ onPostClick, onShowReels = () => {}, embedded = false }) => {
   const { currentLanguage } = useLanguage();
   const { data: postsData, isLoading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
   const { data: reelsData, isLoading: reelsLoading } = useRealtimeData('reels', { scope: 'global' });
@@ -114,8 +114,11 @@ const SearchPage = ({ onPostClick, onShowReels = () => {} }) => {
   };
 
   return (
-    <div className="min-h-screen pb-24">
-      <div className="sticky top-[calc(56px+env(safe-area-inset-top)+4px)] z-30 px-2 pt-1">
+    <div className={embedded ? 'pb-6' : 'min-h-screen pb-24'}>
+      <div className={embedded
+        ? 'sticky top-0 z-30 px-2 pt-2'
+        : 'sticky top-[calc(56px+env(safe-area-inset-top)+4px)] z-30 px-2 pt-1'
+      }>
         <div className="liquid-panel rounded-[1.35rem] p-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
