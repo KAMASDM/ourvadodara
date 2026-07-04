@@ -438,20 +438,12 @@ const UserManager = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center space-x-2">
-                        <button className="text-blue-600 hover:text-blue-900">
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button className="text-green-600 hover:text-green-900">
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button 
+                        <button
                           onClick={() => deleteUser(user.id)}
                           className="text-red-600 hover:text-red-900"
+                          title="Delete user"
                         >
                           <Trash2 className="w-4 h-4" />
-                        </button>
-                        <button className="text-gray-600 hover:text-gray-900">
-                          <MoreVertical className="w-4 h-4" />
                         </button>
                       </div>
                     </td>

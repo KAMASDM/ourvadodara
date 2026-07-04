@@ -76,6 +76,12 @@
       }
     },
     
+    // App settings - public read (frontend may need config), admin write
+    "settings": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+
     // Categories - public read, admin write
     "categories": {
       ".read": true,

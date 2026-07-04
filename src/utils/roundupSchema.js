@@ -121,17 +121,24 @@ export const autoSelectPosts = (allPosts, maxPosts = 10) => {
   return scoredPosts.slice(0, maxPosts);
 };
 
+import { getLocalizedText } from './textUtils';
+
 export const extractPostDetails = (post) => {
+  // Titles/excerpts are multi-language objects on modern posts; store plain
+  // strings so display code never renders raw objects.
+  const titleText = getLocalizedText(post.title);
+  const contentText = getLocalizedText(post.content);
+  const excerptText = getLocalizedText(post.excerpt);
   return {
     id: post.id,
-    title: post.title || post.content?.substring(0, 100) || 'Untitled',
+    title: titleText || contentText.substring(0, 100) || 'Untitled',
     imageUrl: post.imageUrl || post.mediaContent?.items?.[0]?.url || '',
     thumbnailUrl: post.thumbnailUrl || post.mediaContent?.items?.[0]?.thumbnailUrl || '',
     category: post.category || 'General',
     publishedAt: post.publishedAt || post.createdAt,
     type: post.type || 'article',
     author: post.author || {},
-    excerpt: post.excerpt || post.content?.substring(0, 150) || ''
+    excerpt: excerptText || contentText.substring(0, 150) || ''
   };
 };
 

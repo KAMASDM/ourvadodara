@@ -187,11 +187,11 @@ const BreakingNewsView = ({ onPostClick }) => {
                 {/* Content */}
                 <div className="p-6">
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
-                    {getTextContent(news.title)}
+                    {getTextContent(news.title) || getTextContent(news.headline)}
                   </h2>
                   
                   <p className="text-gray-600 dark:text-gray-300 mb-4 leading-relaxed">
-                    {getTextContent(news.content)}
+                    {getTextContent(news.content) || getTextContent(news.summary)}
                   </p>
 
                   {/* Media */}

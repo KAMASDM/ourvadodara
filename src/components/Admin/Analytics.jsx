@@ -103,15 +103,19 @@ const Analytics = () => {
       console.log('Current totals:', currentTotals);
       console.log('Previous totals:', previousTotals);
       
-      // Fetch comments count
+      // Fetch comments count. Comments are nested comments/{postId}/{commentId},
+      // so flatten one level before counting (the old code counted post buckets
+      // whose createdAt is undefined, always yielding 0).
       const commentsRef = ref(db, 'comments');
       const commentsSnapshot = await get(commentsRef);
       const commentsData = commentsSnapshot.val() || {};
-      const currentComments = Object.values(commentsData).filter(c => 
-        new Date(c.createdAt).getTime() >= filterTime
-      ).length;
-      const previousComments = Object.values(commentsData).filter(c => {
-        const time = new Date(c.createdAt).getTime();
+      const allComments = Object.values(commentsData).flatMap(postComments =>
+        postComments && typeof postComments === 'object' ? Object.values(postComments) : []
+      );
+      const commentTime = (c) => new Date(c?.createdAt || c?.timestamp || 0).getTime();
+      const currentComments = allComments.filter(c => commentTime(c) >= filterTime).length;
+      const previousComments = allComments.filter(c => {
+        const time = commentTime(c);
         return time >= previousFilterTime && time < filterTime;
       }).length;
       

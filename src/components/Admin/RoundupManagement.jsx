@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { ref, get, set, update, onValue } from 'firebase/database';
+import { getLocalizedText } from '../../utils/textUtils';
 import { db } from '../../firebase-config';
 import {
   createRoundupTemplate,
@@ -525,14 +526,14 @@ const RoundupManagement = () => {
                       {(post.thumbnailUrl || post.imageUrl) && (
                         <img
                           src={post.thumbnailUrl || post.imageUrl}
-                          alt={post.title}
+                          alt={getLocalizedText(post.title)}
                           className="w-16 h-16 object-cover rounded-lg"
                         />
                       )}
                       
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 dark:text-white truncate">
-                          {post.title || post.content?.substring(0, 50) || 'Untitled'}
+                          {getLocalizedText(post.title) || getLocalizedText(post.content).substring(0, 50) || 'Untitled'}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {post.category || 'General'}

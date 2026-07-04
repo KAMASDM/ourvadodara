@@ -144,11 +144,18 @@ const RealTimeContent = () => {
     setLoading(true);
     try {
       if (activeTab === 'breaking') {
+        // Keep title/content aliases in sync - the public BreakingNewsView
+        // and the legacy manager read those fields instead of headline/summary.
+        const breakingPayload = {
+          ...formData,
+          title: formData.headline,
+          content: formData.summary
+        };
         if (editingItem) {
           const itemRef = ref(db, `${DATABASE_PATHS.BREAKING_NEWS}/${editingItem.id}`);
-          await update(itemRef, formData);
+          await update(itemRef, breakingPayload);
         } else {
-          await createBreakingNews(formData, user.uid);
+          await createBreakingNews(breakingPayload, user.uid);
         }
       } else if (activeTab === 'live') {
         if (editingItem) {
@@ -196,8 +203,8 @@ const RealTimeContent = () => {
   const handleEdit = (item) => {
     if (activeTab === 'breaking') {
       setFormData({
-        headline: item.headline || { en: '', hi: '', gu: '' },
-        summary: item.summary || { en: '', hi: '', gu: '' },
+        headline: item.headline || item.title || { en: '', hi: '', gu: '' },
+        summary: item.summary || item.content || { en: '', hi: '', gu: '' },
         priority: item.priority || 'high',
         category: item.category || 'general',
         tags: item.tags || [],
@@ -567,10 +574,10 @@ const RealTimeContent = () => {
                           </span>
                         </div>
                         <h3 className="text-lg font-medium text-gray-900 mb-2">
-                          {item.headline?.en || 'No headline'}
+                          {item.headline?.en || item.title?.en || item.title?.gu || item.title?.hi || 'No headline'}
                         </h3>
                         <p className="text-gray-600 mb-3">
-                          {item.summary?.en || 'No summary'}
+                          {item.summary?.en || item.content?.en || item.content?.gu || item.content?.hi || 'No summary'}
                         </p>
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
                           <div className="flex items-center">

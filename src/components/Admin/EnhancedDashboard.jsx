@@ -23,10 +23,12 @@ import {
 } from 'lucide-react';
 
 const EnhancedDashboard = () => {
-  const { data: postsData, loading: postsLoading } = useRealtimeData('posts');
-  const { data: usersData } = useRealtimeData('users');
-  const { data: commentsData } = useRealtimeData('comments');
-  const { data: likesData } = useRealtimeData('likes');
+  // Global scope: the dashboard reports on ALL content, and the city-scoped
+  // default would otherwise count only the city-mirrored posts.
+  const { data: postsData, loading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
+  const { data: usersData } = useRealtimeData('users', { scope: 'global' });
+  const { data: commentsData } = useRealtimeData('comments', { scope: 'global' });
+  const { data: likesData } = useRealtimeData('likes', { scope: 'global' });
 
   // Filter states
   const [dateRange, setDateRange] = useState('all'); // all, today, week, month, year

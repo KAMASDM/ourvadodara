@@ -205,11 +205,8 @@ const ContentManagement = () => {
   }, [showEditModal]);
 
   const handleViewPost = (postId) => {
-    // Open post in new tab or navigate to post detail
-    const post = posts.find(p => p.id === postId);
-    if (post) {
-      alert(`View Post: ${getTextContent(post.title)}\nStatus: ${post.status}\nCreated: ${new Date(post.createdAt).toLocaleString()}`);
-    }
+    // Open the public article view in a new tab
+    window.open(`/post/${postId}`, '_blank', 'noopener');
   };
 
   const handleBulkAction = async (action) => {

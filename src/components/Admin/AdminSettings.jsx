@@ -71,14 +71,14 @@ const AdminSettings = () => {
 
   const updateSetting = (path, value) => {
     setSettings(prev => {
-      const newSettings = { ...prev };
+      const newSettings = JSON.parse(JSON.stringify(prev));
       const keys = path.split('.');
       let current = newSettings;
-      
+
       for (let i = 0; i < keys.length - 1; i++) {
         current = current[keys[i]];
       }
-      
+
       current[keys[keys.length - 1]] = value;
       return newSettings;
     });
@@ -101,7 +101,18 @@ const AdminSettings = () => {
   return (
     <div className="w-full">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Admin Settings</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900">Admin Settings</h1>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            <Save className="h-4 w-4" />
+            {saving ? 'Saving…' : 'Save Settings'}
+          </button>
+        </div>
 
         <div className="flex">
           {/* Sidebar */}

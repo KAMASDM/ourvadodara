@@ -56,7 +56,8 @@ const CommentModeration = () => {
             id: key,
             ...postsDataMap[key],
             // Ensure title is always a string for the dropdown
-            displayTitle: postsDataMap[key].title?.en || postsDataMap[key].title || 'Untitled'
+            displayTitle: postsDataMap[key].title?.en || postsDataMap[key].title?.gu || postsDataMap[key].title?.hi ||
+              (typeof postsDataMap[key].title === 'string' ? postsDataMap[key].title : 'Untitled')
           }));
           setPosts(postsListCache);
         } else {
@@ -75,14 +76,18 @@ const CommentModeration = () => {
             Object.entries(commentsData).forEach(([postId, postComments]) => {
               if (postComments && typeof postComments === 'object') {
                 Object.entries(postComments).forEach(([commentId, comment]) => {
-                  // Skip replies (they are nested under comments)
-                  if (commentId !== 'replies' && typeof comment === 'object' && !comment.replies) {
-                    commentsList.push({
-                      id: commentId,
-                      postId: postId, // Add the postId from the path
-                      ...comment
-                    });
-                  }
+                  if (typeof comment !== 'object' || comment === null) return;
+                  // Comments store `text` and a string `author`; normalize so
+                  // the moderation UI (which reads content/author.name) works.
+                  commentsList.push({
+                    id: commentId,
+                    postId: postId,
+                    ...comment,
+                    content: comment.text || comment.content || '',
+                    author: typeof comment.author === 'object'
+                      ? comment.author
+                      : { name: comment.author || comment.userName || 'Anonymous', uid: comment.authorId }
+                  });
                 });
               }
             });
