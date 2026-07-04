@@ -1,13 +1,15 @@
 // =============================================
 // src/pages/Profile/ProfilePage.jsx
 // =============================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { getUserProfile, updateUserProfile } from '../../utils/adminSetup';
-import { firebaseAuth, db } from '../../firebase-config';
+import { firebaseAuth, db, storage } from '../../firebase-config';
 import { ref, get, onValue } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { updateProfile as updateAuthProfile } from 'firebase/auth';
 import ContactVerificationModal from '../../components/Profile/ContactVerificationModal';
 import {
   User,
@@ -85,6 +87,43 @@ const ProfilePage = () => {
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState(null);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
+
+  const handleAvatarSelected = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !user?.uid || uploadingAvatar) return;
+
+    if (!file.type.startsWith('image/')) {
+      setProfileError('Please choose an image file for your profile photo.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileError('Profile photo must be smaller than 5 MB.');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setProfileError(null);
+    try {
+      const fileRef = storageRef(storage, `avatars/${user.uid}/${Date.now()}_${file.name}`);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+
+      if (firebaseAuth.currentUser) {
+        await updateAuthProfile(firebaseAuth.currentUser, { photoURL: url });
+      }
+      await updateUserProfile(user.uid, { photoURL: url });
+      setAvatarUrl(url);
+    } catch (error) {
+      console.error('Error uploading profile photo:', error);
+      setProfileError('Failed to upload profile photo. Please try again.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
   const [showIncompleteAlert, setShowIncompleteAlert] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [verificationType, setVerificationType] = useState(null); // 'phone' or 'email'
@@ -117,46 +156,47 @@ const ProfilePage = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load user statistics from Firebase (optimized to not block main page)
+  // Live user statistics — subscribe so counts update immediately after the
+  // user likes, saves, comments, or shares anywhere in the app.
   useEffect(() => {
-    const loadUserStats = async () => {
-      if (!user?.uid) {
-        setLoadingStats(false);
-        return;
-      }
+    if (!user?.uid) {
+      setLoadingStats(false);
+      return undefined;
+    }
 
-      setLoadingStats(true);
-      try {
-        // Load all stats in parallel and use cached user stats where available
-        const userProfileRef = ref(db, `users/${user.uid}`);
-        const bookmarksRef = ref(db, `bookmarks/${user.uid}`);
+    setLoadingStats(true);
+    const userProfileRef = ref(db, `users/${user.uid}`);
+    const bookmarksRef = ref(db, `bookmarks/${user.uid}`);
 
-        const [userProfileSnapshot, bookmarksSnapshot] = await Promise.all([
-          get(userProfileRef),
-          get(bookmarksRef)
-        ]);
+    let userData = {};
+    let savedCount = 0;
 
-        const userData = userProfileSnapshot.val() || {};
-        
-        // Use cached counts from user profile if available (updated by cloud functions)
-        // This avoids querying entire likes/comments databases
-        setUserStats({
-          postsLiked: userData.totalLikes || 0,
-          postsSaved: bookmarksSnapshot.exists() ? Object.keys(bookmarksSnapshot.val()).length : 0,
-          commentsPosted: userData.totalComments || 0,
-          articlesShared: userData.totalShares || 0
-        });
-      } catch (error) {
-        console.error('Error loading user stats:', error);
-      } finally {
-        setLoadingStats(false);
-      }
+    const applyStats = () => {
+      const likedFromIndex = userData.likes ? Object.keys(userData.likes).length : 0;
+      setUserStats({
+        postsLiked: Math.max(likedFromIndex, userData.totalLikes || 0),
+        postsSaved: savedCount,
+        commentsPosted: Math.max(0, userData.totalComments || 0),
+        articlesShared: Math.max(0, userData.totalShares || 0)
+      });
+      setLoadingStats(false);
     };
 
-    // Defer stats loading to not block main content
-    const timer = setTimeout(loadUserStats, 100);
-    return () => clearTimeout(timer);
-  }, [user]);
+    const unsubscribeUser = onValue(userProfileRef, (snapshot) => {
+      userData = snapshot.val() || {};
+      applyStats();
+    }, () => setLoadingStats(false));
+
+    const unsubscribeBookmarks = onValue(bookmarksRef, (snapshot) => {
+      savedCount = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+      applyStats();
+    }, () => setLoadingStats(false));
+
+    return () => {
+      unsubscribeUser();
+      unsubscribeBookmarks();
+    };
+  }, [user?.uid]);
 
   useEffect(() => {
     let isMounted = true;
@@ -262,7 +302,34 @@ const ProfilePage = () => {
     if (!hasPhone && !hasEmail) {
       errors.push('Either Phone Number or Email is required');
     }
-    
+
+    // Date of birth cannot be in the future
+    if (draftData.personal.dob) {
+      const dob = new Date(draftData.personal.dob);
+      if (!Number.isNaN(dob.getTime()) && dob > new Date()) {
+        errors.push('Date of Birth cannot be in the future');
+      }
+    }
+
+    // GST number must match the GSTIN format when provided
+    const gst = (draftData.business.gstNumber || '').trim().toUpperCase();
+    if (gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gst)) {
+      errors.push('GST Number is not a valid GSTIN (e.g. 24ABCDE1234F1Z5)');
+    }
+
+    // Website must be a valid URL when provided
+    const website = (draftData.business.businessWebsite || '').trim();
+    if (website) {
+      try {
+        const parsed = new URL(website.includes('://') ? website : `https://${website}`);
+        if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(parsed.hostname)) {
+          throw new Error('invalid hostname');
+        }
+      } catch {
+        errors.push('Website must be a valid URL (e.g. https://yourbusiness.com)');
+      }
+    }
+
     if (errors.length > 0) {
       setProfileError(errors.join(', '));
       return;
@@ -460,6 +527,7 @@ const ProfilePage = () => {
               type={field.type || 'text'}
               value={value}
               onChange={(event) => handleFieldChange(sectionId, field.name, event.target.value)}
+              max={field.type === 'date' ? new Date().toISOString().split('T')[0] : undefined}
               className={`w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950/60 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/40 ${isReadonly ? 'opacity-60 cursor-not-allowed' : ''}`}
               placeholder={field.placeholder}
               disabled={savingProfile || isReadonly}
@@ -624,12 +692,43 @@ const ProfilePage = () => {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <div className="relative">
-                <div className="w-20 h-20 bg-primary-500 rounded-full flex items-center justify-center shadow-lg shadow-primary-500/40">
-                  <User className="w-10 h-10 text-white" />
-                </div>
-                <button className="absolute -bottom-1 -right-1 w-7 h-7 bg-primary-500 hover:bg-primary-600 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-900 transition-colors" title="Update avatar">
-                  <Camera className="w-3.5 h-3.5 text-white" />
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  className="block w-20 h-20 rounded-full overflow-hidden bg-primary-500 flex items-center justify-center shadow-lg shadow-primary-500/40 disabled:opacity-60"
+                  title="Update profile photo"
+                >
+                  {(avatarUrl || user?.photoURL) ? (
+                    <img
+                      src={avatarUrl || user.photoURL}
+                      alt={displayName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User className="w-10 h-10 text-white" />
+                  )}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  className="absolute -bottom-1 -right-1 w-7 h-7 bg-primary-500 hover:bg-primary-600 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-900 transition-colors disabled:opacity-60"
+                  title="Update profile photo"
+                >
+                  {uploadingAvatar ? (
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Camera className="w-3.5 h-3.5 text-white" />
+                  )}
+                </button>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarSelected}
+                  className="hidden"
+                />
               </div>
 
               <div>

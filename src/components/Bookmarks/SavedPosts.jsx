@@ -1,9 +1,14 @@
 // =============================================
 // Updated src/components/Bookmarks/SavedPosts.jsx
 // =============================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
+import { useAuth } from '../../context/Auth/AuthContext';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { getLocalizedText } from '../../utils/textUtils';
+import { db } from '../../firebase-config';
+import { ref, onValue } from 'firebase/database';
 import { Bookmark, Search, Filter, Calendar, Grid, List } from 'lucide-react';
 import PostCard from '../Feed/PostCard';
 import EmptyState from '../Common/EmptyState';
@@ -11,46 +16,59 @@ import EmptyState from '../Common/EmptyState';
 const SavedPosts = ({ onPostClick }) => {
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
-  const [savedPosts, setSavedPosts] = useState([]);
+  const { user } = useAuth();
+  const [bookmarks, setBookmarks] = useState(null);
   const [viewMode, setViewMode] = useState('list');
   const [sortBy, setSortBy] = useState('newest');
   const [filterCategory, setFilterCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  const { data: postsData } = useRealtimeData('posts', { scope: 'global' });
+  const { data: reelsData } = useRealtimeData('reels', { scope: 'global' });
+  const { data: carouselsData } = useRealtimeData('carousels', { scope: 'global' });
+
+  // The user's bookmark index: bookmarks/{uid}/{postId} -> { timestamp, source }
   useEffect(() => {
-    // Load saved posts from localStorage or API
-    const mockSavedPosts = [
-      {
-        id: '1',
-        title: {
-          en: 'Vadodara Smart City Project Update',
-          hi: 'वडोदरा स्मार्ट सिटी प्रोजेक्ट अपडेट',
-          gu: 'વડોદરા સ્માર્ટ સિટી પ્રોજેક્ટ અપડેટ'
-        },
-        content: {
-          en: 'Latest developments in the smart city initiative...',
-          hi: 'स्मार्ट सिटी पहल में नवीनतम विकास...',
-          gu: 'સ્માર્ટ સિટી પહેલમાં તાજેતરનો વિકાસ...'
-        },
-        image: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=600',
-        category: 'local',
-        author: 'Our Vadodara Team',
-        publishedAt: new Date('2024-01-15T10:00:00Z'),
-        savedAt: new Date('2024-01-16T14:30:00Z'),
-        likes: 45,
-        comments: 12,
-        tags: ['smart city', 'infrastructure']
-      }
-    ];
-    setSavedPosts(mockSavedPosts);
-  }, []);
+    if (!user?.uid) {
+      setBookmarks({});
+      return undefined;
+    }
+    const bookmarksRef = ref(db, `bookmarks/${user.uid}`);
+    const unsubscribe = onValue(bookmarksRef, (snapshot) => {
+      setBookmarks(snapshot.val() || {});
+    });
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  const savedPosts = useMemo(() => {
+    if (!bookmarks) return [];
+    const collections = { posts: postsData, reels: reelsData, carousels: carouselsData };
+    return Object.entries(bookmarks)
+      .map(([postId, bookmark]) => {
+        const source = bookmark?.source || 'posts';
+        const post =
+          collections[source]?.[postId] ||
+          postsData?.[postId] ||
+          reelsData?.[postId] ||
+          carouselsData?.[postId];
+        if (!post) return null; // post was deleted since it was saved
+        return {
+          id: postId,
+          ...post,
+          savedAt: bookmark?.timestamp || post.publishedAt || post.createdAt
+        };
+      })
+      .filter(Boolean);
+  }, [bookmarks, postsData, reelsData, carouselsData]);
 
   const filteredAndSortedPosts = savedPosts
     .filter(post => {
+      const titleText = getLocalizedText(post.title, currentLanguage);
+      const contentText = getLocalizedText(post.content, currentLanguage);
       const matchesCategory = filterCategory === 'all' || post.category === filterCategory;
-      const matchesSearch = searchQuery === '' || 
-        post.title[currentLanguage].toLowerCase().includes(searchQuery.toLowerCase()) ||
-        post.content[currentLanguage].toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = searchQuery === '' ||
+        titleText.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        contentText.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     })
     .sort((a, b) => {
@@ -58,7 +76,7 @@ const SavedPosts = ({ onPostClick }) => {
         case 'oldest':
           return new Date(a.savedAt) - new Date(b.savedAt);
         case 'category':
-          return a.category.localeCompare(b.category);
+          return (a.category || '').localeCompare(b.category || '');
         case 'newest':
         default:
           return new Date(b.savedAt) - new Date(a.savedAt);
@@ -164,11 +182,13 @@ const SavedPosts = ({ onPostClick }) => {
         ) : (
           <EmptyState
             icon={Bookmark}
-            title="No saved posts"
+            title={user ? 'No saved posts' : 'Sign in to see saved posts'}
             description={
-              searchQuery
-                ? `No saved posts match "${searchQuery}"`
-                : "You haven't saved any posts yet. Tap the bookmark icon on any post to save it here."
+              !user
+                ? 'Log in to save posts and find them here on any device.'
+                : searchQuery
+                  ? `No saved posts match "${searchQuery}"`
+                  : "You haven't saved any posts yet. Tap the bookmark icon on any post to save it here."
             }
             actionText="Browse News"
             onAction={() => {/* Navigate to home */}}

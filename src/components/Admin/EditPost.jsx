@@ -45,6 +45,9 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
   const [mediaFiles, setMediaFiles] = useState([]);
   const [errors, setErrors] = useState({});
   const [showPreview, setShowPreview] = useState(false);
+  // Cities this post is mirrored to under cities/{id}/posts — saves must
+  // update those copies too or they drift out of sync with /posts.
+  const [mirrorCities, setMirrorCities] = useState([]);
 
   const languageLabels = {
     en: 'English',
@@ -79,6 +82,7 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
             isFeatured: postData.isFeatured || false
           });
           setMediaFiles(postData.media || []);
+          setMirrorCities(Array.isArray(postData.cities) ? postData.cities : []);
         }
       } catch (error) {
         console.error('Error loading post:', error);
@@ -373,8 +377,19 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
         updateData.image = null; // Remove old single image field
       }
 
-      const postRef = ref(db, `${basePath}/${postId}`);
-      await update(postRef, updateData);
+      // Write to the canonical entry plus every city mirror in one atomic
+      // multi-path update so all copies stay in sync.
+      const targets = [`${basePath}/${postId}`];
+      if (basePath === 'posts') {
+        mirrorCities.forEach(cityId => targets.push(`cities/${cityId}/posts/${postId}`));
+      }
+      const rootUpdates = {};
+      targets.forEach(path => {
+        Object.entries(updateData).forEach(([key, value]) => {
+          rootUpdates[`${path}/${key}`] = value;
+        });
+      });
+      await update(ref(db), rootUpdates);
 
       alert('Post updated successfully!');
       if (onSave) onSave();

@@ -405,12 +405,22 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
                 name="phoneNumber"
                 value={formData.phoneNumber}
                 onChange={(e) => {
-                  let value = e.target.value;
-                  // Auto-format Indian phone numbers
-                  if (!value.startsWith('+91') && value.length > 0) {
-                    value = '+91' + value.replace(/^\+91/, '').replace(/[^\d]/g, '');
+                  // Normalize to +91XXXXXXXXXX without fighting the user's
+                  // edits (the old logic re-appended digits while deleting).
+                  const raw = e.target.value;
+                  let local;
+                  if (raw.startsWith('+91')) {
+                    local = raw.slice(3);
+                  } else if ('+91'.startsWith(raw)) {
+                    // User backspaced into the prefix — clear the field
+                    local = '';
+                  } else {
+                    local = raw;
                   }
-                  handleInputChange({ target: { name: 'phoneNumber', value } });
+                  local = local.replace(/[^\d]/g, '').slice(0, 10);
+                  handleInputChange({
+                    target: { name: 'phoneNumber', value: local ? `+91${local}` : '' }
+                  });
                 }}
                 className="w-full pl-12 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 placeholder="+91 9876543210"
@@ -487,8 +497,14 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
   );
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
-      <div className="liquid-panel max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[1.75rem] border border-white/70 shadow-2xl">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="border-b border-white/60 p-6">
           <div className="flex items-start justify-between gap-4">

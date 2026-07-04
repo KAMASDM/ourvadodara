@@ -223,7 +223,7 @@ class PushNotificationService {
   async init(userId, topics = []) {
     try {
       if (!this.isSupported) {
-        console.warn('Push notifications not supported');
+        // Expected on desktop browsers / non-secure contexts; not an error.
         return false;
       }
 

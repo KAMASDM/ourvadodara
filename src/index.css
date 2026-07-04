@@ -363,6 +363,10 @@ body {
   @apply rounded-3xl;
   position: relative;
   overflow: hidden;
+  /* Force border-radius clipping of composited (transformed/scaled) children,
+     e.g. images that zoom on hover - without this their square corners peek
+     through the card's rounded corners in Chromium/Safari. */
+  isolation: isolate;
   background:
     linear-gradient(145deg, rgba(255,255,255,0.82), rgba(255,255,255,0.52));
   border: 1px solid var(--glass-edge);

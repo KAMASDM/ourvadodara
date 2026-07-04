@@ -147,6 +147,7 @@ const CampaignAssistantChat = ({
   const [formMode, setFormMode] = useState(null);
   const [saving, setSaving] = useState(false);
   const [typing, setTyping] = useState(false);
+  const [freeText, setFreeText] = useState('');
   const chatEndRef = useRef(null);
   const typingTimerRef = useRef(null);
 
@@ -284,8 +285,35 @@ const CampaignAssistantChat = ({
     }
   };
 
+  const handleSendFreeText = async (event) => {
+    event.preventDefault();
+    const text = freeText.trim();
+    if (!text || typing) return;
+
+    setFreeText('');
+    addBotReply(text, {
+      sender: 'bot',
+      title: 'Got it. I have shared this with the team.',
+      text: 'They will get back to you shortly. Anything else you would like to explore?',
+      actions: [
+        { label: 'Services', value: 'services' },
+        { label: 'Get Rate Card', value: 'rate_card' },
+        { label: 'Talk to Team', value: 'talk' }
+      ]
+    });
+
+    try {
+      await appendLeadActivity('Custom message from chat', text);
+    } catch (error) {
+      console.error('Error sending custom chat message to lead:', error);
+    }
+  };
+
   const handleBotAction = async (action, service = null) => {
     if (!leadCaptured) return;
+    // Ignore clicks while a reply is in flight - double-clicking action
+    // buttons was creating duplicate user/bot messages.
+    if (typing) return;
 
     if (action === 'about') {
       addBotReply('About Us', {
@@ -437,13 +465,13 @@ const CampaignAssistantChat = ({
 
       <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-3">
         {messages.map((message, index) => (
-          <div key={`${message.sender}-${index}`} className={`flex items-end gap-2 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={`${message.sender}-${index}`} className={`flex items-start gap-2 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             {message.sender === 'bot' && (
               <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm">
                 <Bot className="h-4 w-4" />
               </div>
             )}
-            <div className={`max-w-[84%] rounded-3xl px-4 py-3 shadow-sm ${message.sender === 'user' ? 'rounded-br-md bg-blue-600 text-white' : 'rounded-bl-md bg-white text-slate-800'}`}>
+            <div className={`min-w-0 max-w-[84%] break-words rounded-3xl px-4 py-3 shadow-sm ${message.sender === 'user' ? 'rounded-br-md bg-blue-600 text-white' : 'rounded-bl-md bg-white text-slate-800'}`}>
               {message.title && <p className={`font-bold ${message.sender === 'user' ? 'text-white' : 'text-slate-950'}`}>{message.title}</p>}
               <p className={`mt-1 whitespace-pre-line text-sm leading-6 ${message.sender === 'user' ? 'text-white' : 'text-slate-600'}`}>{message.text}</p>
 
@@ -461,7 +489,8 @@ const CampaignAssistantChat = ({
                       key={action.label}
                       type="button"
                       onClick={() => handleBotAction(action.value, action.service)}
-                      className="rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 active:scale-95"
+                      disabled={typing}
+                      className="rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 active:scale-95 disabled:opacity-60"
                     >
                       {action.label}
                     </button>
@@ -472,16 +501,11 @@ const CampaignAssistantChat = ({
               {message.serviceMenu && <div className="mt-3">{renderServiceButtons(false)}</div>}
               {message.rateCardMenu && <div className="mt-3">{renderServiceButtons(true)}</div>}
             </div>
-            {message.sender === 'user' && (
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-black text-white shadow-sm">
-                You
-              </div>
-            )}
           </div>
         ))}
 
         {typing && (
-          <div className="flex items-end gap-2">
+          <div className="flex items-start gap-2">
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm">
               <Bot className="h-4 w-4" />
             </div>
@@ -563,6 +587,30 @@ const CampaignAssistantChat = ({
         )}
         <div ref={chatEndRef} />
       </div>
+
+      {/* Free-text composer — lets users continue the conversation at any
+          point instead of being limited to the predefined buttons. */}
+      {leadCaptured && (
+        <form
+          onSubmit={handleSendFreeText}
+          className="flex items-center gap-2 border-t border-slate-100 bg-white p-3"
+        >
+          <input
+            value={freeText}
+            onChange={(e) => setFreeText(e.target.value)}
+            placeholder="Type a message for the team…"
+            className="min-w-0 flex-1 rounded-full border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100"
+          />
+          <button
+            type="submit"
+            disabled={!freeText.trim() || typing}
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-700 disabled:opacity-50"
+            aria-label="Send message"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </form>
+      )}
     </section>
   );
 

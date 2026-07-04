@@ -3,7 +3,7 @@
 // Management interface for stories, reels, and carousel media posts
 // =============================================
 import React, { useEffect, useMemo, useState } from 'react';
-import { ref, remove } from 'firebase/database';
+import { ref, update } from 'firebase/database';
 import { ref as storageRef, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../firebase-config';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
@@ -32,12 +32,14 @@ const getTextContent = (content) => {
   return '';
 };
 
-const getPrimaryMediaItem = (item) => {
-  if (!item?.mediaContent?.items || item.mediaContent.items.length === 0) {
-    return null;
-  }
-  return item.mediaContent.items[0];
+// RTDB can return media items as either an array or a keyed object
+const getMediaItems = (item) => {
+  const rawItems = item?.mediaContent?.items;
+  if (!rawItems) return [];
+  return Array.isArray(rawItems) ? rawItems : Object.values(rawItems);
 };
+
+const getPrimaryMediaItem = (item) => getMediaItems(item)[0] || null;
 
 const formatDate = (value) => {
   if (!value) return '—';
@@ -158,7 +160,7 @@ const MediaContentManagement = () => {
   const hasError = storiesError || reelsError || carouselsError;
 
   const resolveCityName = (cityId) => {
-    return cities.find((city) => city.id === cityId)?.name || cityId;
+    return getTextContent(cities.find((city) => city.id === cityId)?.name) || cityId;
   };
 
   const handleDelete = async (item) => {
@@ -176,9 +178,7 @@ const MediaContentManagement = () => {
     setDeletingId(item.id);
 
     try {
-      const mediaEntries = Array.isArray(item.mediaContent?.items)
-        ? item.mediaContent.items
-        : [];
+      const mediaEntries = getMediaItems(item);
 
       const deletionTasks = mediaEntries
         .filter((media) => media?.metadata?.storageRef)
@@ -193,7 +193,18 @@ const MediaContentManagement = () => {
         await Promise.allSettled(deletionTasks);
       }
 
-      await remove(ref(db, `${typeConfig.path}/${item.id}`));
+      // Remove the canonical entry and every per-city mirror in one atomic
+      // multi-path update; deleting only the global copy leaves stale mirrors.
+      const mirrorCityIds = Array.isArray(item.cities) && item.cities.length > 0
+        ? item.cities
+        : item.cityId
+          ? [item.cityId]
+          : [];
+      const updates = { [`${typeConfig.path}/${item.id}`]: null };
+      mirrorCityIds.forEach((cityId) => {
+        updates[`cities/${cityId}/${typeConfig.path}/${item.id}`] = null;
+      });
+      await update(ref(db), updates);
       alert(`${typeConfig.label} deleted successfully`);
     } catch (error) {
       console.error('Error deleting media post:', error);
@@ -485,9 +496,9 @@ const MediaContentManagement = () => {
                     Media
                   </h3>
                   <div className="space-y-4">
-                    {Array.isArray(previewItem.mediaContent?.items) && previewItem.mediaContent.items.length > 0 ? (
-                      previewItem.mediaContent.items.map((media) => (
-                        <div key={media.id} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                    {getMediaItems(previewItem).length > 0 ? (
+                      getMediaItems(previewItem).map((media, index) => (
+                        <div key={media.id || media.url || index} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                           {media.type === 'image' ? (
                             <img src={media.url} alt={media.filename} className="w-full" />
                           ) : (

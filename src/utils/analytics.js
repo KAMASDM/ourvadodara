@@ -24,7 +24,6 @@ class Analytics {
     };
 
     this.events.push(event);
-    console.log('Analytics Event:', event);
 
     // In production, send to analytics service
     // this.sendToAnalytics(event);

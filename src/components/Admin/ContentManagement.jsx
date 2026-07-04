@@ -4,7 +4,7 @@
 // Now with Multi-City Support
 // =============================================
 import React, { useState, useEffect, useMemo } from 'react';
-import { ref, remove, update } from 'firebase/database';
+import { ref, update } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { useCity } from '../../context/CityContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
@@ -19,15 +19,14 @@ import {
   Filter,
   MoreVertical,
   TrendingUp,
-  X,
-  AlertCircle
+  X
 } from 'lucide-react';
 import EditPost from './EditPost';
 import { adminStyles } from './adminStyles';
 
 const ContentManagement = () => {
   const { cities } = useCity(); // Use dynamic cities from Firebase
-  const [selectedCity, setSelectedCity] = useState('');
+  const [selectedCity, setSelectedCity] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('createdAt');
@@ -38,13 +37,6 @@ const ContentManagement = () => {
   const [pageSize, setPageSize] = useState(10);
   const pageSizeOptions = [10, 20, 50];
   
-  // Initialize selectedCity when cities load
-  useEffect(() => {
-    if (cities && cities.length > 0 && !selectedCity) {
-      setSelectedCity(cities[0].id);
-    }
-  }, [cities, selectedCity]);
-
   // Helper function to extract text from multi-language objects or strings
   const getTextContent = (content) => {
     if (!content) return '';
@@ -63,22 +55,23 @@ const ContentManagement = () => {
     return post?.isPublished === false ? 'draft' : 'published';
   };
 
-  const { data: rawPostsData, isLoading: postsLoading, source: postsSource } = useRealtimeData(
-    selectedCity ? 'posts' : null,
-    {
-      scope: 'auto',
-      cityId: selectedCity || null,
-      fallbackToGlobal: true,
-      debug: false
-    }
-  );
+  // Manage the global posts collection — it is the source of truth and holds
+  // all posts. The per-city mirrors only contain recent writes; the city
+  // dropdown below filters client-side instead of switching DB paths.
+  const { data: rawPostsData, isLoading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
+
+  // Posts created before multi-city support have no cities array; treat them
+  // as legacy Vadodara content (same convention as the public feeds).
+  const LEGACY_CITY_ID = 'vadodara';
 
   const posts = useMemo(() => {
     if (!rawPostsData) return [];
-    const formatted = Object.entries(rawPostsData).map(([id, data]) => ({
-      id,
-      ...data
-    }));
+    const formatted = Object.entries(rawPostsData)
+      .map(([id, data]) => ({ id, ...data }))
+      .filter(post =>
+        selectedCity === 'all' ||
+        (Array.isArray(post.cities) && post.cities.length > 0 ? post.cities : [LEGACY_CITY_ID]).includes(selectedCity)
+      );
 
     const sorted = [...formatted];
     sorted.sort((a, b) => {
@@ -105,35 +98,53 @@ const ContentManagement = () => {
     });
 
     return sorted;
-  }, [rawPostsData, sortBy]);
+  }, [rawPostsData, sortBy, selectedCity]);
 
-  const loading = postsLoading || (!selectedCity && postsSource !== 'fallback');
-  const isUsingGlobalFallback = postsSource === 'fallback';
-  const postsBasePath = isUsingGlobalFallback
-    ? 'posts'
-    : (selectedCity ? `cities/${selectedCity}/posts` : null);
-  const selectedCityName = selectedCity
-    ? getCityName(cities.find(c => c.id === selectedCity)) || selectedCity
-    : '...';
+  const loading = postsLoading;
+  const selectedCityName = selectedCity === 'all'
+    ? 'All Cities'
+    : getCityName(cities.find(c => c.id === selectedCity)) || selectedCity;
+
+  // Every mutation must hit the canonical /posts entry AND the per-city
+  // mirrors, otherwise they drift out of sync.
+  const buildPostPaths = (postId) => {
+    const post = posts.find(p => p.id === postId);
+    const mirrorCities = Array.isArray(post?.cities) ? post.cities : [];
+    return [`posts/${postId}`, ...mirrorCities.map(cid => `cities/${cid}/posts/${postId}`)];
+  };
+
+  const updatePostEverywhere = (postId, fields) => {
+    const updates = {};
+    buildPostPaths(postId).forEach(path => {
+      Object.entries(fields).forEach(([key, value]) => {
+        updates[`${path}/${key}`] = value;
+      });
+    });
+    return update(ref(db), updates);
+  };
+
+  const removePostEverywhere = (postId) => {
+    const updates = {};
+    buildPostPaths(postId).forEach(path => {
+      updates[path] = null;
+    });
+    return update(ref(db), updates);
+  };
 
   useEffect(() => {
     setSelectedPosts([]);
     setCurrentPage(1);
-  }, [selectedCity, isUsingGlobalFallback, searchTerm, filterStatus, sortBy]);
+  }, [selectedCity, searchTerm, filterStatus, sortBy]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [pageSize]);
 
   const handleDeletePost = async (postId) => {
-    if (!postsBasePath) {
-      alert('Unable to resolve post location for deletion.');
-      return;
-    }
     const post = posts.find(p => p.id === postId);
     if (window.confirm(`Are you sure you want to delete "${getTextContent(post?.title)}"?\n\nThis action cannot be undone.`)) {
       try {
-        await remove(ref(db, `${postsBasePath}/${postId}`));
+        await removePostEverywhere(postId);
         alert('Post deleted successfully');
       } catch (error) {
         console.error('Error deleting post:', error);
@@ -143,18 +154,14 @@ const ContentManagement = () => {
   };
 
   const handleToggleStatus = async (postId, currentStatus) => {
-    if (!postsBasePath) {
-      alert('Unable to resolve post location for status update.');
-      return;
-    }
     const resolvedStatus = currentStatus || getPostStatus(posts.find(p => p.id === postId));
     const newStatus = resolvedStatus === 'published' ? 'draft' : 'published';
     const post = posts.find(p => p.id === postId);
     const action = newStatus === 'published' ? 'publish' : 'unpublish';
-    
+
     if (window.confirm(`Are you sure you want to ${action} "${getTextContent(post?.title)}"?`)) {
       try {
-        await update(ref(db, `${postsBasePath}/${postId}`), {
+        await updatePostEverywhere(postId, {
           status: newStatus,
           isPublished: newStatus === 'published',
           publishedAt: newStatus === 'published' ? new Date().toISOString() : null,
@@ -169,10 +176,6 @@ const ContentManagement = () => {
   };
 
   const handleEditPost = (postId) => {
-    if (!postsBasePath) {
-      alert('Unable to resolve post location for editing.');
-      return;
-    }
     setEditingPostId(postId);
     setShowEditModal(true);
   };
@@ -215,18 +218,10 @@ const ContentManagement = () => {
       return;
     }
 
-    if (!postsBasePath) {
-      alert('Unable to resolve post location for bulk action.');
-      return;
-    }
-
     if (action === 'delete') {
       if (window.confirm(`Are you sure you want to delete ${selectedPosts.length} selected posts?`)) {
         try {
-          const deletePromises = selectedPosts.map(postId => 
-            remove(ref(db, `${postsBasePath}/${postId}`))
-          );
-          await Promise.all(deletePromises);
+          await Promise.all(selectedPosts.map(postId => removePostEverywhere(postId)));
           setSelectedPosts([]);
           alert('Selected posts deleted successfully');
         } catch (error) {
@@ -236,15 +231,14 @@ const ContentManagement = () => {
       }
     } else if (action === 'publish') {
       try {
-        const updatePromises = selectedPosts.map(postId =>
-          update(ref(db, `${postsBasePath}/${postId}`), {
+        await Promise.all(selectedPosts.map(postId =>
+          updatePostEverywhere(postId, {
             status: 'published',
             isPublished: true,
             publishedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           })
-        );
-        await Promise.all(updatePromises);
+        ));
         setSelectedPosts([]);
         alert('Selected posts published successfully');
       } catch (error) {
@@ -253,14 +247,13 @@ const ContentManagement = () => {
       }
     } else if (action === 'draft') {
       try {
-        const updatePromises = selectedPosts.map(postId =>
-          update(ref(db, `${postsBasePath}/${postId}`), {
+        await Promise.all(selectedPosts.map(postId =>
+          updatePostEverywhere(postId, {
             status: 'draft',
             isPublished: false,
             updatedAt: new Date().toISOString()
           })
-        );
-        await Promise.all(updatePromises);
+        ));
         setSelectedPosts([]);
         alert('Selected posts moved to draft successfully');
       } catch (error) {
@@ -359,18 +352,6 @@ const ContentManagement = () => {
         </div>
       </div>
 
-      {isUsingGlobalFallback && (
-        <div className="flex items-start space-x-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-100 px-4 py-3 rounded-lg">
-          <AlertCircle className="w-5 h-5 mt-0.5 text-yellow-700 dark:text-yellow-200" />
-          <div>
-            <p className="text-sm font-medium">Showing legacy global posts</p>
-            <p className="text-xs text-yellow-900 dark:text-yellow-200">
-              No posts were found under {selectedCityName}. Managing actions here will target the global <code>posts</code> collection.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* City Selector */}
       <div className="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -382,6 +363,7 @@ const ContentManagement = () => {
           onChange={(e) => setSelectedCity(e.target.value)}
           className="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
         >
+          <option value="all">All Cities</option>
           {cities.map(city => (
             <option key={city.id} value={city.id}>{getCityName(city)}</option>
           ))}
@@ -703,7 +685,7 @@ const ContentManagement = () => {
             <div className="overflow-y-auto max-h-[calc(90vh-80px)]">
               <EditPost
                 postId={editingPostId}
-                basePath={postsBasePath}
+                basePath="posts"
                 onClose={handleCloseEditModal}
                 onSave={handleSavePost}
                 isEmbedded

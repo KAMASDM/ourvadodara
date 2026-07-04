@@ -43,14 +43,26 @@ class PerformanceMonitor {
   }
 
   measurePageLoad() {
-    if ('performance' in window && 'timing' in performance) {
-      const timing = performance.timing;
-      this.metrics.pageLoadTime = timing.loadEventEnd - timing.navigationStart;
-      
-      console.log(`Page Load Time: ${this.metrics.pageLoadTime}ms`);
-      
-      // Send to analytics
-      this.reportMetric('page_load_time', this.metrics.pageLoadTime);
+    // loadEventEnd is 0 until the load event finishes, which made the old
+    // timing-API subtraction come out negative when measured too early.
+    const report = () => {
+      let loadTime = 0;
+      const [nav] = performance.getEntriesByType?.('navigation') || [];
+      if (nav && nav.loadEventEnd > 0) {
+        loadTime = nav.loadEventEnd - nav.startTime;
+      } else if ('timing' in performance && performance.timing.loadEventEnd > 0) {
+        loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
+      }
+      if (loadTime > 0) {
+        this.metrics.pageLoadTime = Math.round(loadTime);
+        this.reportMetric('page_load_time', this.metrics.pageLoadTime);
+      }
+    };
+
+    if (document.readyState === 'complete') {
+      setTimeout(report, 0);
+    } else {
+      window.addEventListener('load', () => setTimeout(report, 0), { once: true });
     }
   }
 
@@ -61,8 +73,7 @@ class PerformanceMonitor {
       entries.forEach(entry => {
         if (entry.name === 'first-contentful-paint') {
           this.metrics.renderTime = entry.startTime;
-          console.log(`First Contentful Paint: ${entry.startTime}ms`);
-          this.reportMetric('first_contentful_paint', entry.startTime);
+              this.reportMetric('first_contentful_paint', entry.startTime);
         }
       });
     }
@@ -92,7 +103,6 @@ class PerformanceMonitor {
       const lcpObserver = new PerformanceObserver((list) => {
         const entries = list.getEntries();
         const lastEntry = entries[entries.length - 1];
-        console.log(`LCP: ${lastEntry.startTime}ms`);
         this.reportMetric('largest_contentful_paint', lastEntry.startTime);
       });
       
@@ -107,7 +117,6 @@ class PerformanceMonitor {
       const fidObserver = new PerformanceObserver((list) => {
         const entries = list.getEntries();
         entries.forEach(entry => {
-          console.log(`FID: ${entry.processingStart - entry.startTime}ms`);
           this.reportMetric('first_input_delay', entry.processingStart - entry.startTime);
         });
       });
@@ -131,7 +140,6 @@ class PerformanceMonitor {
         });
         
         if (clsValue > 0) {
-          console.log(`CLS: ${clsValue}`);
           this.reportMetric('cumulative_layout_shift', clsValue);
         }
       });
@@ -160,7 +168,6 @@ class PerformanceMonitor {
       this.metrics.apiResponseTimes[endpoint].shift();
     }
     
-    console.log(`API Response Time (${endpoint}): ${responseTime}ms`);
     this.reportMetric('api_response_time', responseTime, { endpoint });
   }
 
@@ -172,7 +179,6 @@ class PerformanceMonitor {
   // End timing an operation
   endTimer(label, startTime) {
     const duration = performance.now() - startTime;
-    console.log(`${label}: ${duration}ms`);
     this.reportMetric('custom_timer', duration, { label });
     return duration;
   }

@@ -5,23 +5,60 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
-import { ref, push, update, serverTimestamp, increment } from '../../firebase-config';
+import { ref, push, update, remove, serverTimestamp, increment } from '../../firebase-config';
 import { db } from '../../firebase-config';
-import { Send, Heart, MessageCircle, LogIn, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, Heart, MessageCircle, LogIn, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { CommentSkeleton } from '../Common/SkeletonLoader';
 import Login from '../Auth/Login';
 
-const Comment = ({ 
-  comment, 
-  postId, 
-  level = 0, 
-  onReply, 
-  onLike 
+const Comment = ({
+  comment,
+  postId,
+  commentPath,
+  level = 0,
+  onReply,
+  onLike
 }) => {
   const { user } = useAuth();
   const [showReplies, setShowReplies] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.text || '');
   const { data: repliesObject } = useRealtimeData(`comments/${postId}/${comment.id}/replies`);
+
+  const isOwnComment = user?.uid && user.uid === comment.authorId;
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    const trimmed = editText.trim();
+    if (!trimmed || trimmed === comment.text) {
+      setIsEditing(false);
+      setEditText(comment.text || '');
+      return;
+    }
+    try {
+      await update(ref(db, commentPath), { text: trimmed, editedAt: Date.now() });
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error editing comment:', error);
+      alert('Failed to edit comment. Please try again.');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Delete this comment? This cannot be undone.')) return;
+    try {
+      await remove(ref(db, commentPath));
+      if (level === 0) {
+        // Keep the post's comment counter in sync for top-level deletes
+        await update(ref(db, `posts/${postId}`), { comments: increment(-1) });
+      }
+      await update(ref(db, `users/${user.uid}`), { totalComments: increment(-1) });
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Failed to delete comment. Please try again.');
+    }
+  };
   
   const replies = repliesObject 
     ? Object.entries(repliesObject)
@@ -56,9 +93,34 @@ const Comment = ({
             <span className="font-semibold text-sm text-gray-900 dark:text-white">
               {authorName}
             </span>
-            <p className="text-sm text-gray-700 dark:text-gray-300 break-words">
-              {comment.text}
-            </p>
+            {isEditing ? (
+              <form onSubmit={handleSaveEdit} className="mt-1 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="flex-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-red"
+                  autoFocus
+                />
+                <button type="submit" className="text-xs font-semibold text-blue-600 hover:text-blue-800">
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsEditing(false); setEditText(comment.text || ''); }}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <p className="text-sm text-gray-700 dark:text-gray-300 break-words">
+                {comment.text}
+                {comment.editedAt && (
+                  <span className="ml-1 text-[10px] text-gray-400">(edited)</span>
+                )}
+              </p>
+            )}
           </div>
 
           {/* Actions */}
@@ -85,6 +147,25 @@ const Comment = ({
                 <MessageCircle className="w-3 h-3" />
                 <span>Reply</span>
               </button>
+            )}
+
+            {isOwnComment && !isEditing && (
+              <>
+                <button
+                  onClick={() => { setIsEditing(true); setEditText(comment.text || ''); }}
+                  className="flex items-center space-x-1 text-xs text-gray-500 hover:text-blue-500 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" />
+                  <span>Edit</span>
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="flex items-center space-x-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Delete</span>
+                </button>
+              </>
             )}
 
             {replies.length > 0 && (
@@ -114,6 +195,7 @@ const Comment = ({
               key={reply.id}
               comment={reply}
               postId={postId}
+              commentPath={`${commentPath}/replies/${reply.id}`}
               level={level + 1}
               onReply={onReply}
               onLike={(replyId) => onLike(replyId, comment.id)}
@@ -185,6 +267,9 @@ const ThreadedCommentSection = ({ postId }) => {
       });
     }
 
+    // Track the user's own comment count for profile stats
+    update(ref(db, `users/${user.uid}`), { totalComments: increment(1) });
+
     setNewComment('');
     setReplyingTo(null);
   };
@@ -233,6 +318,7 @@ const ThreadedCommentSection = ({ postId }) => {
                 key={comment.id}
                 comment={comment}
                 postId={postId}
+                commentPath={`comments/${postId}/${comment.id}`}
                 level={0}
                 onReply={handleReply}
                 onLike={handleLikeComment}
@@ -281,12 +367,13 @@ const ThreadedCommentSection = ({ postId }) => {
               className="flex-1 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-red"
               autoFocus={!!replyingTo}
             />
-            <button 
-              type="submit" 
-              disabled={!newComment.trim()} 
-              className="bg-primary-red hover:bg-secondary-red text-white p-2 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            <button
+              type="submit"
+              disabled={!newComment.trim()}
+              className="inline-flex items-center gap-1.5 bg-primary-red hover:bg-secondary-red text-white px-4 py-2 rounded-full text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               <Send className="w-4 h-4" />
+              <span>{replyingTo ? 'Reply' : 'Post'}</span>
             </button>
           </form>
         </div>

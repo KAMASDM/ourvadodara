@@ -215,7 +215,32 @@ const MediaContentEditor = ({ item, onClose, onSave }) => {
         payload.excerpt = formData.excerpt;
       }
 
-      await update(ref(db, `${path}/${item.id}`), payload);
+      // Sync the canonical entry and every per-city mirror in one atomic
+      // write; removed cities get their mirror deleted.
+      const previousCities = Array.isArray(item.cities) && item.cities.length > 0
+        ? item.cities
+        : item.cityId
+          ? [item.cityId]
+          : [];
+      const updates = {};
+      Object.entries(payload).forEach(([key, value]) => {
+        updates[`${path}/${item.id}/${key}`] = value;
+      });
+      selectedCities.forEach((cityId) => {
+        updates[`cities/${cityId}/${path}/${item.id}`] = {
+          ...item,
+          ...payload,
+          cityId,
+          mainPostId: item.id
+        };
+      });
+      previousCities
+        .filter((cityId) => !selectedCities.includes(cityId))
+        .forEach((cityId) => {
+          updates[`cities/${cityId}/${path}/${item.id}`] = null;
+        });
+
+      await update(ref(db), updates);
       onSave?.(payload);
     } catch (error) {
       console.error('Error updating media post:', error);

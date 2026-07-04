@@ -324,7 +324,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
               className="liquid-card overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 group"
             >
               {getPostImage(featuredPost) && (
-                <div className="relative overflow-hidden h-[480px]">
+                <div className="relative overflow-hidden rounded-t-3xl h-[480px]">
                   <PostMedia 
                     src={getPostImage(featuredPost)} 
                     alt={getPostTitle(featuredPost)}
@@ -405,7 +405,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
                 className="liquid-card overflow-hidden cursor-pointer transition-all hover:-translate-y-0.5 group"
               >
                 {getPostImage(post) && (
-                  <div className="relative overflow-hidden h-[160px]">
+                  <div className="relative overflow-hidden rounded-t-3xl h-[160px]">
                     <PostMedia 
                       src={getPostImage(post)} 
                       alt={getPostTitle(post)}
@@ -448,7 +448,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
               className="liquid-card overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 group"
             >
               {getPostImage(post) && (
-                <div className="relative overflow-hidden h-[200px]">
+                <div className="relative overflow-hidden rounded-t-3xl h-[200px]">
                   <PostMedia 
                     src={getPostImage(post)} 
                     alt={getPostTitle(post)}

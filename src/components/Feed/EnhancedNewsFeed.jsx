@@ -11,7 +11,7 @@ import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { useDoubleTap } from '../../hooks/useDoubleTap';
 import { db } from '../../firebase-config';
-import { ref, update, increment, set, remove } from 'firebase/database';
+import { ref, update, increment, set, remove, onValue } from 'firebase/database';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import { 
   Heart, 
@@ -53,6 +53,19 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
 
   const [likedPosts, setLikedPosts] = useState(new Set());
   const [savedPosts, setSavedPosts] = useState(new Set());
+
+  // Keep saved state in sync with the user's bookmarks so it survives reloads
+  useEffect(() => {
+    if (!user?.uid) {
+      setSavedPosts(new Set());
+      return undefined;
+    }
+    const bookmarksRef = ref(db, `bookmarks/${user.uid}`);
+    const unsubscribe = onValue(bookmarksRef, (snapshot) => {
+      setSavedPosts(new Set(Object.keys(snapshot.val() || {})));
+    });
+    return () => unsubscribe();
+  }, [user?.uid]);
   const [expandedPosts, setExpandedPosts] = useState(new Set());
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [shareData, setShareData] = useState(null);
@@ -257,7 +270,10 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
       const sourcePath = post.source || 'posts';
       const updates = {
         [`likes/${postId}/${user.uid}`]: wasLiked ? null : true,
-        [`${sourcePath}/${postId}/analytics/likes`]: increment(wasLiked ? -1 : 1)
+        [`${sourcePath}/${postId}/analytics/likes`]: increment(wasLiked ? -1 : 1),
+        // Per-user activity tracking for the profile stats
+        [`users/${user.uid}/likes/${postId}`]: wasLiked ? null : true,
+        [`users/${user.uid}/totalLikes`]: increment(wasLiked ? -1 : 1)
       };
       await update(ref(db), updates);
     } catch (error) {
@@ -331,6 +347,13 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
       url: shareUrl
     });
     setShareSheetOpen(true);
+
+    if (user?.uid) {
+      update(ref(db), {
+        [`users/${user.uid}/totalShares`]: increment(1),
+        [`users/${user.uid}/shares/${post.id}`]: Date.now()
+      }).catch((error) => console.error('Error tracking share:', error));
+    }
   };
 
   const toggleExpanded = (postId) => {
@@ -370,7 +393,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
             key={post.id || `reel-post-${index}`} 
             post={post} 
             onLike={() => handleLike(post.id)}
-            onSave={() => handleSave(post.id)}
+            onSave={() => handleSave(post)}
             onShare={() => handleShare(post)}
             isLiked={likedPosts.has(post.id)}
             isSaved={savedPosts.has(post.id)}
