@@ -108,7 +108,7 @@ class PushNotificationService {
       }
 
       const { db } = await import('../firebase-config');
-      const { ref, update } = await import('firebase/database');
+      const { ref, get, update } = await import('firebase/database');
       const { getAuth } = await import('firebase/auth');
       
       const auth = getAuth();
@@ -121,9 +121,17 @@ class PushNotificationService {
 
       // Add city topic to user's subscriptions
       const cityTopic = `city-${cityId}`;
+      const tokenRef = ref(db, `fcmTokens/${userId}`);
+      const snapshot = await get(tokenRef);
+      const tokenData = snapshot.val() || {};
+      const currentTopics = Array.isArray(tokenData.topics)
+        ? tokenData.topics
+        : Object.entries(tokenData.topics || {})
+            .map(([topic, value]) => value === true ? topic : (typeof value === 'string' ? value : null))
+            .filter(Boolean);
       
-      await update(ref(db, `fcmTokens/${userId}`), {
-        [`topics/${cityTopic}`]: true,
+      await update(tokenRef, {
+        topics: [...new Set([...currentTopics, cityTopic])],
         updatedAt: new Date().toISOString()
       });
 

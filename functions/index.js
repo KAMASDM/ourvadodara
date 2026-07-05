@@ -285,8 +285,34 @@ function publicLeadActivity(message, note = '') {
   };
 }
 
-function stripHtml(value) {
-  return cleanOptionalString(String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' '), 450);
+function decodeHtmlEntities(value) {
+  return String(value || '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
+}
+
+function stripHtml(value, maxLength = 450) {
+  return cleanOptionalString(
+    decodeHtmlEntities(value)
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' '),
+    maxLength
+  );
+}
+
+function getLocalizedCleanText(value, maxLength = 450) {
+  if (!value) return '';
+  if (typeof value === 'object') {
+    return stripHtml(value.en || value.gu || value.hi || Object.values(value)[0] || '', maxLength);
+  }
+  return stripHtml(value, maxLength);
 }
 
 function interpolateLeadMessage(template, lead) {
@@ -790,6 +816,33 @@ exports.sendNewNewsNotification = functions.database
     return sendNotificationForNewPost(snapshot.val(), context.params.postId);
   });
 
+// Send push notification when an existing draft is published.
+exports.sendPublishedNewsNotification = functions.database
+  .ref('/posts/{postId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.val() || {};
+    const after = change.after.val() || {};
+
+    if (after.notificationSent) {
+      console.log('Post notification already sent, skipping update notification');
+      return null;
+    }
+
+    // Scheduled posts are handled by publishScheduledPosts, which sends the
+    // notification after flipping the post live.
+    if (before.status === 'scheduled') {
+      console.log('Scheduled post publish handled by scheduler, skipping update notification');
+      return null;
+    }
+
+    if (!isPublishedPost(before) && isPublishedPost(after)) {
+      return sendNotificationForNewPost(after, context.params.postId);
+    }
+
+    console.log('Post update did not transition to published, skipping notification');
+    return null;
+  });
+
 // Send push notification when new news is published in a city
 exports.sendNewCityNewsNotification = functions.database
   .ref('/cities/{cityId}/posts/{postId}')
@@ -797,6 +850,10 @@ exports.sendNewCityNewsNotification = functions.database
     const cityId = context.params.cityId;
     return sendNotificationForNewPost(snapshot.val(), context.params.postId, cityId);
   });
+
+function isPublishedPost(post = {}) {
+  return post.status !== 'draft' && post.status !== 'scheduled' && post.isPublished !== false;
+}
 
 // Shared function to send notification for new posts
 async function sendNotificationForNewPost(post, postId, cityId = null) {
@@ -808,15 +865,16 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
   }
 
   // Only send notification if post is published and not a draft
-  if (post.status === 'draft' || post.isPublished === false) {
+  if (!isPublishedPost(post)) {
     console.log('Post is draft or unpublished, skipping notification');
     return null;
   }
 
   // Get post details
-  const title = post.title?.en || post.title || 'New Article Published';
-  const body = post.excerpt?.en || post.content?.en?.substring(0, 100) || 'Check out the latest news';
-  const category = post.category || 'news';
+  const title = getLocalizedCleanText(post.title, 90) || 'New Article Published';
+  const summary = getLocalizedCleanText(post.excerpt, 160) || getLocalizedCleanText(post.content, 160);
+  const body = summary && summary !== title ? summary : 'Tap to read the full story.';
+  const category = String(post.category || 'news');
   
   // Get image from different possible locations
   let imageUrl = '';
@@ -834,19 +892,16 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
   }
 
   // Build notification payload
-  const notificationTitle = post.isBreaking ? `🚨 BREAKING: ${title}` : `📰 ${title}`;
+  const notificationTitle = post.isBreaking ? `Breaking News: ${title}` : title;
   
   const payload = {
     notification: {
       title: notificationTitle,
       body: body,
-      icon: imageUrl || '/icons/icon-192x192.png',
-      badge: '/icons/icon-72x72.png',
-      tag: `news-${postId}`,
-      requireInteraction: post.isBreaking || false,
+      ...(imageUrl ? { imageUrl } : {})
     },
     data: {
-      postId: postId,
+      postId: String(postId),
       type: 'news',
       category: category,
       cityId: cityId || '',
@@ -862,7 +917,10 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
       notification: {
         badge: '/icons/icon-72x72.png',
         icon: imageUrl || '/icons/icon-192x192.png',
-        image: imageUrl || undefined,
+        ...(imageUrl ? { image: imageUrl } : {}),
+        tag: `news-${postId}`,
+        requireInteraction: Boolean(post.isBreaking),
+        renotify: Boolean(post.isBreaking),
         vibrate: post.isBreaking ? [200, 100, 200, 100, 200] : [200, 100, 200],
         actions: [
           {
@@ -910,11 +968,13 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
       topics.push(`category-${category.toLowerCase().replace(/\s+/g, '-')}`);
     }
 
-    console.log(`Sending notification to topics: ${topics.join(', ')}`);
+    const uniqueTopics = [...new Set(topics.filter(Boolean))];
+
+    console.log(`Sending notification to topics: ${uniqueTopics.join(', ')}`);
 
     // Send notification to each topic
     const responses = await Promise.all(
-      topics.map(topic => 
+      uniqueTopics.map(topic => 
         admin.messaging().send({
           topic: topic,
           ...payload
@@ -932,11 +992,11 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
     await admin.database().ref(updatePath).update({
       notificationSent: true,
       notificationSentAt: admin.database.ServerValue.TIMESTAMP,
-      notificationTopics: topics
+      notificationTopics: uniqueTopics
     });
 
     // Increment badge count for all relevant topics
-    for (const topic of topics) {
+    for (const topic of uniqueTopics) {
       await incrementBadgeCount(topic);
     }
 
@@ -1032,22 +1092,20 @@ exports.sendBreakingNewsNotification = functions.database
       return null;
     }
 
-    const title = news.headline?.en || news.headline || '🚨 BREAKING NEWS';
-    const body = news.summary?.en || news.summary || 'Breaking news update';
+    const title = getLocalizedCleanText(news.headline, 90) || 'Breaking News';
+    const body = getLocalizedCleanText(news.summary || news.content, 160) || 'Breaking news update';
+    const imageUrl = news.mediaUrl || '';
 
     const payload = {
       notification: {
         title: title,
         body: body,
-        icon: news.mediaUrl || '/icons/icon-192x192.png',
-        badge: '/icons/icon-72x72.png',
-        tag: `breaking-${newsId}`,
-        requireInteraction: true,
+        ...(imageUrl ? { imageUrl } : {})
       },
       data: {
-        newsId: newsId,
+        newsId: String(newsId),
         type: 'breaking',
-        category: news.category || 'breaking',
+        category: String(news.category || 'breaking'),
         url: `/breaking/${newsId}`,
         priority: 'high'
       },
@@ -1058,9 +1116,15 @@ exports.sendBreakingNewsNotification = functions.database
         },
         notification: {
           badge: '/icons/icon-72x72.png',
-          icon: news.mediaUrl || '/icons/icon-192x192.png',
+          icon: imageUrl || '/icons/icon-192x192.png',
+          ...(imageUrl ? { image: imageUrl } : {}),
+          tag: `breaking-${newsId}`,
+          requireInteraction: true,
           vibrate: [300, 100, 300, 100, 300],
           renotify: true
+        },
+        fcm_options: {
+          link: `/breaking/${newsId}`
         }
       }
     };
@@ -1093,7 +1157,8 @@ async function incrementBadgeCount(topic) {
     const updates = {};
     Object.keys(tokens).forEach(userId => {
       const userToken = tokens[userId];
-      if (userToken.topics && userToken.topics.includes(topic)) {
+      const userTopics = normalizeTopicList(userToken.topics);
+      if (userTopics.includes(topic)) {
         updates[`/users/${userId}/unreadNotifications`] = admin.database.ServerValue.increment(1);
       }
     });
@@ -1108,6 +1173,24 @@ async function incrementBadgeCount(topic) {
     console.error('Error incrementing badge count:', error);
     return null;
   }
+}
+
+function normalizeTopicList(topics) {
+  if (Array.isArray(topics)) {
+    return topics.filter(Boolean);
+  }
+
+  if (topics && typeof topics === 'object') {
+    return Object.entries(topics)
+      .map(([topic, value]) => {
+        if (value === true) return topic;
+        if (typeof value === 'string') return value;
+        return null;
+      })
+      .filter(Boolean);
+  }
+
+  return [];
 }
 
 // Subscribe FCM token to topics when stored in database
@@ -1125,8 +1208,8 @@ exports.subscribeTokenToTopics = functions.database
     }
 
     const { token } = tokenData;
-    const topics = Array.isArray(tokenData.topics) ? tokenData.topics : [];
-    const previousTopics = Array.isArray(previousTokenData?.topics) ? previousTokenData.topics : [];
+    const topics = normalizeTopicList(tokenData.topics);
+    const previousTopics = normalizeTopicList(previousTokenData?.topics);
     const topicsChanged = JSON.stringify([...topics].sort()) !== JSON.stringify([...previousTopics].sort());
     const tokenChanged = token !== previousTokenData?.token;
 
