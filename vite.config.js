@@ -20,26 +20,10 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true
       },
-      manifest: {
-        name: 'Our Vadodara - Local News Hub',
-        short_name: 'Our Vadodara',
-        description: 'Your local news hub for Vadodara city',
-        theme_color: '#f97316',
-        background_color: '#ffffff',
-        display: 'standalone',
-        icons: [
-          {
-            src: '/icons/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
-        ]
-      }
+      // The complete, hand-maintained manifest lives at public/manifest.json
+      // (linked from index.html). Disable VitePWA's own manifest so we don't
+      // ship two competing manifests with different icons and theme colors.
+      manifest: false
     })
   ],
   server: {
