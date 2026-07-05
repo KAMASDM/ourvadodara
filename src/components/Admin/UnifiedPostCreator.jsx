@@ -217,6 +217,15 @@ const UnifiedPostCreator = () => {
   const [newTag, setNewTag] = useState('');
   const [mediaFiles, setMediaFiles] = useState([]);
   const mediaFilesRef = useRef([]);
+  const feedbackRef = useRef(null);
+
+  // The admin layout scrolls its own container, so window.scrollTo() is a
+  // no-op there; scroll the feedback banners into view instead.
+  const scrollToFeedback = () => {
+    requestAnimationFrame(() => {
+      feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const multipleImageInputRef = useRef(null);
@@ -634,7 +643,7 @@ const UnifiedPostCreator = () => {
     
     if (!validateForm()) {
       setSuccessMessage('');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollToFeedback();
       return;
     }
     
@@ -783,8 +792,8 @@ const UnifiedPostCreator = () => {
       // Reset form to blank state
       resetForm();
       
-      // Scroll to top
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Bring the success banner into view
+      scrollToFeedback();
       
     } catch (error) {
       console.error('Post creation error:', error);
@@ -792,7 +801,7 @@ const UnifiedPostCreator = () => {
         ? 'Permission denied — make sure you are signed in with an admin account.'
         : error?.message || 'Unknown error';
       setErrors(prev => ({ ...prev, submit: `Failed to create ${postType.toLowerCase()}: ${reason}` }));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollToFeedback();
     } finally {
       setLoading(false);
     }
@@ -1172,6 +1181,7 @@ const UnifiedPostCreator = () => {
                 <input
                   type="date"
                   value={formData.publishDate}
+                  min={new Date().toISOString().split('T')[0]}
                   onChange={(e) => setFormData(prev => ({ ...prev, publishDate: e.target.value }))}
                   className="w-full pl-9 pr-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
                 />
@@ -1492,56 +1502,27 @@ const UnifiedPostCreator = () => {
   };
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900">
-      {/* Page header */}
-      <div className="sticky top-0 z-10 bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 px-4 sm:px-6 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-neutral-900 dark:text-white leading-tight">Create Post</h1>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 hidden sm:block">News · Story · Reel · Carousel</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={resetForm}
-              disabled={loading}
-              className="px-3 py-2 text-sm text-neutral-600 dark:text-neutral-400 border border-neutral-300 dark:border-neutral-600 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 disabled:opacity-40 transition"
-            >
-              Reset
-            </button>
-            <button
-              type="button"
-              form="unified-post-form"
-              onClick={(e) => { e.preventDefault(); document.getElementById('unified-post-form').requestSubmit(); }}
-              disabled={loading}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
-            >
-              {loading ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /><span>Publishing…</span></>
-              ) : (
-                <><Send className="w-4 h-4" /><span>{publishActionLabel}</span></>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        <div ref={feedbackRef} />
+        {Object.entries(errors).filter(([, message]) => message).length > 0 && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              Please fix the following before publishing:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-9 text-sm">
+              {Object.entries(errors)
+                .filter(([, message]) => message)
+                .map(([key, message]) => (
+                  <li key={key}>{message}</li>
+                ))}
+            </ul>
+          </div>
+        )}
         {successMessage && (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-green-800">
             <Check className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <p className="text-sm font-medium">{successMessage}</p>
-          </div>
-        )}
-        {errors.auth && (
-          <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
-            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <p className="text-sm font-medium">{errors.auth}</p>
-          </div>
-        )}
-        {errors.submit && (
-          <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
-            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <p className="text-sm font-medium">{errors.submit}</p>
           </div>
         )}
         <form id="unified-post-form" onSubmit={handleSubmit}>
@@ -1571,8 +1552,8 @@ const UnifiedPostCreator = () => {
           )}
           {renderTypeSettings()}
 
-          {/* Bottom publish bar */}
-          <div className="flex items-center justify-between gap-4 p-4 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-sm mt-2">
+          {/* Bottom publish bar - sticky so actions stay reachable */}
+          <div className="sticky bottom-0 z-10 flex items-center justify-between gap-4 p-4 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-lg mt-2">
             <p className="text-sm text-neutral-500 dark:text-neutral-400 hidden sm:block">
               Ready to go? Hit publish when content is ready.
             </p>
