@@ -440,7 +440,7 @@ const PostCard = ({ post, onPostClick }) => {
                 {/* Progress bar */}
                 <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-black/30">
                   <div
-                    className="h-full bg-accent transition-all duration-100"
+                    className="h-full bg-accent-500 transition-all duration-100"
                     style={{ width: `${progress}%` }}
                   />
                 </div>

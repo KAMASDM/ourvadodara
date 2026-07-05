@@ -9,9 +9,16 @@ export default defineConfig({
       include: "**/*.{jsx,tsx}"
     }),
     VitePWA({
-      registerType: 'prompt',
+      // autoUpdate (not 'prompt'): installed PWAs were stranded on an old
+      // precached index.html + old JS bundles because the update prompt was
+      // never surfaced, so deployed fixes never reached them. Auto-activate
+      // each new build and reload so users always run the latest code.
+      registerType: 'autoUpdate',
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true
       },
       manifest: {
         name: 'Our Vadodara - Local News Hub',

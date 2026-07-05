@@ -388,7 +388,7 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
       <button
         type="submit"
         disabled={isProcessing}
-        className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-white py-2 px-4 rounded-lg font-medium flex items-center justify-center space-x-2 transition-colors duration-200"
+        className="w-full bg-accent-500 hover:bg-accent-600 disabled:opacity-50 text-white py-2 px-4 rounded-lg font-medium flex items-center justify-center space-x-2 transition-colors duration-200"
       >
         {isProcessing ? (
           <Loader className="h-5 w-5 animate-spin" />
