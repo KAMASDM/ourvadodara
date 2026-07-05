@@ -1,14 +1,19 @@
 // =============================================
 // src/components/Settings/NotificationSettings.jsx
 // =============================================
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell, BellOff, Smartphone, Mail, MessageSquare } from 'lucide-react';
+import { Bell, BellOff, Smartphone, Mail, MessageSquare, AlertCircle, CheckCircle } from 'lucide-react';
+import { initializeNotifications } from '../../utils/notificationManager.js';
+
+const getPermission = () =>
+  (typeof Notification !== 'undefined' ? Notification.permission : 'default');
 
 const NotificationSettings = () => {
   const { t } = useTranslation();
+  const permissionGranted = getPermission() === 'granted';
   const [settings, setSettings] = useState({
-    pushNotifications: true,
+    pushNotifications: permissionGranted,
     emailNotifications: false,
     smsNotifications: false,
     breakingNews: true,
@@ -17,8 +22,46 @@ const NotificationSettings = () => {
     commentReplies: true,
     soundEnabled: true
   });
+  const [pushStatus, setPushStatus] = useState(getPermission()); // 'default' | 'granted' | 'denied'
+  const [enabling, setEnabling] = useState(false);
+
+  useEffect(() => {
+    setPushStatus(getPermission());
+  }, []);
+
+  const handleTogglePush = async () => {
+    // Turning OFF: browsers can't revoke permission programmatically, so just
+    // reflect intent and point the user to browser settings.
+    if (settings.pushNotifications) {
+      setSettings(prev => ({ ...prev, pushNotifications: false }));
+      return;
+    }
+
+    if (getPermission() === 'denied') {
+      setPushStatus('denied');
+      return;
+    }
+
+    // Turning ON: request permission + register token + subscribe to topics.
+    // This must run from a user gesture, which is exactly what this click is.
+    setEnabling(true);
+    try {
+      const ok = await initializeNotifications();
+      setPushStatus(getPermission());
+      setSettings(prev => ({ ...prev, pushNotifications: ok }));
+    } catch (error) {
+      console.error('Failed to enable push notifications:', error);
+      setPushStatus(getPermission());
+    } finally {
+      setEnabling(false);
+    }
+  };
 
   const handleToggle = (setting) => {
+    if (setting === 'pushNotifications') {
+      handleTogglePush();
+      return;
+    }
     setSettings(prev => ({
       ...prev,
       [setting]: !prev[setting]
@@ -62,10 +105,26 @@ const NotificationSettings = () => {
         </p>
       </div>
 
+      {pushStatus === 'denied' && (
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+          <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+          <div className="text-sm">
+            <p className="font-semibold">Notifications are blocked</p>
+            <p>You've blocked notifications for this site. Enable them in your browser's site settings (the lock icon in the address bar), then reload.</p>
+          </div>
+        </div>
+      )}
+      {pushStatus === 'granted' && settings.pushNotifications && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200">
+          <CheckCircle className="h-5 w-5 flex-shrink-0" />
+          <p className="text-sm font-medium">Push notifications are on. You'll get the latest Vadodara news as it's published.</p>
+        </div>
+      )}
+
       <div className="space-y-4">
         <NotificationToggle
           id="pushNotifications"
-          title={t('notifications.push_notifications')}
+          title={enabling ? 'Enabling…' : t('notifications.push_notifications')}
           description={t('notifications.push_description')}
           icon={Bell}
           enabled={settings.pushNotifications}
