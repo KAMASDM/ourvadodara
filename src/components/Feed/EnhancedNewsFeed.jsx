@@ -230,11 +230,13 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
       posts = posts.filter(post => post.category === activeCategory);
     }
 
-    // Sort by date (most recent first)
+    // Sort by date (most recent first). Use a numeric timestamp with a 0
+    // fallback: posts with no/invalid date produce NaN, and a comparator that
+    // returns NaN corrupts the whole sort order (burying valid recent posts).
     return posts.sort((a, b) => {
-      const dateA = new Date(a.publishedAt || a.createdAt);
-      const dateB = new Date(b.publishedAt || b.createdAt);
-      return dateB - dateA;
+      const timeA = new Date(a.publishedAt || a.createdAt || 0).getTime() || 0;
+      const timeB = new Date(b.publishedAt || b.createdAt || 0).getTime() || 0;
+      return timeB - timeA;
     });
   }, [postsData, storiesData, reelsData, carouselsData, activeCategory, feedType, currentCity]);
 
