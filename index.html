@@ -2,7 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    
+
+    <!-- Capture the once-only install event before React mounts, so the
+         install prompt is never missed due to component timing. -->
+    <script>
+      window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        window.deferredInstallPrompt = event;
+        window.dispatchEvent(new CustomEvent('pwa-install-available'));
+      });
+      window.addEventListener('appinstalled', function () {
+        window.deferredInstallPrompt = null;
+      });
+    </script>
+
     <!-- Favicon and App Icons -->
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />

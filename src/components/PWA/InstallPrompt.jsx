@@ -37,13 +37,21 @@ const InstallPrompt = () => {
 
     const handleBeforeInstallPrompt = (event) => {
       event.preventDefault();
+      window.deferredInstallPrompt = event;
       setDeferredPrompt(event);
       if (!dismissedRecently) setShowInstallPrompt(true);
     };
 
     const handleInstallAvailable = () => {
+      if (window.deferredInstallPrompt) setDeferredPrompt(window.deferredInstallPrompt);
       if (!dismissedRecently && isSecureContext) setShowInstallPrompt(true);
     };
+
+    // The index.html script may have captured the event before this mounted.
+    if (window.deferredInstallPrompt) {
+      setDeferredPrompt(window.deferredInstallPrompt);
+      if (!dismissedRecently) setShowInstallPrompt(true);
+    }
 
     const handleUpdateAvailable = (event) => {
       setUpdateRegistration(event.detail?.registration || null);
@@ -67,9 +75,11 @@ const InstallPrompt = () => {
   }, []);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
+    const promptEvent = deferredPrompt || window.deferredInstallPrompt;
+    if (!promptEvent) return;
+    promptEvent.prompt();
+    await promptEvent.userChoice;
+    window.deferredInstallPrompt = null;
     setDeferredPrompt(null);
     setShowInstallPrompt(false);
   };
