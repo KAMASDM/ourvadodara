@@ -891,9 +891,20 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
     }
   }
 
+  // Human-friendly category label, e.g. "local-news" -> "Local News"
+  const categoryLabel = category
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase()) || 'News';
+
   // Build notification payload
   const notificationTitle = post.isBreaking ? `Breaking News: ${title}` : title;
-  
+
+  // Everything the web service worker needs to render a rich notification is
+  // duplicated into `data` (FCM data values must be strings). The web SW
+  // overrides FCM auto-display, so it renders from these fields; the
+  // `notification` block below remains for any native/mobile consumer.
   const payload = {
     notification: {
       title: notificationTitle,
@@ -904,7 +915,12 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
       postId: String(postId),
       type: 'news',
       category: category,
+      categoryLabel: categoryLabel,
       cityId: cityId || '',
+      title: notificationTitle,
+      body: body,
+      image: imageUrl || '',
+      isBreaking: post.isBreaking ? 'true' : 'false',
       url: `/?post=${postId}`,
       timestamp: new Date().toISOString(),
       click_action: 'FLUTTER_NOTIFICATION_CLICK'
@@ -1104,8 +1120,14 @@ exports.sendBreakingNewsNotification = functions.database
       },
       data: {
         newsId: String(newsId),
+        postId: String(newsId),
         type: 'breaking',
         category: String(news.category || 'breaking'),
+        categoryLabel: 'Breaking News',
+        title: title,
+        body: body,
+        image: imageUrl || '',
+        isBreaking: 'true',
         url: `/breaking/${newsId}`,
         priority: 'high'
       },

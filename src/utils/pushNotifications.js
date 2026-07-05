@@ -148,53 +148,77 @@ class PushNotificationService {
 
     onMessage(fcmMessaging, (payload) => {
       console.log('Foreground message received:', payload);
-
-      const { notification, data } = payload;
-
-      // Show custom notification
-      this.showCustomNotification({
-        title: notification?.title || 'Our Vadodara',
-        body: notification?.body || 'New update available',
-        icon: notification?.icon || '/icons/icon-192x192.png',
-        badge: notification?.badge || '/icons/icon-72x72.png',
-        data: data || {}
-      });
+      this.showRichNotification(payload);
     });
   }
 
-  showCustomNotification({ title, body, icon, badge, data }) {
-    if (!('Notification' in window)) return;
+  // Render a notification that matches the background service-worker card:
+  // hero image, category/breaking label, clean (HTML-stripped) body.
+  async showRichNotification(payload) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
-    if (Notification.permission === 'granted') {
-      const notification = new Notification(title, {
-        body,
-        icon,
-        badge,
-        tag: data.tag || 'our-vadodara-notification',
-        renotify: true,
-        vibrate: [200, 100, 200],
-        data
-      });
+    const data = payload.data || {};
+    const notification = payload.notification || {};
 
-      notification.onclick = () => {
-        window.focus();
-        
-        // Handle notification click based on data
-        if (data.url) {
-          window.location.href = data.url;
-        } else if (data.postId) {
-          // Navigate to specific post
-          window.location.href = `/?post=${data.postId}`;
-        }
-        
-        notification.close();
-      };
+    const strip = (value) => String(value || '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&#39;/gi, "'")
+      .replace(/&quot;/gi, '"')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-      // Auto close after 5 seconds
-      setTimeout(() => {
-        notification.close();
-      }, 5000);
+    const isBreaking = data.isBreaking === 'true';
+    const title = strip(data.title || notification.title || 'Our Vadodara');
+    const rawBody = strip(data.body || notification.body || '');
+    const categoryLabel = strip(data.categoryLabel || data.category || '');
+    const label = isBreaking ? '🔴 BREAKING' : categoryLabel.toUpperCase();
+    const bodyText = rawBody || 'Tap to read the full story.';
+    const body = label ? `${label}  •  ${bodyText}` : bodyText;
+    const image = data.image || notification.image || '';
+
+    const options = {
+      body,
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-72x72.png',
+      tag: `news-${data.postId || Date.now()}`,
+      renotify: true,
+      requireInteraction: isBreaking,
+      vibrate: isBreaking ? [200, 100, 200, 100, 200] : [200, 100, 200],
+      data: {
+        url: data.url || (data.postId ? `/post/${data.postId}` : '/'),
+        postId: data.postId || '',
+        type: data.type || 'news'
+      },
+      actions: [
+        { action: 'view', title: 'Read Now' },
+        { action: 'dismiss', title: 'Dismiss' }
+      ]
+    };
+    if (image) options.image = image;
+
+    // The Notification constructor cannot render images or actions, so prefer
+    // the service-worker registration which can.
+    try {
+      const registration = await navigator.serviceWorker?.getRegistration();
+      if (registration) {
+        await registration.showNotification(title, options);
+        return;
+      }
+    } catch (error) {
+      console.warn('SW notification failed, falling back to Notification():', error);
     }
+
+    const fallback = new Notification(title, { body, icon: options.icon, badge: options.badge, data: options.data });
+    fallback.onclick = () => {
+      window.focus();
+      window.location.href = options.data.url;
+      fallback.close();
+    };
+    setTimeout(() => fallback.close(), 6000);
   }
 
   async sendNotification(notification) {

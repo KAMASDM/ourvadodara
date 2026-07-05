@@ -73,30 +73,71 @@ const vapidKey = ${JSON.stringify(vapidKey)};
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage((payload) => {
-  const { notification, data = {} } = payload;
+// Strip any HTML/entities so rich-text article bodies never render as tags.
+function stripTags(value) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/\\s+/g, ' ')
+    .trim();
+}
 
-  const notificationTitle = notification?.title || 'Our Vadodara';
-  const notificationOptions = {
-    body: notification?.body || 'New update available',
-    icon: notification?.icon || '/icons/icon-192x192.png',
+// Build a rich, branded notification from the FCM payload.
+function buildNotification(payload) {
+  const data = payload.data || {};
+  const notification = payload.notification || {};
+
+  const isBreaking = data.isBreaking === 'true';
+  const title = stripTags(data.title || notification.title || 'Our Vadodara');
+  const rawBody = stripTags(data.body || notification.body || '');
+  const categoryLabel = stripTags(data.categoryLabel || data.category || '');
+
+  // Lead the body with a context label so the card reads like a news alert.
+  const label = isBreaking
+    ? '🔴 BREAKING'
+    : (categoryLabel ? categoryLabel.toUpperCase() : '');
+  const bodyText = rawBody || 'Tap to read the full story.';
+  const body = label ? label + '  •  ' + bodyText : bodyText;
+
+  const image = data.image || notification.image || '';
+
+  const options = {
+    body,
+    icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-72x72.png',
-    tag: data.tag || data.postId || 'our-vadodara-notification',
+    tag: data.tag || ('news-' + (data.postId || Date.now())),
     renotify: true,
-    vibrate: [200, 100, 200],
+    requireInteraction: isBreaking,
+    vibrate: isBreaking ? [200, 100, 200, 100, 200] : [200, 100, 200],
+    timestamp: Date.now(),
     data: {
-      url: data.url || '/',
+      url: data.url || (data.postId ? '/post/' + data.postId : '/'),
       postId: data.postId || '',
-      type: data.type || '',
+      type: data.type || 'news',
       timestamp: Date.now(),
     },
     actions: [
-      { action: 'view', title: 'View', icon: '/icons/view.png' },
-      { action: 'dismiss', title: 'Dismiss', icon: '/icons/dismiss.png' },
+      { action: 'view', title: 'Read Now' },
+      { action: 'dismiss', title: 'Dismiss' },
     ],
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  // The large hero image (supported on Chrome/Android; ignored elsewhere).
+  if (image) {
+    options.image = image;
+  }
+
+  return { title, options };
+}
+
+messaging.onBackgroundMessage((payload) => {
+  const { title, options } = buildNotification(payload);
+  self.registration.showNotification(title, options);
 });
 
 self.addEventListener('notificationclick', (event) => {
