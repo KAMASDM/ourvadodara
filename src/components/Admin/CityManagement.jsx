@@ -31,6 +31,7 @@ const CityManagement = () => {
   const [editingCity, setEditingCity] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [nameError, setNameError] = useState(null);
   
   const [formData, setFormData] = useState({
     id: '',
@@ -155,8 +156,9 @@ const CityManagement = () => {
   };
 
   const handleSaveCity = async () => {
+    setNameError(null);
     if (!formData.name.trim()) {
-      alert('City name is required');
+      setNameError('City name is required');
       return;
     }
 
@@ -166,7 +168,7 @@ const CityManagement = () => {
       
       // Check if city ID already exists (only for new cities)
       if (!editingCity && cities.some(c => c.id === cityId)) {
-        alert('A city with this name already exists');
+        setNameError('A city with this name already exists');
         setSaving(false);
         return;
       }
@@ -287,11 +289,21 @@ const CityManagement = () => {
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => {
+                  setNameError(null);
+                  setFormData({ ...formData, name: e.target.value });
+                }}
                 placeholder="Enter city name in English"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`w-full px-4 py-2 border bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:border-transparent ${
+                  nameError
+                    ? 'border-red-500 ring-1 ring-red-300 focus:ring-red-400'
+                    : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500'
+                }`}
                 disabled={editingCity} // Can't change name once created
               />
+              {nameError && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">{nameError}</p>
+              )}
               {editingCity && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   City ID: <code className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">{formData.id}</code> (Cannot be changed)

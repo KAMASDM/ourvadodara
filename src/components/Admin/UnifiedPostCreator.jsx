@@ -919,11 +919,18 @@ const UnifiedPostCreator = () => {
         <input
           type="text"
           value={formData.title[activeLanguage]}
-          onChange={(e) => setFormData(prev => ({
-            ...prev,
-            title: { ...prev.title, [activeLanguage]: e.target.value }
-          }))}
-          className="w-full px-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+          onChange={(e) => {
+            setErrors(prev => ({ ...prev, title: null }));
+            setFormData(prev => ({
+              ...prev,
+              title: { ...prev.title, [activeLanguage]: e.target.value }
+            }));
+          }}
+          className={`w-full px-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border rounded-lg text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:border-transparent transition ${
+            errors.title
+              ? 'border-red-500 ring-1 ring-red-300 focus:ring-red-400'
+              : 'border-neutral-300 dark:border-neutral-600 focus:ring-primary-500'
+          }`}
           placeholder={`Enter title in ${languageLabels[activeLanguage]}`}
         />
         <div className="flex items-center justify-between mt-1">
@@ -941,13 +948,20 @@ const UnifiedPostCreator = () => {
             Content — {languageLabels[activeLanguage]}
             <span className="text-danger ml-1">*</span>
           </label>
-          <div className="rounded-lg overflow-hidden border border-neutral-300 dark:border-neutral-600 focus-within:ring-2 focus-within:ring-primary-500">
+          <div className={`rounded-lg overflow-hidden border focus-within:ring-2 ${
+            errors.content
+              ? 'border-red-500 ring-1 ring-red-300 focus-within:ring-red-400'
+              : 'border-neutral-300 dark:border-neutral-600 focus-within:ring-primary-500'
+          }`}>
             <RichTextEditor
               content={formData.content[activeLanguage]}
-              onChange={(html) => setFormData(prev => ({
-                ...prev,
-                content: { ...prev.content, [activeLanguage]: html }
-              }))}
+              onChange={(html) => {
+                setErrors(prev => ({ ...prev, content: null }));
+                setFormData(prev => ({
+                  ...prev,
+                  content: { ...prev.content, [activeLanguage]: html }
+                }));
+              }}
               placeholder={`Enter content in ${languageLabels[activeLanguage]}`}
               minHeight="300px"
             />
@@ -983,8 +997,15 @@ const UnifiedPostCreator = () => {
           </label>
           <select
             value={formData.category}
-            onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value, subcategory: '' }))}
-            className="w-full px-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+            onChange={(e) => {
+              setErrors(prev => ({ ...prev, category: null }));
+              setFormData(prev => ({ ...prev, category: e.target.value, subcategory: '' }));
+            }}
+            className={`w-full px-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:border-transparent transition ${
+              errors.category
+                ? 'border-red-500 ring-1 ring-red-300 focus:ring-red-400'
+                : 'border-neutral-300 dark:border-neutral-600 focus:ring-primary-500'
+            }`}
           >
             <option value="">Select Category</option>
             {Object.keys(categoryData).map(cat => (
@@ -1022,7 +1043,9 @@ const UnifiedPostCreator = () => {
             {validSelectedCities.length}/{availableCities.length || 0}
           </span>
         </div>
-        <div className="p-4 bg-neutral-50 dark:bg-neutral-700/40 rounded-xl border border-neutral-200 dark:border-neutral-600 space-y-3">
+        <div className={`p-4 bg-neutral-50 dark:bg-neutral-700/40 rounded-xl border space-y-3 ${
+          citySelectionError ? 'border-red-500 ring-1 ring-red-300' : 'border-neutral-200 dark:border-neutral-600'
+        }`}>
           {availableCities.length > 0 ? (
             <>
               <div className="flex flex-wrap gap-2">
@@ -1143,7 +1166,7 @@ const UnifiedPostCreator = () => {
               { key: 'isUrgent', label: 'Urgent', color: 'accent' },
               { key: 'isFeatured', label: 'Featured', color: 'primary' },
             ].map(({ key, label, color }) => (
-              <label key={key} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg border-2 cursor-pointer transition select-none ${
+              <label key={key} className={`relative flex items-center gap-2 px-3.5 py-2 rounded-lg border-2 cursor-pointer transition select-none ${
                 formData[key]
                   ? color === 'danger' ? 'border-danger bg-red-50 dark:bg-red-900/20 text-danger'
                     : color === 'accent' ? 'border-accent-500 bg-orange-50 dark:bg-orange-900/20 text-accent-600 dark:text-accent-400'
@@ -1182,8 +1205,15 @@ const UnifiedPostCreator = () => {
                   type="date"
                   value={formData.publishDate}
                   min={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => setFormData(prev => ({ ...prev, publishDate: e.target.value }))}
-                  className="w-full pl-9 pr-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                  onChange={(e) => {
+                    setErrors(prev => ({ ...prev, schedule: null }));
+                    setFormData(prev => ({ ...prev, publishDate: e.target.value }));
+                  }}
+                  className={`w-full pl-9 pr-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:border-transparent transition ${
+                    errors.schedule
+                      ? 'border-red-500 ring-1 ring-red-300 focus:ring-red-400'
+                      : 'border-neutral-300 dark:border-neutral-600 focus:ring-primary-500'
+                  }`}
                 />
               </div>
             </div>
@@ -1196,8 +1226,15 @@ const UnifiedPostCreator = () => {
                 <input
                   type="time"
                   value={formData.scheduledTime}
-                  onChange={(e) => setFormData(prev => ({ ...prev, scheduledTime: e.target.value }))}
-                  className="w-full pl-9 pr-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                  onChange={(e) => {
+                    setErrors(prev => ({ ...prev, schedule: null }));
+                    setFormData(prev => ({ ...prev, scheduledTime: e.target.value }));
+                  }}
+                  className={`w-full pl-9 pr-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-700 border rounded-lg text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:border-transparent transition ${
+                    errors.schedule
+                      ? 'border-red-500 ring-1 ring-red-300 focus:ring-red-400'
+                      : 'border-neutral-300 dark:border-neutral-600 focus:ring-primary-500'
+                  }`}
                 />
               </div>
             </div>
@@ -1224,7 +1261,9 @@ const UnifiedPostCreator = () => {
 
       {/* Drop zone */}
       <div
-        className="relative flex flex-col items-center justify-center gap-3 p-8 mb-4 rounded-xl border-2 border-dashed border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-700/30 hover:border-primary-400 dark:hover:border-primary-500 transition-colors cursor-pointer group"
+        className={`relative flex flex-col items-center justify-center gap-3 p-8 mb-4 rounded-xl border-2 border-dashed bg-neutral-50 dark:bg-neutral-700/30 hover:border-primary-400 dark:hover:border-primary-500 transition-colors cursor-pointer group ${
+          errors.media ? 'border-red-500 ring-1 ring-red-300' : 'border-neutral-300 dark:border-neutral-600'
+        }`}
         onClick={() => multipleImageInputRef.current?.click()}
       >
         <div className="w-12 h-12 rounded-full bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30 transition-colors">
@@ -1438,7 +1477,7 @@ const UnifiedPostCreator = () => {
                 { key: 'allowDuet', label: 'Allow Duet' },
                 { key: 'allowComments', label: 'Allow Comments' },
               ].map(({ key, label }) => (
-                <label key={key} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg border-2 cursor-pointer transition select-none ${
+                <label key={key} className={`relative flex items-center gap-2 px-3.5 py-2 rounded-lg border-2 cursor-pointer transition select-none ${
                   formData.reelSettings[key]
                     ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
                     : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400'
@@ -1463,7 +1502,7 @@ const UnifiedPostCreator = () => {
                 { key: 'showIndicators', label: 'Show Indicators', obj: 'carouselSettings' },
                 { key: 'showArrows', label: 'Show Arrows', obj: 'carouselSettings' },
               ].map(({ key, label }) => (
-                <label key={key} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg border-2 cursor-pointer transition select-none ${
+                <label key={key} className={`relative flex items-center gap-2 px-3.5 py-2 rounded-lg border-2 cursor-pointer transition select-none ${
                   formData.carouselSettings[key]
                     ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
                     : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400'

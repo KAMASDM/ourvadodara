@@ -105,7 +105,7 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
   const ActiveCategoryIcon = activeCategory?.icon || Newspaper;
 
   return (
-    <div className="h-screen overflow-hidden liquid-app-bg">
+    <div className="h-screen overflow-clip liquid-app-bg">
       <div className="flex h-screen min-w-0 flex-col">
         <header className="sticky top-0 z-50 px-4 pt-3">
           <div className="liquid-panel relative z-50 rounded-3xl px-4 py-3" style={{ overflow: 'visible' }}>

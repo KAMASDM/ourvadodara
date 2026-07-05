@@ -362,8 +362,13 @@ const RealTimeContent = () => {
                   <input
                     type="text"
                     value={formData.headline.en}
-                    onChange={(e) => handleMultiLanguageChange('headline', 'en', e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    onChange={(e) => {
+                      setErrors(prev => ({ ...prev, headline: null }));
+                      handleMultiLanguageChange('headline', 'en', e.target.value);
+                    }}
+                    className={`block w-full rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+                      errors.headline ? 'border-red-500 ring-1 ring-red-300' : 'border-gray-300'
+                    }`}
                     placeholder="English headline"
                   />
                   <input
@@ -393,8 +398,13 @@ const RealTimeContent = () => {
                   <textarea
                     rows={3}
                     value={formData.summary.en}
-                    onChange={(e) => handleMultiLanguageChange('summary', 'en', e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    onChange={(e) => {
+                      setErrors(prev => ({ ...prev, summary: null }));
+                      handleMultiLanguageChange('summary', 'en', e.target.value);
+                    }}
+                    className={`block w-full rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+                      errors.summary ? 'border-red-500 ring-1 ring-red-300' : 'border-gray-300'
+                    }`}
                     placeholder="English content"
                   />
                   <textarea

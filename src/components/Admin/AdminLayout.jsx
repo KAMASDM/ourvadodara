@@ -144,7 +144,7 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900 z-50 overflow-hidden">
+    <div className="fixed inset-0 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900 z-50 overflow-clip">
       {/* Mobile Header */}
       {isMobile && (
         <div className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800">
