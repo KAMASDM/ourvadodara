@@ -22,12 +22,13 @@ import {
 import MediaContentEditor from './MediaContentEditor';
 import { MEDIA_TYPE_CONFIG } from './mediaContentConfig';
 import { MEDIA_DATABASE_PATHS } from '../../utils/mediaSchema';
+import { stripHtmlTags } from '../../utils/textUtils';
 
 const getTextContent = (content) => {
   if (!content) return '';
-  if (typeof content === 'string') return content;
+  if (typeof content === 'string') return stripHtmlTags(content);
   if (typeof content === 'object') {
-    return content.gu || content.hi || content.en || Object.values(content)[0] || '';
+    return stripHtmlTags(content.gu || content.hi || content.en || Object.values(content)[0] || '');
   }
   return '';
 };
@@ -343,7 +344,7 @@ const MediaContentManagement = () => {
                 className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between"
               >
                 <div className="flex items-start space-x-4">
-                  <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <div className="w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                     {primaryMedia ? (
                       primaryMedia.type === 'image' ? (
                         <img

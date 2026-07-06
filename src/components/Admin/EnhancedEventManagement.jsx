@@ -333,30 +333,33 @@ const EnhancedEventManagement = () => {
         eventId = eventRef.key;
       }
 
-      // Save promo codes in the structure expected by frontend
+      // Save promo codes in the structure expected by frontend.
+      // RTDB rejects the whole write if any value is undefined, so coalesce.
       if (eventForm.promoCodes && eventForm.promoCodes.length > 0) {
         const promoCodesData = {};
         eventForm.promoCodes.forEach(promo => {
           promoCodesData[promo.code] = {
-            type: promo.type,
-            value: promo.value,
-            maxUses: promo.maxUses,
-            usedCount: promo.usedCount,
-            expiresAt: promo.expiresAt,
-            active: promo.active,
-            description: promo.description,
-            createdAt: promo.createdAt
+            type: promo.type || 'percentage',
+            value: Number(promo.value) || 0,
+            maxUses: Number(promo.maxUses) || 0,
+            usedCount: Number(promo.usedCount) || 0,
+            expiresAt: promo.expiresAt || null,
+            active: promo.active !== false,
+            description: promo.description || '',
+            createdAt: promo.createdAt || new Date().toISOString()
           };
         });
-        
+
         await update(ref(db, `events/${eventId}/promoCodes`), promoCodesData);
       }
 
       resetForm();
       setShowCreateForm(false);
       setEditingEvent(null);
+      alert(`Event ${editingEvent ? 'updated' : 'created'} successfully!`);
     } catch (error) {
       console.error('Error saving event:', error);
+      alert(`Failed to save event: ${error?.message || 'Unknown error'}. Please check all fields and try again.`);
     } finally {
       setLoading(false);
     }

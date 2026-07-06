@@ -4,9 +4,10 @@
 // Lazy avatars, gradient ring, seen/unseen, "Your story" slot.
 // =============================================
 import React, { memo, useCallback, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { getLocalizedText } from '../../utils/textUtils';
+import StoryViewer from './StoryViewer';
 
 const getText = (value) => {
   return getLocalizedText(value, 'gu') || getLocalizedText(value, 'hi') || getLocalizedText(value, 'en');
@@ -106,8 +107,6 @@ const EnhancedStorySection = memo(function EnhancedStorySection({
   }, [storiesData]);
 
   const displayStories = stories.length > 0 ? stories : firebaseStories;
-  const selectedStory = selectedIndex !== null ? displayStories[selectedIndex] : null;
-  const selectedMedia = selectedStory ? getStoryMedia(selectedStory) : null;
 
   const handleOpen = useCallback((id) => {
     const storyIndex = displayStories.findIndex(story => story.id === id);
@@ -120,15 +119,6 @@ const EnhancedStorySection = memo(function EnhancedStorySection({
 
   const handleCreate = onCreate || onStoryCreate;
 
-  const goToStory = (direction) => {
-    setSelectedIndex((currentIndex) => {
-      if (currentIndex === null) return null;
-      const nextIndex = currentIndex + direction;
-      if (nextIndex < 0 || nextIndex >= displayStories.length) return currentIndex;
-      return nextIndex;
-    });
-  };
-
   if (!displayStories.length && !handleCreate) return null;
 
   return (
@@ -140,78 +130,12 @@ const EnhancedStorySection = memo(function EnhancedStorySection({
         ))}
       </div>
 
-      {selectedStory && (
-        <div className="fixed inset-0 z-[70] bg-black text-white">
-          <button
-            type="button"
-            onClick={() => setSelectedIndex(null)}
-            className="absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] z-20 grid h-10 w-10 place-items-center rounded-full bg-black/40 text-white backdrop-blur"
-            aria-label="Close story"
-          >
-            <X className="h-5 w-5" />
-          </button>
-
-          <div className="absolute left-4 top-[calc(env(safe-area-inset-top)+1rem)] z-20 flex items-center gap-3">
-            <img
-              src={selectedStory.avatar}
-              alt=""
-              className="h-10 w-10 rounded-full border border-white/40 object-cover"
-            />
-            <div>
-              <p className="text-sm font-semibold">{selectedStory.name}</p>
-              {selectedStory.category && <p className="text-xs text-white/70">{selectedStory.category}</p>}
-            </div>
-          </div>
-
-          <div className="flex h-full w-full items-center justify-center">
-            {selectedMedia?.type === 'video' ? (
-              <video
-                src={selectedMedia.url}
-                poster={selectedMedia.thumbnailUrl}
-                className="h-full w-full object-contain"
-                controls
-                autoPlay
-                playsInline
-              />
-            ) : (
-              <img
-                src={selectedMedia?.url || selectedStory.avatar}
-                alt={selectedStory.name}
-                className="h-full w-full object-contain"
-              />
-            )}
-          </div>
-
-          {(getText(selectedStory.title) || getText(selectedStory.excerpt)) && (
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/60 to-transparent px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-20">
-              <h2 className="text-lg font-bold">{getText(selectedStory.title)}</h2>
-              {getText(selectedStory.excerpt) && (
-                <p className="mt-1 line-clamp-3 text-sm text-white/80">{getText(selectedStory.excerpt)}</p>
-              )}
-            </div>
-          )}
-
-          {selectedIndex > 0 && (
-            <button
-              type="button"
-              onClick={() => goToStory(-1)}
-              className="absolute left-3 top-1/2 z-20 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/35 backdrop-blur"
-              aria-label="Previous story"
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </button>
-          )}
-          {selectedIndex < displayStories.length - 1 && (
-            <button
-              type="button"
-              onClick={() => goToStory(1)}
-              className="absolute right-3 top-1/2 z-20 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/35 backdrop-blur"
-              aria-label="Next story"
-            >
-              <ChevronRight className="h-6 w-6" />
-            </button>
-          )}
-        </div>
+      {selectedIndex !== null && (
+        <StoryViewer
+          stories={displayStories}
+          startIndex={selectedIndex}
+          onClose={() => setSelectedIndex(null)}
+        />
       )}
     </section>
   );

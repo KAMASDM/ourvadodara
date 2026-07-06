@@ -154,10 +154,10 @@ const Analytics = () => {
       
       // Calculate engagement rates
       const engagementRate = currentTotals.views > 0 
-        ? ((currentTotals.likes + currentComments + currentTotals.shares) / currentTotals.views * 100).toFixed(1)
+        ? Math.min(100, (currentTotals.likes + currentComments + currentTotals.shares) / currentTotals.views * 100).toFixed(1)
         : 0;
       const previousEngagementRate = previousTotals.views > 0
-        ? ((previousTotals.likes + previousComments + previousTotals.shares) / previousTotals.views * 100).toFixed(1)
+        ? Math.min(100, (previousTotals.likes + previousComments + previousTotals.shares) / previousTotals.views * 100).toFixed(1)
         : 0;
       
       // Generate time series data for charts

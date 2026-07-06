@@ -102,7 +102,7 @@ const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
   const currentImage = images[currentIndex];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 bg-black bg-opacity-90 z-[100] flex items-center justify-center">
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-black bg-opacity-50 p-4">
         <div className="flex items-center justify-between text-white">

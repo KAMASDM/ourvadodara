@@ -284,12 +284,13 @@ function AppContent() {
   // --- LAYOUT FIX START ---
   // Define which views should take up the full screen width
   const isFullWidthView = [
-    'admin', 
+    'admin',
     'marketing',
-    'firebase-setup', 
+    'firebase-setup',
     'admin-upgrade',
     'qr-scanner',
-    'advertise'
+    'advertise',
+    'reels' // immersive full-screen; ReelsPage has its own back control
   ].includes(currentView.type);
   const hasMobileHeader = !isDesktop && currentView.type !== 'news-detail' && !isFullWidthView;
 
