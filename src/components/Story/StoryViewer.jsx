@@ -48,8 +48,6 @@ const StoryViewer = ({ stories, startIndex = 0, onClose }) => {
   const [expanded, setExpanded] = useState(false);
 
   const videoRef = useRef(null);
-  const rafRef = useRef(null);
-  const startRef = useRef(0);
   const elapsedRef = useRef(0);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -115,28 +113,44 @@ const StoryViewer = ({ stories, startIndex = 0, onClose }) => {
     }
   }, [mediaIndex, storyIndex, stories, goToStory]);
 
-  // --- Timer / progress driver for images (videos drive their own progress) ---
+  // Keep the latest goNext in a ref so the timer never carries a stale closure
+  // and doesn't need to re-run every time goNext is recreated.
+  const goNextRef = useRef(goNext);
+  goNextRef.current = goNext;
+
+  const isVideo = media?.type === 'video';
+
+  // Reset the accumulated time whenever the segment changes.
   useEffect(() => {
-    if (!media || media.type === 'video') return undefined;
-    if (paused) return undefined;
+    elapsedRef.current = 0;
+    setProgress(0);
+  }, [storyIndex, mediaIndex]);
+
+  // --- Timer / progress driver for images (videos drive their own progress).
+  // Restarts cleanly per segment; on pause it stops and resumes from the
+  // accumulated elapsed time so it can never get stuck. ---
+  useEffect(() => {
+    if (!media || isVideo || paused) return undefined;
 
     const durationMs = durationSec * 1000;
-    startRef.current = Date.now() - elapsedRef.current;
+    let raf;
+    const segmentStart = performance.now() - elapsedRef.current;
 
-    const tick = () => {
-      const elapsed = Date.now() - startRef.current;
+    const loop = (now) => {
+      const elapsed = now - segmentStart;
       elapsedRef.current = elapsed;
       const pct = Math.min(100, (elapsed / durationMs) * 100);
       setProgress(pct);
       if (pct >= 100) {
-        goNext();
+        elapsedRef.current = 0;
+        goNextRef.current();
         return;
       }
-      rafRef.current = requestAnimationFrame(tick);
+      raf = requestAnimationFrame(loop);
     };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [media, paused, durationSec, goNext, storyIndex, mediaIndex]);
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [storyIndex, mediaIndex, paused, durationSec, isVideo, media]);
 
   // Pause/resume the video with the shared paused state.
   useEffect(() => {
@@ -157,29 +171,49 @@ const StoryViewer = ({ stories, startIndex = 0, onClose }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, [goNext, goPrev, requestClose]);
 
-  // --- Press-and-hold to pause, quick tap to navigate ---
-  const pressTimer = useRef(null);
-  const didHold = useRef(false);
+  // Preload the next story's first image so transitions feel seamless.
+  useEffect(() => {
+    const nextStory = stories[storyIndex + 1];
+    if (!nextStory) return;
+    const nextItems = getStoryMediaItems(nextStory);
+    const first = nextItems[0];
+    if (first && first.type !== 'video' && first.url) {
+      const img = new Image();
+      img.src = first.url;
+    }
+  }, [storyIndex, stories]);
+
+  // --- Pause on press, resume on release; a quick tap navigates. Pausing on
+  // every pointer-down (rather than after a hold delay) is simpler and can't
+  // strand the story paused; a global listener guarantees resume even if the
+  // element's own pointerup is missed on mobile. ---
+  const downTime = useRef(0);
+
+  useEffect(() => {
+    const resume = () => setPaused(false);
+    window.addEventListener('pointerup', resume);
+    window.addEventListener('pointercancel', resume);
+    return () => {
+      window.removeEventListener('pointerup', resume);
+      window.removeEventListener('pointercancel', resume);
+    };
+  }, []);
 
   const handlePointerDown = () => {
-    didHold.current = false;
-    pressTimer.current = setTimeout(() => {
-      didHold.current = true;
-      setPaused(true);
-    }, 220);
+    downTime.current = Date.now();
+    setPaused(true);
   };
 
   const handlePointerUp = (e) => {
-    clearTimeout(pressTimer.current);
-    if (didHold.current) {
-      setPaused(false);
-      return;
+    setPaused(false);
+    const held = Date.now() - downTime.current;
+    if (held < 250) {
+      // Quick tap: left third = previous, otherwise next.
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = (e.clientX ?? rect.left + rect.width / 2) - rect.left;
+      if (x < rect.width * 0.32) goPrev();
+      else goNext();
     }
-    // Quick tap: left third = previous, otherwise next.
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = (e.clientX ?? rect.left + rect.width / 2) - rect.left;
-    if (x < rect.width * 0.32) goPrev();
-    else goNext();
   };
 
   if (!story) return null;
@@ -191,7 +225,7 @@ const StoryViewer = ({ stories, startIndex = 0, onClose }) => {
         {mediaItems.map((_, i) => (
           <div key={i} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/30">
             <div
-              className="h-full rounded-full bg-white transition-[width] duration-75 ease-linear"
+              className="h-full rounded-full bg-white"
               style={{ width: `${i < mediaIndex ? 100 : i === mediaIndex ? progress : 0}%` }}
             />
           </div>
@@ -227,7 +261,6 @@ const StoryViewer = ({ stories, startIndex = 0, onClose }) => {
         style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
-        onPointerLeave={() => { clearTimeout(pressTimer.current); if (didHold.current) setPaused(false); }}
         onContextMenu={(e) => e.preventDefault()}
         onDragStart={(e) => e.preventDefault()}
       >
