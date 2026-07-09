@@ -116,6 +116,28 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
     }
   }, [event, registrationData.selectedTickets, registrationData.discount]);
 
+  // Keep one attendee form per booked ticket (min 1), preserving entered data.
+  useEffect(() => {
+    const total = Object.values(registrationData.selectedTickets).reduce((sum, qty) => sum + qty, 0);
+    const target = Math.max(1, total);
+    setRegistrationData(prev => {
+      if (prev.attendees.length === target) return prev;
+      let attendees = prev.attendees;
+      if (attendees.length < target) {
+        const toAdd = target - attendees.length;
+        attendees = [
+          ...attendees,
+          ...Array.from({ length: toAdd }, (_, i) => ({
+            id: Date.now() + i, name: '', email: '', phone: '', age: '', dietary: ''
+          }))
+        ];
+      } else {
+        attendees = attendees.slice(0, target);
+      }
+      return { ...prev, attendees };
+    });
+  }, [registrationData.selectedTickets]);
+
   const updateTicketQuantity = (ticketTypeId, change) => {
     if (!event || getTicketTypes(event).length === 0) {
       setError('Event ticket information is not available');
@@ -124,15 +146,26 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
 
     const currentQuantity = registrationData.selectedTickets[ticketTypeId] || 0;
     const newQuantity = Math.max(0, currentQuantity + change);
-    
+
     const ticketType = getTicketTypes(event).find(t => t.id.toString() === ticketTypeId.toString());
     if (!ticketType) {
       setError('Ticket type not found');
       return;
     }
-    
+
     if (newQuantity > ticketType.availableSeats) {
       setError(`Only ${ticketType.availableSeats} tickets available for ${ticketType.name}`);
+      return;
+    }
+
+    // Cap total tickets per transaction to prevent hoarding (organizer can set
+    // maxTicketsPerUser; otherwise default to 10).
+    const maxPerUser = Number(event.maxTicketsPerUser) > 0 ? Number(event.maxTicketsPerUser) : 10;
+    const otherTicketsTotal = Object.entries(registrationData.selectedTickets)
+      .filter(([id]) => id !== ticketTypeId.toString())
+      .reduce((sum, [, qty]) => sum + qty, 0);
+    if (otherTicketsTotal + newQuantity > maxPerUser) {
+      setError(`You can book a maximum of ${maxPerUser} tickets per order`);
       return;
     }
 
@@ -181,22 +214,32 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
     if (!registrationData.promoCode) return;
 
     try {
-      // In a real app, you'd validate promo codes against a database
-      const promoCodesRef = ref(db, `events/${eventId}/promoCodes/${registrationData.promoCode}`);
+      // Promo codes are stored keyed by the uppercased code, so normalize.
+      const code = registrationData.promoCode.trim().toUpperCase();
+      const promoCodesRef = ref(db, `events/${eventId}/promoCodes/${code}`);
       const snapshot = await get(promoCodesRef);
-      
+
       if (snapshot.exists()) {
         const promoData = snapshot.val();
-        if (promoData.active && new Date(promoData.expiresAt) > new Date()) {
-          const discount = promoData.type === 'percentage' 
-            ? (registrationData.totalAmount * promoData.value) / 100
-            : promoData.value;
-          
+        // A blank/missing expiresAt means "no expiry" — do not treat it as
+        // expired (new Date('') is Invalid Date, which broke this before).
+        const notExpired = !promoData.expiresAt || new Date(promoData.expiresAt) > new Date();
+        const isActive = promoData.active !== false;
+        const underLimit = !promoData.maxUses || Number(promoData.maxUses) === 0
+          || Number(promoData.usedCount || 0) < Number(promoData.maxUses);
+
+        if (isActive && notExpired && underLimit) {
+          const discount = promoData.type === 'percentage'
+            ? (registrationData.totalAmount * Number(promoData.value)) / 100
+            : Number(promoData.value);
+
           setRegistrationData(prev => ({
             ...prev,
             discount: Math.min(discount, prev.totalAmount)
           }));
           setError('');
+        } else if (!underLimit) {
+          setError('Promo code usage limit reached');
         } else {
           setError('Promo code is expired or inactive');
         }
@@ -244,12 +287,24 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
         throw new Error('Please sign in before registering for this event');
       }
 
+      if (Object.values(registrationData.selectedTickets).every(qty => qty === 0)) {
+        throw new Error('Please select at least one ticket');
+      }
+
+      // One attendee must be filled per ticket booked.
+      const ticketCount = Object.values(registrationData.selectedTickets).reduce((s, q) => s + q, 0);
+      if (registrationData.attendees.length < ticketCount) {
+        throw new Error(`Please provide attendee details for all ${ticketCount} tickets`);
+      }
+
       if (registrationData.attendees.some(a => !a.name || !a.email)) {
         throw new Error('Please fill in all required attendee information');
       }
 
-      if (Object.values(registrationData.selectedTickets).every(qty => qty === 0)) {
-        throw new Error('Please select at least one ticket');
+      // Contact number is mandatory and must be a valid 10-digit number.
+      const invalidPhone = registrationData.attendees.find(a => !/^\d{10}$/.test(String(a.phone || '')));
+      if (invalidPhone) {
+        throw new Error('Please enter a valid 10-digit phone number for every attendee');
       }
 
       if (!registrationData.agreeTerms) {
@@ -717,12 +772,15 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Phone Number
+                        Phone Number <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="tel"
+                        inputMode="numeric"
                         value={attendee.phone}
-                        onChange={(e) => updateAttendee(attendee.id, 'phone', e.target.value)}
+                        onChange={(e) => updateAttendee(attendee.id, 'phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        placeholder="10-digit mobile number"
+                        maxLength={10}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/80 dark:bg-gray-900/80 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -770,10 +828,12 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
                   </label>
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
                     value={registrationData.emergencyContact.phone}
                     onChange={(e) => setRegistrationData(prev => ({
                       ...prev,
-                      emergencyContact: { ...prev.emergencyContact, phone: e.target.value }
+                      emergencyContact: { ...prev.emergencyContact, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }
                     }))}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/80 dark:bg-gray-900/80 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />

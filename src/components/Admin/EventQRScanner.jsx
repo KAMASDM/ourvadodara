@@ -35,6 +35,8 @@ const EventQRScanner = ({ eventId, onBack }) => {
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const scanLoopRef = useRef(null);
 
   // Monitor online status
   useEffect(() => {
@@ -148,21 +150,60 @@ const EventQRScanner = ({ eventId, onBack }) => {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' }
       });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setIsScanning(true);
-      }
+      // The <video> only renders once isScanning is true, so stash the stream
+      // and let the effect below attach it after the element exists — the old
+      // code attached to a null ref, so the camera ran but never showed.
+      streamRef.current = stream;
+      setIsScanning(true);
     } catch (err) {
       setError('Camera access denied. Please allow camera permissions and try again.');
     }
   };
 
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+  // Attach the stream and start real QR detection once the video is mounted.
+  useEffect(() => {
+    if (!isScanning || !streamRef.current || !videoRef.current) return undefined;
+    const video = videoRef.current;
+    video.srcObject = streamRef.current;
+    video.play().catch(() => {});
+
+    // Use the native BarcodeDetector when available (Chrome/Android) for real
+    // QR scanning; otherwise the manual "Simulate Scan" button is the fallback.
+    let detector = null;
+    if ('BarcodeDetector' in window) {
+      try { detector = new window.BarcodeDetector({ formats: ['qr_code'] }); } catch { detector = null; }
     }
+    if (detector) {
+      const scan = async () => {
+        if (!videoRef.current) return;
+        try {
+          const codes = await detector.detect(videoRef.current);
+          if (codes && codes.length > 0 && codes[0].rawValue) {
+            processQRCode(codes[0].rawValue);
+          }
+        } catch { /* frame not ready */ }
+        scanLoopRef.current = setTimeout(scan, 400);
+      };
+      scanLoopRef.current = setTimeout(scan, 600);
+    }
+    return () => clearTimeout(scanLoopRef.current);
+  }, [isScanning]);
+
+  const stopCamera = () => {
+    clearTimeout(scanLoopRef.current);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
     setIsScanning(false);
   };
+
+  // Stop the camera when the component unmounts.
+  useEffect(() => () => {
+    clearTimeout(scanLoopRef.current);
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+  }, []);
 
   const captureFrame = () => {
     if (!videoRef.current || !canvasRef.current) return;

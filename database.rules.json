@@ -75,6 +75,16 @@
         ".write": "auth != null"
       }
     },
+
+    // FCM push tokens - each user reads/writes only their own token. Without
+    // this rule the client's token write was denied, so push registration
+    // failed silently.
+    "fcmTokens": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
     
     // App settings - public read (frontend may need config), admin write
     "settings": {
