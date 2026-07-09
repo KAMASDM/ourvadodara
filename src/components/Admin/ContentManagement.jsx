@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import EditPost from './EditPost';
 import { adminStyles } from './adminStyles';
+import { stripHtmlTags } from '../../utils/textUtils';
 
 const ContentManagement = () => {
   const { cities } = useCity(); // Use dynamic cities from Firebase
@@ -40,10 +41,10 @@ const ContentManagement = () => {
   // Helper function to extract text from multi-language objects or strings
   const getTextContent = (content) => {
     if (!content) return '';
-    if (typeof content === 'string') return content;
+    if (typeof content === 'string') return stripHtmlTags(content);
     if (typeof content === 'object') {
-      // Return the first available language content
-      return content.en || content.hi || content.gu || Object.values(content)[0] || '';
+      // Return the first available language content, stripped of HTML tags
+      return stripHtmlTags(content.en || content.hi || content.gu || Object.values(content)[0] || '');
     }
     return '';
   };

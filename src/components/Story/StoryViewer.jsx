@@ -218,12 +218,18 @@ const StoryViewer = ({ stories, startIndex = 0, onClose }) => {
         </button>
       </div>
 
-      {/* Media + tap zones */}
+      {/* Media + tap zones. Long-press must pause the story, not trigger the
+          browser's image context menu — so images render as a background-image
+          div (no native image = no "Save/Open image" menu) and we suppress
+          the context menu + selection/callout on the whole area. */}
       <div
-        className="relative flex flex-1 items-center justify-center overflow-hidden"
+        className="relative flex flex-1 items-center justify-center overflow-hidden select-none"
+        style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerLeave={() => { clearTimeout(pressTimer.current); if (didHold.current) setPaused(false); }}
+        onContextMenu={(e) => e.preventDefault()}
+        onDragStart={(e) => e.preventDefault()}
       >
         {media?.type === 'video' ? (
           <video
@@ -231,10 +237,14 @@ const StoryViewer = ({ stories, startIndex = 0, onClose }) => {
             key={`${storyIndex}-${mediaIndex}`}
             src={media.url}
             poster={media.thumbnailUrl}
-            className="h-full w-full object-contain"
+            className="pointer-events-none h-full w-full object-contain"
             autoPlay
             muted
             playsInline
+            controls={false}
+            disablePictureInPicture
+            controlsList="nodownload noplaybackrate"
+            onContextMenu={(e) => e.preventDefault()}
             onTimeUpdate={(e) => {
               const v = e.currentTarget;
               if (v.duration) setProgress(Math.min(100, (v.currentTime / v.duration) * 100));
@@ -242,11 +252,12 @@ const StoryViewer = ({ stories, startIndex = 0, onClose }) => {
             onEnded={goNext}
           />
         ) : (
-          <img
-            src={media?.url || story.avatar}
-            alt={title}
-            className="h-full w-full object-contain"
-            draggable={false}
+          <div
+            key={`${storyIndex}-${mediaIndex}`}
+            className="pointer-events-none h-full w-full bg-contain bg-center bg-no-repeat"
+            style={{ backgroundImage: `url("${media?.url || story.avatar || ''}")` }}
+            role="img"
+            aria-label={title}
           />
         )}
 

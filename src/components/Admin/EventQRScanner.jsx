@@ -50,16 +50,29 @@ const EventQRScanner = ({ eventId, onBack }) => {
     };
   }, []);
 
-  // Load event data
+  // Load event data. The identifier may be a Firebase key (new links) or a
+  // slugified title (older shared links), so resolve both.
   useEffect(() => {
     if (!eventId) return;
 
-    const eventRef = ref(db, `events/${eventId}`);
-    const unsubscribe = onValue(eventRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const eventData = { id: eventId, ...snapshot.val() };
+    const slugify = (value) => String(value || '')
+      .toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').trim();
+    const target = slugify(eventId);
+
+    const eventsRef = ref(db, 'events');
+    const unsubscribe = onValue(eventsRef, (snapshot) => {
+      const all = snapshot.val() || {};
+      // 1) direct key match
+      let matchId = all[eventId] ? eventId : null;
+      // 2) fall back to matching the slugified title
+      if (!matchId) {
+        matchId = Object.keys(all).find((key) => slugify(all[key]?.title) === target) || null;
+      }
+      if (matchId) {
+        const eventData = { id: matchId, ...all[matchId] };
         setSelectedEvent(eventData);
         setScanMode(eventData.multipleQRScansAllowed ? 'entry' : 'checkin');
+        setError(null);
       } else {
         setError('Event not found');
       }

@@ -2,6 +2,7 @@
 // src/components/Media/ImageViewer.jsx
 // =============================================
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ZoomIn, ZoomOut, RotateCw, Download, Share2 } from 'lucide-react';
 
 const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
@@ -101,7 +102,9 @@ const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
 
   const currentImage = images[currentIndex];
 
-  return (
+  // Portal to <body> so no ancestor stacking context can trap the overlay
+  // under the app header (which sits at z-50 within its own context).
+  return createPortal(
     <div className="fixed inset-0 bg-black bg-opacity-90 z-[100] flex items-center justify-center">
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-black bg-opacity-50 p-4">
@@ -233,7 +236,8 @@ const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
         className="absolute inset-0 -z-10"
         onClick={onClose}
       />
-    </div>
+    </div>,
+    document.body
   );
 };
 

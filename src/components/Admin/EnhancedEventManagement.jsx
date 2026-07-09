@@ -444,8 +444,31 @@ const EnhancedEventManagement = () => {
       }));
     }
     
+    // Normalize nested arrays/objects so the form never reads .includes on
+    // undefined (older events may lack venue.facilities, amenities, etc.).
     setEventForm({
       ...event,
+      venue: {
+        name: '', address: '', city: 'Vadodara', state: 'Gujarat', pincode: '',
+        latitude: '', longitude: '', googleMapsUrl: '', capacity: 100,
+        ...(event.venue || {}),
+        facilities: Array.isArray(event.venue?.facilities) ? event.venue.facilities : []
+      },
+      organizer: {
+        name: '', email: '', phone: '', website: '',
+        ...(event.organizer || {})
+      },
+      media: {
+        images: Array.isArray(event.media?.images) ? event.media.images : [],
+        videos: Array.isArray(event.media?.videos) ? event.media.videos : [],
+        thumbnail: event.media?.thumbnail || ''
+      },
+      ticketTypes: Array.isArray(event.ticketTypes) && event.ticketTypes.length
+        ? event.ticketTypes
+        : [{ id: 1, name: 'General', price: 0, totalSeats: 100, availableSeats: 100, benefits: [] }],
+      amenities: Array.isArray(event.amenities) ? event.amenities : [],
+      tags: Array.isArray(event.tags) ? event.tags : [],
+      socialLinks: event.socialLinks || {},
       promoCodes: promoCodes
     });
     setShowCreateForm(true);
@@ -462,14 +485,10 @@ const EnhancedEventManagement = () => {
   };
 
   const generateScannerURL = (event) => {
-    // Generate a clean event name for URL
-    const eventSlug = event.title.toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .trim();
-    
+    // Use the event's Firebase id so the scanner resolves it unambiguously
+    // (a slugified title can collide or fail to resolve).
     const baseUrl = window.location.origin;
-    const scannerUrl = `${baseUrl}/${eventSlug}/scanqr`;
+    const scannerUrl = `${baseUrl}/${event.id}/scanqr`;
     
     // Copy to clipboard
     navigator.clipboard.writeText(scannerUrl).then(() => {
@@ -579,8 +598,8 @@ const EnhancedEventManagement = () => {
   };
 
   const filteredEvents = events.filter(event => {
-    const matchesSearch = event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         event.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = String(event.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         String(event.description || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = filterStatus === 'all' || event.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
@@ -853,7 +872,7 @@ const EnhancedEventManagement = () => {
                   <label key={facility} className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={eventForm.venue.facilities.includes(facility)}
+                      checked={(eventForm.venue?.facilities || []).includes(facility)}
                       onChange={(e) => {
                         if (e.target.checked) {
                           handleInputChange('venue.facilities', [...eventForm.venue.facilities, facility]);
@@ -1245,7 +1264,7 @@ const EnhancedEventManagement = () => {
                 <label key={amenity} className="flex items-center">
                   <input
                     type="checkbox"
-                    checked={eventForm.amenities.includes(amenity)}
+                    checked={(eventForm.amenities || []).includes(amenity)}
                     onChange={(e) => {
                       if (e.target.checked) {
                         handleInputChange('amenities', [...eventForm.amenities, amenity]);
