@@ -17,6 +17,7 @@ const InstagramCarousel = ({
   aspectRatio = '1/1',
   showDots = true,
   enableSwipe = true,
+  enableKeyboard = true,
   onImageChange = null,
   autoPlay = false,
   autoPlayInterval = 3000,
@@ -43,9 +44,20 @@ const InstagramCarousel = ({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
+  // Frame ratio follows the first image so photos aren't letterboxed with
+  // black bars. Clamped to Instagram's range: 4:5 portrait – 1.91:1 landscape.
+  const [naturalRatio, setNaturalRatio] = useState(null);
   const carouselRef = useRef(null);
   const autoPlayRef = useRef(null);
   const isExternalUpdate = useRef(false);
+
+  const handleImageLoad = (event, index) => {
+    if (index !== 0 || naturalRatio) return;
+    const { naturalWidth, naturalHeight } = event.target;
+    if (!naturalWidth || !naturalHeight) return;
+    const clamped = Math.min(Math.max(naturalWidth / naturalHeight, 4 / 5), 1.91);
+    setNaturalRatio(clamped);
+  };
 
   // Minimum swipe distance to trigger slide change
   const minSwipeDistance = 50;
@@ -203,6 +215,7 @@ const InstagramCarousel = ({
 
   // Keyboard navigation
   useEffect(() => {
+    if (!enableKeyboard) return;
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowLeft') {
         goToPrevious();
@@ -213,7 +226,7 @@ const InstagramCarousel = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, imageCount]);
+  }, [currentIndex, imageCount, enableKeyboard]);
 
   // Store onImageChange in a ref to avoid triggering effect when callback reference changes
   const onImageChangeRef = useRef(onImageChange);
@@ -252,10 +265,13 @@ const InstagramCarousel = ({
 
   return (
     <div className={className}>
-      <div 
+      <div
         ref={carouselRef}
-        className="relative overflow-hidden rounded-lg bg-black"
-        style={{ height: '450px' }}
+        className="relative w-full overflow-hidden rounded-lg bg-gray-900"
+        style={{
+          aspectRatio: naturalRatio ? String(naturalRatio) : resolvedAspectRatio,
+          maxHeight: '80vh'
+        }}
       >
         {typeof viewCount === 'number' && viewCount >= 0 && (
           <div className="absolute top-3 left-3 z-20 inline-flex items-center gap-1 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
@@ -296,10 +312,11 @@ const InstagramCarousel = ({
                 <img
                   src={src}
                   alt={altText}
-                  className="w-full h-full object-contain"
-                  style={{ display: 'block', maxWidth: '100%', maxHeight: '100%' }}
+                  className="w-full h-full object-cover"
+                  style={{ display: 'block' }}
                   draggable={false}
                   loading={index === currentIndex ? 'eager' : 'lazy'}
+                  onLoad={(e) => handleImageLoad(e, index)}
                   onError={(e) => {
                     console.error('Image failed to load in carousel:', src);
                     e.target.style.display = 'none';

@@ -7,9 +7,12 @@ import React, { useState, useEffect } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { DATABASE_PATHS } from '../../utils/databaseSchema';
+import { useLanguage } from '../../context/Language/LanguageContext';
+import { getLocalizedText } from '../../utils/textUtils';
 import { AlertTriangle, X, ExternalLink, Clock } from 'lucide-react';
 
-const BreakingNews = () => {
+const BreakingNews = ({ onOpenBreaking }) => {
+  const { currentLanguage } = useLanguage();
   const [breakingNews, setBreakingNews] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
@@ -61,8 +64,9 @@ const BreakingNews = () => {
   const formatTimeAgo = (dateString) => {
     const now = new Date();
     const created = new Date(dateString);
+    if (!dateString || isNaN(created.getTime())) return 'Just now';
     const diffInMinutes = Math.floor((now - created) / (1000 * 60));
-    
+
     if (diffInMinutes < 1) return 'Just now';
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
@@ -72,6 +76,7 @@ const BreakingNews = () => {
   const getPriorityStyle = (priority) => {
     switch (priority) {
       case 'urgent':
+      case 'critical':
         return 'bg-red-600 border-red-700';
       case 'high':
         return 'bg-orange-600 border-orange-700';
@@ -87,44 +92,57 @@ const BreakingNews = () => {
   }
 
   const currentNews = breakingNews[currentIndex];
+  const headlineText =
+    getLocalizedText(currentNews.title, currentLanguage) ||
+    getLocalizedText(currentNews.headline, currentLanguage) ||
+    'Breaking News';
+  const summaryText =
+    getLocalizedText(currentNews.content, currentLanguage) ||
+    getLocalizedText(currentNews.summary, currentLanguage);
+  const externalUrl = currentNews.externalLink || currentNews.sourceUrl;
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-50 ${getPriorityStyle(currentNews.priority)} text-white shadow-lg border-b-2`}>
-      <div className="container mx-auto px-4">
+    <div className={`relative overflow-hidden rounded-2xl ${getPriorityStyle(currentNews.priority)} text-white shadow-lg border`}>
+      <div className="px-4">
         <div className="flex items-center justify-between py-3">
-          <div className="flex items-center space-x-3 flex-1 min-w-0">
+          <div
+            className="flex items-center space-x-3 flex-1 min-w-0 cursor-pointer"
+            onClick={() => onOpenBreaking?.()}
+            role="button"
+            tabIndex={0}
+          >
             {/* Breaking News Label */}
             <div className="flex items-center space-x-2 flex-shrink-0">
               <AlertTriangle className="h-5 w-5 animate-pulse" />
               <span className="font-bold text-sm uppercase tracking-wide">
-                {currentNews.priority === 'urgent' ? 'URGENT' : 'Breaking'}
+                {(currentNews.priority === 'urgent' || currentNews.priority === 'critical') ? 'URGENT' : 'Breaking'}
               </span>
             </div>
-            
+
             {/* News Content */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-4">
                 <h3 className="font-semibold text-sm md:text-base truncate">
-                  {currentNews.headline?.en || 'Breaking News'}
+                  {headlineText}
                 </h3>
-                
-                {currentNews.summary?.en && (
+
+                {summaryText && (
                   <p className="hidden md:block text-sm opacity-90 truncate">
-                    {currentNews.summary.en}
+                    {summaryText}
                   </p>
                 )}
               </div>
-              
+
               <div className="flex items-center space-x-3 mt-1 text-xs opacity-80">
                 <div className="flex items-center">
                   <Clock className="h-3 w-3 mr-1" />
                   {formatTimeAgo(currentNews.createdAt)}
                 </div>
-                
+
                 {currentNews.location && (
                   <span>{currentNews.location}</span>
                 )}
-                
+
                 {breakingNews.length > 1 && (
                   <span>
                     {currentIndex + 1} of {breakingNews.length}
@@ -133,12 +151,12 @@ const BreakingNews = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
-            {currentNews.sourceUrl && (
+            {externalUrl && (
               <a
-                href={currentNews.sourceUrl}
+                href={externalUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hidden md:flex items-center space-x-1 bg-white bg-opacity-20 hover:bg-opacity-30 px-3 py-1 rounded-full text-xs font-medium transition-colors"

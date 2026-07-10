@@ -23,6 +23,7 @@ const Login = ({ onClose }) => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
   const handleAdminLogin = () => {
     setFormData({
@@ -65,8 +66,31 @@ const Login = ({ onClose }) => {
       if (isLogin) {
         await signIn(formData.email, formData.password);
       } else {
-        await signUp(formData.name, formData.email, formData.password);
+        await signUp(formData.email, formData.password, formData.name);
       }
+
+      // Email/password accounts must verify their email before they can use
+      // the app — send the verification link and keep the modal open.
+      const { firebaseAuth } = await import('../../firebase-config');
+      const currentUser = firebaseAuth.currentUser;
+      const isPasswordAccount = currentUser?.providerData?.some(
+        (p) => p.providerId === 'password'
+      );
+      if (currentUser && isPasswordAccount && !currentUser.emailVerified) {
+        try {
+          const { sendEmailVerification } = await import('firebase/auth');
+          await sendEmailVerification(currentUser);
+        } catch (verificationError) {
+          // Likely rate-limited from an earlier send; the email is on its way
+          console.warn('Verification email not re-sent:', verificationError?.code);
+        }
+        setInfo(
+          `We sent a verification link to ${formData.email}. Please verify your email, then sign in again.`
+        );
+        setIsLogin(true);
+        return;
+      }
+
       onClose();
     } catch (err) {
       setError(handleFirebaseError(err));
@@ -126,6 +150,7 @@ const Login = ({ onClose }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">{error}</div>}
+          {info && <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 px-4 py-3 rounded-lg text-sm">{info}</div>}
           
           {/* Form fields remain the same as before */}
           {!isLogin && (

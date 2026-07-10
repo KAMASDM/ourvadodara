@@ -18,7 +18,12 @@ const CommentSection = ({ postId }) => {
   const [showLogin, setShowLogin] = useState(false);
   const { data: commentsObject, isLoading } = useRealtimeData(`comments/${postId}`);
 
-  const comments = commentsObject ? Object.entries(commentsObject).map(([key, value]) => ({...value, id: key})).sort((a,b) => b.createdAt - a.createdAt) : [];
+  const comments = commentsObject
+    ? Object.entries(commentsObject)
+        .map(([key, value]) => ({ ...value, id: key }))
+        .filter(comment => comment.rejected !== true) // hide comments rejected by moderators
+        .sort((a, b) => b.createdAt - a.createdAt)
+    : [];
 
   const handleSubmitComment = (e) => {
     e.preventDefault();

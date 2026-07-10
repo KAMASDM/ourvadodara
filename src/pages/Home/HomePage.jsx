@@ -10,6 +10,7 @@ import CategoryFilter from '../../components/Category/CategoryFilter';
 import SwipeableCategoryFilter from '../../components/Category/SwipeableCategoryFilter';
 import EnhancedNewsFeed from '../../components/Feed/EnhancedNewsFeed';
 import DesktopNewsFeed from '../../components/Feed/DesktopNewsFeed';
+import BreakingNews from '../../components/Breaking/BreakingNews';
 import WeatherWidget from '../../components/Weather/WeatherWidget';
 import LiveUpdates from '../../components/Live/LiveUpdates';
 import TrendingTopics from '../../components/Trending/TrendingTopics';
@@ -135,6 +136,11 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
     window.dispatchEvent(new Event('popstate'));
   };
 
+  const handleOpenBreaking = () => {
+    window.history.pushState({ view: 'breaking' }, '', '/breaking');
+    window.dispatchEvent(new Event('popstate'));
+  };
+
   const ActiveSectionComponent = activeSection 
     ? sections.find(s => s.id === activeSection)?.component 
     : null;
@@ -155,6 +161,9 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
       {/* Desktop view */}
       {isDesktop ? (
         <div className="pt-1">
+          <div className="mb-4">
+            <BreakingNews onOpenBreaking={handleOpenBreaking} />
+          </div>
           <DesktopNewsFeed
             key={refreshKey}
             category={activeCategory === 'all' ? null : activeCategory}
@@ -273,6 +282,10 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
 
           {/* Scrollable content */}
           <div className="flex-1 pb-6">
+            <div className="px-2 mt-3">
+              <BreakingNews onOpenBreaking={handleOpenBreaking} />
+            </div>
+
             {!activeSection && (
               <div className="mt-3 mb-2">
                 <EnhancedStorySection

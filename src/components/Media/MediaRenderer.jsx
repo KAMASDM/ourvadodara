@@ -769,9 +769,9 @@ const MediaRenderer = ({
           }}
         />
         
-        {/* Caption overlay for current image */}
+        {/* Caption below the carousel (never overlapping the image) */}
         {activeCarouselItem?.caption && settings.showCaptions && (
-          <div className="mt-2 px-2">
+          <div className="mt-2 px-3 pb-2">
             <p className="text-gray-700 dark:text-gray-300 text-sm">
               {activeCarouselItem.caption}
             </p>

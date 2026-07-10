@@ -678,8 +678,10 @@ const PostCard = ({
       {/* Media Content */}
       {hasMedia && (
       <div className="relative mt-5 px-2">
-        <div 
-            className="overflow-hidden bg-black dark:bg-gray-900 select-none rounded-[1.15rem] border border-white/50 dark:border-white/10 shadow-xl"
+        <div
+            className={`overflow-hidden select-none rounded-[1.15rem] border border-white/50 dark:border-white/10 shadow-xl ${
+              isCarouselPost ? 'bg-transparent' : 'bg-black dark:bg-gray-900'
+            }`}
           >
             <MediaRenderer
               post={post}

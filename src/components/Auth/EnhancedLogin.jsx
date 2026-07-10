@@ -67,12 +67,13 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
     setSuccess('');
   }, [mode, clearError]);
 
-  // Close modal if user is logged in
+  // Close modal if user is logged in (but never while the email
+  // verification modal is open — closing would abort verification)
   useEffect(() => {
-    if (user && !user.isAnonymous) {
+    if (user && !user.isAnonymous && !showEmailVerification) {
       onClose?.();
     }
-  }, [user, onClose]);
+  }, [user, onClose, showEmailVerification]);
 
   // Initialize reCAPTCHA when phone mode is selected
   useEffect(() => {

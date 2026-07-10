@@ -426,7 +426,7 @@ const CommentModeration = () => {
                       
                       {/* Post Link */}
                       <a
-                        href={`/news/${comment.postId}`}
+                        href={`/post/${comment.postId}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"

@@ -13,23 +13,25 @@ import {
   calculateAIPicks 
 } from '../../utils/databaseSchema';
 import { ref, onValue, update, remove } from 'firebase/database';
-import { db } from '../../firebase-config';
-import { 
-  Zap, 
-  Radio, 
-  TrendingUp, 
-  Brain, 
-  Plus, 
-  Edit3, 
-  Trash2, 
-  Eye, 
-  Save, 
-  X, 
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../firebase-config';
+import {
+  Zap,
+  Radio,
+  TrendingUp,
+  Brain,
+  Plus,
+  Edit3,
+  Trash2,
+  Eye,
+  Save,
+  X,
   AlertCircle,
   Clock,
   MapPin,
   Settings,
-  RefreshCw
+  RefreshCw,
+  Upload
 } from 'lucide-react';
 
 const RealTimeContent = () => {
@@ -42,6 +44,7 @@ const RealTimeContent = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [errors, setErrors] = useState({});
 
   const [formData, setFormData] = useState({
@@ -50,6 +53,7 @@ const RealTimeContent = () => {
     priority: 'high',
     category: 'general',
     tags: [],
+    media: [],
     mediaUrl: '',
     sourceUrl: '',
     location: '',
@@ -114,6 +118,43 @@ const RealTimeContent = () => {
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: null }));
     }
+  };
+
+  const handleMediaUpload = async (files) => {
+    if (!files || files.length === 0) return;
+
+    setUploadingMedia(true);
+    try {
+      const uploaded = [];
+      for (const file of Array.from(files)) {
+        const fileType = file.type.startsWith('image/') ? 'image' :
+                         file.type.startsWith('video/') ? 'video' : 'file';
+        const fileName = `breaking_news/${Date.now()}_${file.name}`;
+        const fileRef = storageRef(storage, fileName);
+        const snapshot = await uploadBytes(fileRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        uploaded.push({
+          url: downloadURL,
+          type: fileType,
+          name: file.name,
+          size: file.size,
+          path: fileName
+        });
+      }
+      setFormData(prev => ({ ...prev, media: [...(prev.media || []), ...uploaded] }));
+    } catch (error) {
+      console.error('Error uploading media:', error);
+      setErrors(prev => ({ ...prev, submit: 'Failed to upload media files' }));
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
+  const handleMediaRemove = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      media: (prev.media || []).filter((_, i) => i !== index)
+    }));
   };
 
   const handleMultiLanguageChange = (field, lang, value) => {
@@ -182,6 +223,7 @@ const RealTimeContent = () => {
         priority: 'high',
         category: 'general',
         tags: [],
+        media: [],
         mediaUrl: '',
         sourceUrl: '',
         location: '',
@@ -208,6 +250,7 @@ const RealTimeContent = () => {
         priority: item.priority || 'high',
         category: item.category || 'general',
         tags: item.tags || [],
+        media: item.media || [],
         mediaUrl: item.mediaUrl || '',
         sourceUrl: item.sourceUrl || '',
         location: item.location || '',
@@ -221,6 +264,7 @@ const RealTimeContent = () => {
         priority: item.priority || 'normal',
         category: item.category || 'general',
         tags: item.tags || [],
+        media: item.media || [],
         mediaUrl: item.mediaUrl || '',
         sourceUrl: '',
         location: item.location || '',
@@ -479,6 +523,59 @@ const RealTimeContent = () => {
               {/* Breaking News specific fields */}
               {activeTab === 'breaking' && (
                 <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Upload Images / Videos
+                    </label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,video/*"
+                        onChange={(e) => {
+                          handleMediaUpload(e.target.files);
+                          e.target.value = '';
+                        }}
+                        className="hidden"
+                        id="breaking-media-upload"
+                      />
+                      <label
+                        htmlFor="breaking-media-upload"
+                        className="cursor-pointer flex flex-col items-center"
+                      >
+                        {uploadingMedia ? (
+                          <RefreshCw className="h-6 w-6 text-blue-500 mb-1 animate-spin" />
+                        ) : (
+                          <Upload className="h-6 w-6 text-gray-400 mb-1" />
+                        )}
+                        <span className="text-sm text-gray-600">
+                          {uploadingMedia ? 'Uploading…' : 'Click to upload images or videos'}
+                        </span>
+                      </label>
+                    </div>
+
+                    {formData.media && formData.media.length > 0 && (
+                      <div className="mt-3 grid grid-cols-4 gap-3">
+                        {formData.media.map((media, index) => (
+                          <div key={index} className="relative">
+                            {media.type === 'video' ? (
+                              <video src={media.url} className="w-full h-20 object-cover rounded-lg" />
+                            ) : (
+                              <img src={media.url} alt={media.name || 'Breaking news media'} className="w-full h-20 object-cover rounded-lg" />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleMediaRemove(index)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Source URL</label>
                     <input

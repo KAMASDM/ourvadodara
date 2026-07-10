@@ -20,6 +20,7 @@ import { POST_TYPES } from '../../utils/mediaSchema';
 import { formatTimeAgo } from '../../utils/helpers';
 import ShareSheet from '../Common/ShareSheet';
 import { getLocalizedText } from '../../utils/textUtils';
+import InstagramCarousel from '../Media/InstagramCarousel';
 
 // Media component with error handling for both images and videos
 const PostMedia = ({ src, alt, className, fallback = true, post }) => {
@@ -129,9 +130,9 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [shareData, setShareData] = useState(null);
 
-  // Fetch data - only posts initially, carousels and reels are optional for performance
+  // Fetch data - posts and carousels; reels stay on their dedicated page
   const { data: postsData, loading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
-  const { data: carouselsData } = useRealtimeData(null); // Disabled for performance
+  const { data: carouselsData } = useRealtimeData('carousels', { scope: 'global' });
   const { data: reelsData } = useRealtimeData(null); // Disabled for performance
 
   // Combine and filter posts
@@ -148,12 +149,14 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
     }
 
     if (carouselsData && feedType === 'all') {
-      const carousels = Object.entries(carouselsData).map(([id, carousel]) => ({
-        id,
-        ...carousel,
-        type: POST_TYPES.CAROUSEL,
-        source: 'carousels'
-      }));
+      const carousels = Object.entries(carouselsData)
+        .map(([id, carousel]) => ({
+          id,
+          ...carousel,
+          type: POST_TYPES.CAROUSEL,
+          source: 'carousels'
+        }))
+        .filter(carousel => carousel.isPublished);
       posts = [...posts, ...carousels];
     }
 
@@ -184,8 +187,10 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
       });
     }
 
-    // Sort by timestamp
-    posts.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    // Sort by publish time (numeric timestamp or ISO publishedAt/createdAt)
+    const postTime = (p) =>
+      p.timestamp || new Date(p.publishedAt || p.createdAt || 0).getTime() || 0;
+    posts.sort((a, b) => postTime(b) - postTime(a));
 
     return posts;
   }, [postsData, carouselsData, reelsData, category, feedType, currentCity]);
@@ -199,11 +204,29 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
     setDisplayCount(prev => prev + 15);
   };
 
-  const handlePostClick = (postId) => {
-    if (onPostClick) {
-      onPostClick(postId);
+  const handlePostClick = (post) => {
+    // Only standard posts have a detail page; carousels/reels are inline media
+    if (onPostClick && post.source === 'posts') {
+      onPostClick(post.id);
     }
   };
+
+  const getCarouselItems = (post) => {
+    let items = [];
+    if (post.mediaContent?.items) {
+      items = Array.isArray(post.mediaContent.items)
+        ? post.mediaContent.items
+        : Object.values(post.mediaContent.items || {});
+    } else if (post.media) {
+      items = Array.isArray(post.media) ? post.media : Object.values(post.media || {});
+    } else if (post.images) {
+      items = Array.isArray(post.images) ? post.images : Object.values(post.images || {});
+    }
+    return items;
+  };
+
+  const isCarouselPost = (post) =>
+    post.source === 'carousels' || getCarouselItems(post).length > 1;
 
   const handleAdvertiseClick = () => {
     window.history.pushState({ view: 'advertise' }, '', '/advertise');
@@ -284,10 +307,13 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
     );
   }
 
-  // Split posts for layout
-  const featuredPost = displayedItems[0];
-  const sidePosts = displayedItems.slice(1, 3);
-  const gridPosts = displayedItems.slice(3);
+  // Split posts for layout — hero slots need a cover image + detail page,
+  // so they only take standard posts; carousels render inline in the grid.
+  const standardItems = displayedItems.filter(post => post.source === 'posts');
+  const featuredPost = standardItems[0];
+  const sidePosts = standardItems.slice(1, 3);
+  const heroIds = new Set([featuredPost, ...sidePosts].filter(Boolean).map(post => post.id));
+  const gridPosts = displayedItems.filter(post => !heroIds.has(post.id));
 
   return (
     <div className="w-full">
@@ -319,8 +345,8 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
           <section className="mb-12">
             <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
               {/* Main Featured Post */}
-            <div 
-              onClick={() => handlePostClick(featuredPost.id)}
+            <div
+              onClick={() => handlePostClick(featuredPost)}
               className="liquid-card overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 group"
             >
               {getPostImage(featuredPost) && (
@@ -401,7 +427,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
             {sidePosts.map((post) => (
               <div
                 key={post.id}
-                onClick={() => handlePostClick(post.id)}
+                onClick={() => handlePostClick(post)}
                 className="liquid-card overflow-hidden cursor-pointer transition-all hover:-translate-y-0.5 group"
               >
                 {getPostImage(post) && (
@@ -444,13 +470,34 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
           {gridPosts.map((post) => (
             <div
               key={post.id}
-              onClick={() => handlePostClick(post.id)}
-              className="liquid-card overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 group"
+              onClick={() => handlePostClick(post)}
+              className={`liquid-card overflow-hidden transition-all duration-300 hover:-translate-y-1 group ${
+                post.source === 'posts' ? 'cursor-pointer' : 'cursor-default'
+              }`}
             >
-              {getPostImage(post) && (
+              {isCarouselPost(post) ? (
+                <div
+                  className="relative overflow-hidden rounded-t-3xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <InstagramCarousel
+                    images={getCarouselItems(post)}
+                    className="w-full"
+                    aspectRatio="1/1"
+                    showDots={true}
+                    enableSwipe={true}
+                    enableKeyboard={false}
+                  />
+                  {post.category && (
+                    <div className="absolute top-3 left-3 z-10 liquid-chip !bg-blue-600/80 text-white text-xs font-bold">
+                      {post.category}
+                    </div>
+                  )}
+                </div>
+              ) : getPostImage(post) && (
                 <div className="relative overflow-hidden rounded-t-3xl h-[200px]">
-                  <PostMedia 
-                    src={getPostImage(post)} 
+                  <PostMedia
+                    src={getPostImage(post)}
                     alt={getPostTitle(post)}
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     post={post}

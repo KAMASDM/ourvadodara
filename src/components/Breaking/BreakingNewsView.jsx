@@ -36,11 +36,13 @@ const BreakingNewsView = ({ onPostClick }) => {
           .filter(news => news.isActive && (!news.expiresAt || new Date(news.expiresAt) > new Date()))
           .sort((a, b) => {
             // Sort by priority first, then by creation date
-            const priorityOrder = { critical: 3, high: 2, medium: 1, low: 0 };
-            if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
-              return priorityOrder[b.priority] - priorityOrder[a.priority];
+            const priorityOrder = { urgent: 4, critical: 4, high: 3, medium: 2, normal: 2, low: 1 };
+            const aOrder = priorityOrder[a.priority] || 0;
+            const bOrder = priorityOrder[b.priority] || 0;
+            if (aOrder !== bOrder) {
+              return bOrder - aOrder;
             }
-            return new Date(b.createdAt) - new Date(a.createdAt);
+            return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
           });
         setBreakingNews(newsArray);
       } else {
@@ -58,6 +60,7 @@ const BreakingNewsView = ({ onPostClick }) => {
 
   const getPriorityColor = (priority) => {
     switch (priority) {
+      case 'urgent':
       case 'critical':
         return 'bg-gradient-to-r from-red-600 via-rose-600 to-red-500 text-white shadow-inner shadow-red-900/30';
       case 'high':
@@ -73,15 +76,24 @@ const BreakingNewsView = ({ onPostClick }) => {
 
   const getPriorityIcon = (priority) => {
     switch (priority) {
+      case 'urgent':
       case 'critical': return <Zap className="w-4 h-4" />;
       case 'high': return <AlertTriangle className="w-4 h-4" />;
       default: return <AlertTriangle className="w-4 h-4" />;
     }
   };
 
-  const filteredNews = selectedPriority === 'all' 
-    ? breakingNews 
-    : breakingNews.filter(news => news.priority === selectedPriority);
+  // Admin tools save 'urgent'/'normal'; older data may use 'critical'.
+  // Normalize so the filter chips match every stored value.
+  const normalizePriority = (priority) => {
+    if (priority === 'critical') return 'urgent';
+    if (priority === 'normal') return 'medium';
+    return priority || 'medium';
+  };
+
+  const filteredNews = selectedPriority === 'all'
+    ? breakingNews
+    : breakingNews.filter(news => normalizePriority(news.priority) === selectedPriority);
 
   const handleNewsClick = (news) => {
     if (news.externalLink) {
@@ -127,7 +139,7 @@ const BreakingNewsView = ({ onPostClick }) => {
           {/* Priority Filter */}
           <div className="rounded-2xl border border-gray-200/70 dark:border-gray-800/70 bg-white/90 dark:bg-gray-900/90 backdrop-blur p-4 shadow-sm shadow-gray-200/40 dark:shadow-black/30">
             <div className="flex flex-wrap gap-2">
-              {['all', 'critical', 'high', 'medium', 'low'].map(priority => (
+              {['all', 'urgent', 'high', 'medium', 'low'].map(priority => (
                 <button
                   key={priority}
                   onClick={() => setSelectedPriority(priority)}
@@ -180,7 +192,11 @@ const BreakingNewsView = ({ onPostClick }) => {
                   </div>
                   <div className="flex items-center space-x-1 text-xs opacity-80">
                     <Clock className="w-3 h-3" />
-                    <span>{formatDistanceToNow(new Date(news.createdAt))} ago</span>
+                    <span>
+                      {news.createdAt && !isNaN(new Date(news.createdAt).getTime())
+                        ? `${formatDistanceToNow(new Date(news.createdAt))} ago`
+                        : 'Just now'}
+                    </span>
                   </div>
                 </div>
 
@@ -194,11 +210,18 @@ const BreakingNewsView = ({ onPostClick }) => {
                     {getTextContent(news.content) || getTextContent(news.summary)}
                   </p>
 
-                  {/* Media */}
-                  {news.media && news.media.length > 0 && (
+                  {/* Media (uploaded files or a single media URL) */}
+                  {(() => {
+                    const mediaItems = Array.isArray(news.media) && news.media.length > 0
+                      ? news.media
+                      : news.mediaUrl
+                        ? [{ url: news.mediaUrl, type: /\.(mp4|webm|mov)(\?|$)/i.test(news.mediaUrl) ? 'video' : 'image' }]
+                        : [];
+                    if (mediaItems.length === 0) return null;
+                    return (
                     <div className="mb-4">
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {news.media.slice(0, 3).map((media, index) => (
+                        {mediaItems.slice(0, 3).map((media, index) => (
                           <div key={index} className="relative">
                             {media.type === 'image' ? (
                               <img 
@@ -218,7 +241,8 @@ const BreakingNewsView = ({ onPostClick }) => {
                         ))}
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Metadata */}
                   <div className="flex items-center justify-between">
@@ -265,7 +289,7 @@ const BreakingNewsView = ({ onPostClick }) => {
   </div>
 
   {/* Live Updates Banner */}
-  {breakingNews.some(news => news.priority === 'critical') && (
+  {breakingNews.some(news => news.priority === 'critical' || news.priority === 'urgent') && (
         <div className="fixed bottom-20 left-4 right-4 z-40 max-w-sm mx-auto">
           <div className="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg animate-pulse">
             <div className="flex items-center space-x-2">

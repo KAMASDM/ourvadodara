@@ -60,9 +60,10 @@ const Comment = ({
     }
   };
   
-  const replies = repliesObject 
+  const replies = repliesObject
     ? Object.entries(repliesObject)
         .map(([key, value]) => ({ ...value, id: key }))
+        .filter(reply => reply.rejected !== true) // hide comments rejected by moderators
         .sort((a, b) => {
           // Handle both 'createdAt' and 'timestamp' fields
           const timeA = a.createdAt || a.timestamp || 0;
@@ -215,10 +216,11 @@ const ThreadedCommentSection = ({ postId }) => {
   const { data: commentsObject, isLoading } = useRealtimeData(`comments/${postId}`);
 
   // Get top-level comments only
-  const comments = commentsObject 
+  const comments = commentsObject
     ? Object.entries(commentsObject)
         .map(([key, value]) => ({ ...value, id: key }))
         .filter(comment => !comment.parentId) // Only top-level comments
+        .filter(comment => comment.rejected !== true) // hide comments rejected by moderators
         .sort((a, b) => {
           // Handle both 'createdAt' and 'timestamp' fields
           const timeA = a.createdAt || a.timestamp || 0;

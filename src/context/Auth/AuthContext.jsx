@@ -33,6 +33,21 @@ export const AuthProvider = ({ children }) => {
     // Listen to authentication state changes
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
       if (firebaseUser) {
+        // Email/password accounts must verify their email before they get an
+        // app session. The Firebase session is kept alive (needed to send /
+        // poll the verification email), but the app treats them as signed out
+        // until they verify and sign in again.
+        const isUnverifiedPasswordAccount =
+          !firebaseUser.isAnonymous &&
+          !firebaseUser.emailVerified &&
+          firebaseUser.providerData?.some((p) => p.providerId === 'password');
+        if (isUnverifiedPasswordAccount) {
+          setUser(null);
+          setProfileCompletion({ isComplete: true, missingFields: [] });
+          setLoading(false);
+          return;
+        }
+
         // User is signed in, get their profile with role information
         try {
           let userProfile = await getUserProfile(firebaseUser.uid);

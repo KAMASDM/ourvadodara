@@ -322,9 +322,12 @@ const BreakingNewsManager = () => {
         ...formData,
         authorId: user?.uid || 'admin',
         authorName: user?.displayName || user?.email || 'Admin',
-        createdAt: editingId ? undefined : new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+      // Firebase update() rejects undefined values — only set createdAt on create
+      if (!editingId) {
+        newsData.createdAt = new Date().toISOString();
+      }
 
       if (editingId) {
         const newsRef = ref(db, `${DATABASE_PATHS.BREAKING_NEWS}/${editingId}`);
@@ -613,8 +616,8 @@ const BreakingNewsManager = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   >
                     {categories.map(category => (
-                      <option key={category.id} value={category.value}>
-                        {category.name}
+                      <option key={category} value={category}>
+                        {category.charAt(0).toUpperCase() + category.slice(1)}
                       </option>
                     ))}
                   </select>
