@@ -69,14 +69,13 @@ const Login = ({ onClose }) => {
         await signUp(formData.email, formData.password, formData.name);
       }
 
-      // Email/password accounts must verify their email before they can use
-      // the app — send the verification link and keep the modal open.
+      // New email/password accounts must verify their email before they can
+      // use the app — send the verification link and keep the modal open.
+      // Accounts that pre-date the policy sign in without verification.
       const { firebaseAuth } = await import('../../firebase-config');
+      const { requiresEmailVerification } = await import('../../utils/authVerification');
       const currentUser = firebaseAuth.currentUser;
-      const isPasswordAccount = currentUser?.providerData?.some(
-        (p) => p.providerId === 'password'
-      );
-      if (currentUser && isPasswordAccount && !currentUser.emailVerified) {
+      if (currentUser && requiresEmailVerification(currentUser)) {
         try {
           const { sendEmailVerification } = await import('firebase/auth');
           await sendEmailVerification(currentUser);

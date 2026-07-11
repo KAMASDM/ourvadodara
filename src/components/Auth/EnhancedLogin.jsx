@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
 import { sendEmailVerification } from 'firebase/auth';
 import EmailVerificationModal from './EmailVerificationModal';
+import { requiresEmailVerification } from '../../utils/authVerification';
 import { 
   Mail, 
   Lock, 
@@ -128,12 +129,10 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
         const { firebaseAuth } = await import('../../firebase-config');
         const currentUser = firebaseAuth.currentUser;
 
-        // Enforce email verification for password accounts: unverified
-        // users get the verification modal instead of a session.
-        const isPasswordAccount = currentUser?.providerData?.some(
-          (provider) => provider.providerId === 'password'
-        );
-        if (currentUser && isPasswordAccount && !currentUser.emailVerified) {
+        // Enforce email verification for password accounts created after the
+        // policy shipped: they get the verification modal instead of a
+        // session. Pre-existing accounts (admin, early users) sign in as-is.
+        if (currentUser && requiresEmailVerification(currentUser)) {
           try {
             await sendEmailVerification(currentUser);
           } catch (verificationError) {

@@ -13,6 +13,7 @@ import {
 import { updateProfile, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { getUserProfile, createAdminUser, createUserProfile } from '../../utils/adminSetup';
 import { checkProfileCompletion, getAuthMethod, getAuthContactInfo } from '../../utils/profileHelpers';
+import { requiresEmailVerification } from '../../utils/authVerification';
 
 const AuthContext = createContext();
 
@@ -33,15 +34,12 @@ export const AuthProvider = ({ children }) => {
     // Listen to authentication state changes
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Email/password accounts must verify their email before they get an
-        // app session. The Firebase session is kept alive (needed to send /
-        // poll the verification email), but the app treats them as signed out
-        // until they verify and sign in again.
-        const isUnverifiedPasswordAccount =
-          !firebaseUser.isAnonymous &&
-          !firebaseUser.emailVerified &&
-          firebaseUser.providerData?.some((p) => p.providerId === 'password');
-        if (isUnverifiedPasswordAccount) {
+        // Email/password accounts created after the verification policy
+        // shipped must verify their email before they get an app session.
+        // The Firebase session is kept alive (needed to send / poll the
+        // verification email), but the app treats them as signed out until
+        // they verify and sign in again. Older accounts are grandfathered.
+        if (requiresEmailVerification(firebaseUser)) {
           setUser(null);
           setProfileCompletion({ isComplete: true, missingFields: [] });
           setLoading(false);
