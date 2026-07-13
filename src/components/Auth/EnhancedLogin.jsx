@@ -5,9 +5,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
-import { sendEmailVerification } from 'firebase/auth';
 import EmailVerificationModal from './EmailVerificationModal';
-import { requiresEmailVerification } from '../../utils/authVerification';
+import {
+  requiresEmailVerification,
+  sendOurVadodaraVerificationEmail
+} from '../../utils/authVerification';
 import { 
   Mail, 
   Lock, 
@@ -134,7 +136,7 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
         // session. Pre-existing accounts (admin, early users) sign in as-is.
         if (currentUser && requiresEmailVerification(currentUser)) {
           try {
-            await sendEmailVerification(currentUser);
+            await sendOurVadodaraVerificationEmail(currentUser);
           } catch (verificationError) {
             // Likely rate-limited from a previous send; the modal offers resend
             console.warn('Verification email not re-sent:', verificationError?.code);
@@ -160,7 +162,7 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
         
         // Send verification email
         if (userCredential?.user && !userCredential.user.emailVerified) {
-          await sendEmailVerification(userCredential.user);
+          await sendOurVadodaraVerificationEmail(userCredential.user);
           setVerificationUser(userCredential.user);
           setShowEmailVerification(true);
           

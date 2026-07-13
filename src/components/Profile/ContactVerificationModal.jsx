@@ -3,9 +3,10 @@
 // Phone OTP and Email Verification for Profile
 // =============================================
 import React, { useState, useEffect } from 'react';
-import { RecaptchaVerifier, PhoneAuthProvider, linkWithCredential, sendEmailVerification } from 'firebase/auth';
+import { RecaptchaVerifier, PhoneAuthProvider, linkWithCredential } from 'firebase/auth';
 import { firebaseAuth } from '../../firebase-config';
 import { Mail, Phone, Loader, CheckCircle, AlertCircle } from 'lucide-react';
+import { sendOurVadodaraVerificationEmail } from '../../utils/authVerification';
 
 const ContactVerificationModal = ({ 
   type, // 'phone' or 'email'
@@ -127,7 +128,7 @@ const ContactVerificationModal = ({
       // For email, we need to use updateEmail first, then send verification
       const { updateEmail } = await import('firebase/auth');
       await updateEmail(user, value);
-      await sendEmailVerification(user);
+      await sendOurVadodaraVerificationEmail(user);
       
       setStep('check-email');
       setResendCooldown(60);

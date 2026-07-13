@@ -18,10 +18,10 @@ import {
   EmailAuthProvider,
   PhoneAuthProvider,
   updateProfile,
-  sendEmailVerification,
   sendPasswordResetEmail
 } from '../../firebase-config';
 import { getUserProfile, createAdminUser, createUserProfile, updateUserProfile } from '../../utils/adminSetup';
+import { sendOurVadodaraVerificationEmail } from '../../utils/authVerification';
 
 const EnhancedAuthContext = createContext();
 
@@ -153,7 +153,7 @@ export const EnhancedAuthProvider = ({ children }) => {
       }
 
       // Send email verification
-      await sendEmailVerification(result.user);
+      await sendOurVadodaraVerificationEmail(result.user);
       
       return { user: result.user, success: true };
     } catch (error) {

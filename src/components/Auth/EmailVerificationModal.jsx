@@ -3,8 +3,8 @@
 // Email Verification Modal with Real-time Tracking
 // =============================================
 import React, { useState, useEffect } from 'react';
-import { sendEmailVerification } from 'firebase/auth';
 import { Mail, CheckCircle, Loader, RefreshCw } from 'lucide-react';
+import { sendOurVadodaraVerificationEmail } from '../../utils/authVerification';
 
 const EmailVerificationModal = ({ user, onClose, onVerified }) => {
   const [isResending, setIsResending] = useState(false);
@@ -56,7 +56,7 @@ const EmailVerificationModal = ({ user, onClose, onVerified }) => {
 
     setIsResending(true);
     try {
-      await sendEmailVerification(user);
+      await sendOurVadodaraVerificationEmail(user);
       setResendCooldown(60); // 60 second cooldown
       alert('✅ Verification email sent! Please check your inbox.');
     } catch (error) {

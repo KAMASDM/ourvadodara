@@ -184,6 +184,24 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    // An installed app can be launched directly into a section with no prior
+    // in-app history. Seed Home beneath that entry so the first device Back
+    // returns Home instead of closing the app.
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+    const initialUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (isStandalone && window.location.pathname !== '/' && !window.history.state?.ourVadodaraEntry) {
+      const initialState = window.history.state || {};
+      window.history.replaceState({ view: 'home', ourVadodaraEntry: true }, '', '/');
+      window.history.pushState({ ...initialState, ourVadodaraEntry: true }, '', initialUrl);
+    } else if (!window.history.state?.ourVadodaraEntry) {
+      window.history.replaceState(
+        { ...(window.history.state || {}), ourVadodaraEntry: true },
+        '',
+        initialUrl
+      );
+    }
+
     handlePathNavigation();
   }, [handlePathNavigation]);
 
@@ -320,6 +338,19 @@ function AppContent() {
     if (['profile', 'admin'].includes(tab) && !user) {
       setShowLogin(true);
       return;
+    }
+
+    const tabPaths = {
+      home: '/',
+      roundup: '/roundup',
+      reels: '/reels',
+      breaking: '/breaking',
+      events: '/events',
+      profile: '/profile'
+    };
+    const nextPath = tabPaths[tab] || `/${tab}`;
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({ view: tab }, '', nextPath);
     }
     
     // Breaking news can be accessed without authentication

@@ -73,12 +73,14 @@ const Login = ({ onClose }) => {
       // use the app — send the verification link and keep the modal open.
       // Accounts that pre-date the policy sign in without verification.
       const { firebaseAuth } = await import('../../firebase-config');
-      const { requiresEmailVerification } = await import('../../utils/authVerification');
+      const {
+        requiresEmailVerification,
+        sendOurVadodaraVerificationEmail
+      } = await import('../../utils/authVerification');
       const currentUser = firebaseAuth.currentUser;
       if (currentUser && requiresEmailVerification(currentUser)) {
         try {
-          const { sendEmailVerification } = await import('firebase/auth');
-          await sendEmailVerification(currentUser);
+          await sendOurVadodaraVerificationEmail(currentUser);
         } catch (verificationError) {
           // Likely rate-limited from an earlier send; the email is on its way
           console.warn('Verification email not re-sent:', verificationError?.code);

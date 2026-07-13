@@ -56,13 +56,22 @@ export const registerServiceWorker = async () => {
     try {
       const registration = await navigator.serviceWorker.register('/sw.js');
       console.log('SW registered: ', registration);
+
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        showUpdateAvailable(registration);
+      }
       
       // Check for updates immediately
-      registration.update();
+      await registration.update();
+
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        showUpdateAvailable(registration);
+      }
       
       // Listen for updates
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
+        if (!newWorker) return;
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
             // Skip intermediate versions and update directly to latest
@@ -83,6 +92,8 @@ export const registerServiceWorker = async () => {
 };
 
 export const showUpdateAvailable = (registration) => {
+  // Preserve the update if it is discovered before the React prompt mounts.
+  window.__ourVadodaraUpdateRegistration = registration;
   window.dispatchEvent(new CustomEvent('pwa-update-available', {
     detail: { registration }
   }));

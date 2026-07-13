@@ -29,7 +29,6 @@ import LoadingSpinner from '../Common/LoadingSpinner';
 import EmptyState from '../Common/EmptyState';
 import HeartAnimation from '../Common/HeartAnimation';
 import ShareSheet from '../Common/ShareSheet';
-import EmojiReactions from '../Common/EmojiReactions';
 import TopicChip from '../Topics/TopicChip';
 import { FeedSkeleton, ReelsGridSkeleton } from '../Common/SkeletonLoader';
 import { POST_TYPES } from '../../utils/mediaSchema';
@@ -53,6 +52,20 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
 
   const [likedPosts, setLikedPosts] = useState(new Set());
   const [savedPosts, setSavedPosts] = useState(new Set());
+
+  // Keep the real Like button in sync across devices and reloads.
+  useEffect(() => {
+    if (!user?.uid) {
+      setLikedPosts(new Set());
+      return undefined;
+    }
+
+    const userLikesRef = ref(db, `users/${user.uid}/likes`);
+    const unsubscribe = onValue(userLikesRef, (snapshot) => {
+      setLikedPosts(new Set(Object.keys(snapshot.val() || {})));
+    });
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   // Keep saved state in sync with the user's bookmarks so it survives reloads
   useEffect(() => {
@@ -774,12 +787,20 @@ const PostCard = ({
       <div className="relative mt-6 border-t border-white/50 dark:border-white/10 bg-white/35 dark:bg-slate-950/25 backdrop-blur-xl">
         <div className="flex items-center justify-between gap-2 px-3 py-3.5 sm:px-4 sm:py-4">
           <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-hide text-sm">
-            <EmojiReactions 
-              postId={post.id} 
-              postType="posts"
-              compact={true}
-              showCount={true}
-            />
+            <button
+              type="button"
+              onClick={onLike}
+              aria-label={isLiked ? 'Unlike post' : 'Like post'}
+              aria-pressed={isLiked}
+              className={`flex flex-shrink-0 items-center gap-2 rounded-full px-2.5 py-2 font-medium transition-colors ${
+                isLiked
+                  ? 'bg-red-500/10 text-red-600 dark:text-red-400'
+                  : 'text-slate-700 hover:bg-white/45 hover:text-red-600 dark:text-slate-300 dark:hover:bg-white/10'
+              }`}
+            >
+              <Heart className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
+              <span>Like</span>
+            </button>
 
             <button
               onClick={isReel ? () => onShowReels(post.id) : isClickable ? () => onPostClick(post.id) : undefined}

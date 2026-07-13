@@ -1,7 +1,7 @@
 // =============================================
 // src/pages/Home/HomePage.jsx - Redesigned Layout with Pull-to-Refresh
 // =============================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import PullToRefreshIndicator from '../../components/Common/PullToRefreshIndicator';
@@ -43,6 +43,9 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [feedTab, setFeedTab] = useState('for-you'); // 'for-you' | 'following' | 'all'
   const [selectedTopic, setSelectedTopic] = useState(null);
+  const [areTopControlsHidden, setAreTopControlsHidden] = useState(false);
+  const lastScrollY = useRef(typeof window !== 'undefined' ? window.scrollY : 0);
+  const scrollTicking = useRef(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -56,6 +59,35 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
   useEffect(() => {
     setActiveCategory(initialCategory || 'all');
   }, [initialCategory]);
+
+  useEffect(() => {
+    if (isDesktop) {
+      setAreTopControlsHidden(false);
+      return undefined;
+    }
+
+    const handleScroll = () => {
+      if (scrollTicking.current) return;
+      scrollTicking.current = true;
+
+      requestAnimationFrame(() => {
+        const currentY = Math.max(window.scrollY, 0);
+        const delta = currentY - lastScrollY.current;
+
+        if (currentY < 72 || delta < -8) {
+          setAreTopControlsHidden(false);
+        } else if (delta > 10 && currentY > 160 && !isSectionSheetOpen) {
+          setAreTopControlsHidden(true);
+        }
+
+        lastScrollY.current = currentY;
+        scrollTicking.current = false;
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isDesktop, isSectionSheetOpen]);
 
   // Pull-to-refresh implementation
   const handleRefresh = async () => {
@@ -177,12 +209,16 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
 
           {/* ── Sticky control bar ── */}
           <div
-            className="sticky z-[55] -mt-12 px-2 pt-0"
+            className={`sticky z-[55] -mt-12 px-2 pt-0 transition-all duration-300 ease-out ${
+              areTopControlsHidden
+                ? '-translate-y-[calc(100%+env(safe-area-inset-top))] opacity-0 pointer-events-none'
+                : 'translate-y-0 opacity-100'
+            }`}
             style={{ top: 'env(safe-area-inset-top)' }}
           >
             <div className="liquid-panel rounded-[1.35rem] px-3 py-2.5 space-y-2.5 border border-white/60 dark:border-white/10">
 
-              {/* Row 1: section title + focus button */}
+              {/* Row 1: section title + more button */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/80 shadow-inner ring-1 ring-white/70">
@@ -225,7 +261,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
                     }`}
                   >
                     <SlidersHorizontal className="w-3 h-3" />
-                    {t('home.open_focus', 'Focus')}
+                    {t('home.open_more', 'More')}
                   </button>
                 </div>
               </div>
@@ -321,13 +357,13 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
         fabBottomClass={isDesktop ? 'bottom-6' : 'bottom-[94px]'}
       />
 
-      {/* ── Focus Bottom Sheet ── */}
+      {/* ── More sections bottom sheet ── */}
       {isSectionSheetOpen && (
         <div className="fixed inset-0 z-40 flex flex-col justify-end">
           {/* Backdrop */}
           <button
             type="button"
-            aria-label={t('home.close_focus_panel', 'Close focus panel')}
+            aria-label={t('home.close_more_panel', 'Close more sections panel')}
             className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
             onClick={() => setSectionSheetOpen(false)}
           />
@@ -341,15 +377,15 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
             <div className="flex items-center justify-between px-5 pt-3 pb-4 flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-                  {t('home.choose_focus', 'Choose a focus')}
+                  {t('home.choose_more', 'More sections')}
                 </h3>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                  {t('home.choose_focus_hint', 'Pin a section above the news feed.')}
+                  {t('home.choose_more_hint', 'Choose what you want to see above the news feed.')}
                 </p>
               </div>
               <button
                 type="button"
-                aria-label={t('home.close_focus_panel', 'Close focus panel')}
+                aria-label={t('home.close_more_panel', 'Close more sections panel')}
                 onClick={() => setSectionSheetOpen(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition"
               >

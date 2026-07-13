@@ -2,6 +2,7 @@
 // src/utils/authVerification.js
 // Mandatory email verification policy for signups
 // =============================================
+import { sendEmailVerification } from 'firebase/auth';
 
 // Only accounts created after this moment must verify their email.
 // Accounts that existed before the policy shipped (admin, early users)
@@ -21,4 +22,14 @@ export const requiresEmailVerification = (firebaseUser) => {
   const createdAt = Date.parse(firebaseUser.metadata?.creationTime || '');
   // Unknown creation time → allow, to avoid accidental lockouts.
   return Number.isFinite(createdAt) && createdAt >= EMAIL_VERIFICATION_ENFORCED_FROM;
+};
+
+export const sendOurVadodaraVerificationEmail = (firebaseUser) => {
+  const continueUrl = new URL('/', window.location.origin);
+  continueUrl.searchParams.set('emailVerified', '1');
+
+  return sendEmailVerification(firebaseUser, {
+    url: continueUrl.toString(),
+    handleCodeInApp: false
+  });
 };

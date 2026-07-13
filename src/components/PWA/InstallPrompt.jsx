@@ -29,7 +29,20 @@ const InstallPrompt = () => {
     const iosDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     setIsIOS(iosDevice);
 
-    if (isStandalone()) return;
+    const handleUpdateAvailable = (event) => {
+      setUpdateRegistration(event.detail?.registration || null);
+    };
+
+    // Installed PWAs are the clients that most need this listener. Previously
+    // the standalone early-return below prevented them from ever seeing it.
+    window.addEventListener('pwa-update-available', handleUpdateAvailable);
+    if (window.__ourVadodaraUpdateRegistration) {
+      setUpdateRegistration(window.__ourVadodaraUpdateRegistration);
+    }
+
+    if (isStandalone()) {
+      return () => window.removeEventListener('pwa-update-available', handleUpdateAvailable);
+    }
 
     const dismissedAt = Number(localStorage.getItem('pwa-install-dismissed-at') || 0);
     const dismissedRecently = dismissedAt && Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000;
@@ -53,13 +66,8 @@ const InstallPrompt = () => {
       if (!dismissedRecently) setShowInstallPrompt(true);
     }
 
-    const handleUpdateAvailable = (event) => {
-      setUpdateRegistration(event.detail?.registration || null);
-    };
-
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('pwa-install-available', handleInstallAvailable);
-    window.addEventListener('pwa-update-available', handleUpdateAvailable);
 
     let iosTimer;
     if (iosDevice && isSecureContext && !dismissedRecently) {
@@ -97,6 +105,7 @@ const InstallPrompt = () => {
         navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), { once: true });
       } else {
         await clearAllCaches();
+        window.__ourVadodaraUpdateRegistration = null;
         window.location.reload();
       }
     } catch (error) {
