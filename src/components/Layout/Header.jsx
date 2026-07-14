@@ -10,11 +10,13 @@ import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useCity } from '../../context/CityContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { useAutoHideOnScroll } from '../../hooks/useAutoHideOnScroll';
 import { LANGUAGES } from '../../utils/constants';
 import { Globe, Bell, LogIn, MapPin, AlertCircle, X, ChevronDown, Search } from 'lucide-react';
 import Logo from '../Shared/Logo';
 import PWAInstallButton from '../PWA/PWAInstallButton';
-import ReadingStreak from '../Gamification/ReadingStreak';
+
+const ReadingStreak = React.lazy(() => import('../Gamification/ReadingStreak'));
 
 const Header = memo(function Header({ onNotificationClick, onNotifClick, onLoginClick, onProfileClick, onSearchClick }) {
   const { t } = useTranslation();
@@ -23,6 +25,10 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
   const { user } = useEnhancedAuth();
   const { profileCompletion } = useAuth();
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+
+  // Hide the header while scrolling down to maximize content area;
+  // it reappears on scroll up or near the top of the page.
+  const isChromeHidden = useAutoHideOnScroll({ enabled: !showSettingsMenu });
 
   const handleNotifClick = onNotifClick || onNotificationClick;
 
@@ -46,7 +52,9 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
     <>
       {/* ── Header bar ─────────────────────────────────────── */}
       <header
-        className="fixed top-0 inset-x-0 z-50 liquid-glass border-b border-white/60 dark:border-white/10 pt-safe"
+        className={`fixed top-0 inset-x-0 z-50 liquid-glass border-b border-white/60 dark:border-white/10 pt-safe transition-transform duration-300 ease-out ${
+          isChromeHidden ? '-translate-y-full pointer-events-none' : 'translate-y-0'
+        }`}
         style={{ height: 'calc(56px + env(safe-area-inset-top))' }}
         role="banner"
       >
@@ -191,7 +199,9 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
 
               {user && !user.isAnonymous && (
                 <div className="pt-1">
-                  <ReadingStreak compact={true} />
+                  <React.Suspense fallback={null}>
+                    <ReadingStreak compact={true} />
+                  </React.Suspense>
                 </div>
               )}
 

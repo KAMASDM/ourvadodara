@@ -18,9 +18,13 @@ import {
   MapPin,
   Eye,
   Clock,
-  Flag
+  Flag,
+  Link2,
+  Check
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
+import { db } from '../../firebase-config';
+import { ref, update, increment, set, remove } from 'firebase/database';
 import ThreadedCommentSection from '../../components/Comments/ThreadedCommentSection';
 import ShareModal from '../../components/Social/ShareModal';
 import ReportModal from '../../components/Report/ReportModal';
@@ -42,6 +46,9 @@ const NewsDetailPage = ({ newsId, onBack }) => {
   const { data: userLikesData } = useRealtimeData(`users/${user?.uid}/likes`);
   const { data: userReadsData } = useRealtimeData(`users/${user?.uid}/reads`);
   const { data: userSharesData } = useRealtimeData(`users/${user?.uid}/shares`);
+  const { data: userBookmarkData } = useRealtimeData(
+    user?.uid && newsId ? `bookmarks/${user.uid}/${newsId}` : null
+  );
   
   // Initialize view tracking
   useViewTracking(newsId, 'posts');
@@ -55,6 +62,8 @@ const NewsDetailPage = ({ newsId, onBack }) => {
   const [showComments, setShowComments] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [comments, setComments] = useState([]);
   const [relatedNews, setRelatedNews] = useState([]);
@@ -79,8 +88,6 @@ const NewsDetailPage = ({ newsId, onBack }) => {
         });
         
         setNews(newsItem);
-        setIsLiked(false); // Check from user's liked posts
-        setIsSaved(false); // Check from user's saved posts
         setViewCount(newsItem.analytics?.views || newsItem.views || 0);
         
         // Trigger article read event for streak tracking
@@ -145,18 +152,63 @@ const NewsDetailPage = ({ newsId, onBack }) => {
     setComments(mockComments);
   };
 
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    setNews(prev => ({
-      ...prev,
-      likes: (prev.likes ?? 0) + (isLiked ? -1 : 1)
-    }));
-    success(isLiked ? 'Removed from likes' : 'Added to likes');
+  // Reflect the user's real like/save state (synced from Firebase)
+  useEffect(() => {
+    setIsLiked(Boolean(user?.uid && newsId && userLikesData?.[newsId]));
+  }, [user?.uid, userLikesData, newsId]);
+
+  useEffect(() => {
+    setIsSaved(Boolean(user?.uid && userBookmarkData));
+  }, [user?.uid, userBookmarkData]);
+
+  const handleLike = async () => {
+    if (!user) {
+      document.dispatchEvent(new CustomEvent('showGuestPrompt'));
+      return;
+    }
+
+    const wasLiked = isLiked;
+    setIsLiked(!wasLiked);
+
+    try {
+      await update(ref(db), {
+        [`likes/${newsId}/${user.uid}`]: wasLiked ? null : true,
+        [`posts/${newsId}/analytics/likes`]: increment(wasLiked ? -1 : 1),
+        [`users/${user.uid}/likes/${newsId}`]: wasLiked ? null : true,
+        [`users/${user.uid}/totalLikes`]: increment(wasLiked ? -1 : 1)
+      });
+      success(wasLiked ? 'Removed from likes' : 'Added to likes');
+    } catch (error) {
+      console.error('Error updating like:', error);
+      setIsLiked(wasLiked);
+    }
   };
 
-  const handleSave = () => {
-    setIsSaved(!isSaved);
-    success(isSaved ? 'Removed from saved posts' : 'Saved to your collection');
+  const handleSave = async () => {
+    if (!user) {
+      document.dispatchEvent(new CustomEvent('showGuestPrompt'));
+      return;
+    }
+
+    const wasSaved = isSaved;
+    setIsSaved(!wasSaved);
+
+    try {
+      const bookmarkRef = ref(db, `bookmarks/${user.uid}/${newsId}`);
+      if (wasSaved) {
+        await remove(bookmarkRef);
+      } else {
+        await set(bookmarkRef, {
+          timestamp: Date.now(),
+          type: news?.type || 'post',
+          source: 'posts'
+        });
+      }
+      success(wasSaved ? 'Removed from saved posts' : 'Saved to your collection');
+    } catch (error) {
+      console.error('Error updating bookmark:', error);
+      setIsSaved(wasSaved);
+    }
   };
 
   const handleAddComment = (comment) => {
@@ -315,10 +367,71 @@ const NewsDetailPage = ({ newsId, onBack }) => {
               </button>
               
               <div className="flex items-center space-x-1">
-                <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
-                  <MoreHorizontal className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                </button>
-                <button 
+                <div className="relative">
+                  <button
+                    onClick={() => setShowMoreMenu(open => !open)}
+                    aria-haspopup="menu"
+                    aria-expanded={showMoreMenu}
+                    aria-label="More options"
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                  >
+                    <MoreHorizontal className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                  </button>
+
+                  {showMoreMenu && (
+                    <>
+                      {/* Backdrop closes the menu on outside tap */}
+                      <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
+                      <div
+                        role="menu"
+                        className="absolute right-0 top-11 z-50 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+                      >
+                        <button
+                          role="menuitem"
+                          onClick={() => { setShowMoreMenu(false); setShowShareModal(true); }}
+                          className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                        >
+                          <Share className="w-4 h-4" />
+                          Share
+                        </button>
+                        <button
+                          role="menuitem"
+                          onClick={async () => {
+                            const shareUrl = `${window.location.origin}/post/${newsId}`;
+                            try {
+                              await navigator.clipboard.writeText(shareUrl);
+                            } catch (error) {
+                              const textArea = document.createElement('textarea');
+                              textArea.value = shareUrl;
+                              document.body.appendChild(textArea);
+                              textArea.select();
+                              document.execCommand('copy');
+                              document.body.removeChild(textArea);
+                            }
+                            setLinkCopied(true);
+                            setTimeout(() => {
+                              setLinkCopied(false);
+                              setShowMoreMenu(false);
+                            }, 1200);
+                          }}
+                          className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                        >
+                          {linkCopied ? <Check className="w-4 h-4 text-emerald-500" /> : <Link2 className="w-4 h-4" />}
+                          {linkCopied ? 'Link copied!' : 'Copy link'}
+                        </button>
+                        <button
+                          role="menuitem"
+                          onClick={() => { setShowMoreMenu(false); setShowReportModal(true); }}
+                          className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                        >
+                          <Flag className="w-4 h-4" />
+                          Report post
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <button
                   onClick={() => setShowReportModal(true)}
                   className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
                 >
@@ -563,7 +676,7 @@ const NewsDetailPage = ({ newsId, onBack }) => {
                     }`}
                   >
                     <Heart className={`w-6 h-6 ${isLiked ? 'fill-current' : ''}`} />
-                    <span className="font-medium">{news.likes}</span>
+                    <span className="font-medium">{news.analytics?.likes ?? news.likes ?? 0}</span>
                   </button>
                   
                   <button

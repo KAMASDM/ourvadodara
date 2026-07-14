@@ -2,10 +2,13 @@
 // src/components/Feed/DesktopNewsFeed.jsx
 // Google News-style Desktop Feed Layout
 // =============================================
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '../../context/Language/LanguageContext';
+import { useAuth } from '../../context/Auth/AuthContext';
 import { useCity } from '../../context/CityContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { db } from '../../firebase-config';
+import { ref, set, remove, onValue } from 'firebase/database';
 import { 
   Clock, 
   Bookmark, 
@@ -126,9 +129,24 @@ const PostMedia = ({ src, alt, className, fallback = true, post }) => {
 const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => {
   const { currentLanguage } = useLanguage();
   const { currentCity } = useCity();
+  const { user } = useAuth();
   const [savedPosts, setSavedPosts] = useState(new Set());
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [shareData, setShareData] = useState(null);
+
+  // Same persistence as the mobile feed: saved state lives in the user's
+  // bookmarks so it survives reloads and matches across devices.
+  useEffect(() => {
+    if (!user?.uid) {
+      setSavedPosts(new Set());
+      return undefined;
+    }
+    const bookmarksRef = ref(db, `bookmarks/${user.uid}`);
+    const unsubscribe = onValue(bookmarksRef, (snapshot) => {
+      setSavedPosts(new Set(Object.keys(snapshot.val() || {})));
+    });
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   // Fetch data - posts and carousels; reels stay on their dedicated page
   const { data: postsData, loading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
@@ -233,17 +251,49 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
     window.dispatchEvent(new Event('popstate'));
   };
 
-  const handleSave = (postId, e) => {
+  const handleSave = async (postId, e) => {
     e.stopPropagation();
+
+    // Match the mobile app: saving requires an account.
+    if (!user) {
+      document.dispatchEvent(new CustomEvent('showGuestPrompt'));
+      return;
+    }
+
+    const wasSaved = savedPosts.has(postId);
     setSavedPosts(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(postId)) {
+      if (wasSaved) {
         newSet.delete(postId);
       } else {
         newSet.add(postId);
       }
       return newSet;
     });
+
+    try {
+      const bookmarkRef = ref(db, `bookmarks/${user.uid}/${postId}`);
+      if (wasSaved) {
+        await remove(bookmarkRef);
+      } else {
+        await set(bookmarkRef, {
+          timestamp: Date.now(),
+          type: 'post',
+          source: 'posts'
+        });
+      }
+    } catch (error) {
+      console.error('Error updating bookmark:', error);
+      setSavedPosts(prev => {
+        const newSet = new Set(prev);
+        if (wasSaved) {
+          newSet.add(postId);
+        } else {
+          newSet.delete(postId);
+        }
+        return newSet;
+      });
+    }
   };
 
   const handleShare = (post, e) => {

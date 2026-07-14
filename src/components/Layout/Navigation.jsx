@@ -5,7 +5,7 @@
 // =============================================
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Home, Newspaper, User, AlertTriangle, LogIn, Clapperboard } from 'lucide-react';
+import { Home, Newspaper, User, AlertTriangle, Clapperboard } from 'lucide-react';
 import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 
@@ -72,9 +72,10 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
     { id: 'roundup',  Icon: Newspaper,     label: 'Roundup' },
     { id: 'reels',    Icon: Clapperboard,  label: 'Reels' },
     { id: 'breaking', Icon: AlertTriangle, label: 'Breaking', alert: true },
-    user
-      ? { id: 'profile', Icon: User,  label: t('profile', 'Profile'), badge: unreadCount }
-      : { id: 'profile', Icon: LogIn, label: t('login', 'Login') },
+    // Logged-out users see the same Profile tab; tapping it opens the login
+    // modal (handled in App.handleTabChange). The header owns the Login CTA,
+    // so the label here must not duplicate it.
+    { id: 'profile', Icon: User, label: t('profile', 'Profile'), badge: user ? unreadCount : 0 },
   ];
 
   return (

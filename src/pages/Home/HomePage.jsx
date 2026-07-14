@@ -1,25 +1,15 @@
 // =============================================
 // src/pages/Home/HomePage.jsx - Redesigned Layout with Pull-to-Refresh
 // =============================================
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
+import { useAutoHideOnScroll } from '../../hooks/useAutoHideOnScroll';
 import PullToRefreshIndicator from '../../components/Common/PullToRefreshIndicator';
 import EnhancedStorySection from '../../components/Story/EnhancedStorySection';
-import CategoryFilter from '../../components/Category/CategoryFilter';
 import SwipeableCategoryFilter from '../../components/Category/SwipeableCategoryFilter';
 import EnhancedNewsFeed from '../../components/Feed/EnhancedNewsFeed';
-import DesktopNewsFeed from '../../components/Feed/DesktopNewsFeed';
 import BreakingNews from '../../components/Breaking/BreakingNews';
-import WeatherWidget from '../../components/Weather/WeatherWidget';
-import LiveUpdates from '../../components/Live/LiveUpdates';
-import TrendingTopics from '../../components/Trending/TrendingTopics';
-import TrendingTopicsWidget from '../../components/Topics/TrendingTopicsWidget';
-import EventsCalendar from '../../components/Events/EventsCalendar';
-import PollWidget from '../../components/Polls/PollWidget';
-import AIPicksReal from '../../components/AI/AIPicksReal';
-import ReadingStreak from '../../components/Gamification/ReadingStreak';
-import CampaignAssistantChat from '../../components/Leads/CampaignAssistantChat';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import {
   Cloud,
@@ -34,6 +24,19 @@ import {
   X
 } from 'lucide-react';
 
+// Secondary/home-desktop features are split out of the mobile feed bundle.
+// They load only when rendered instead of delaying the first scrollable posts.
+const DesktopNewsFeed = React.lazy(() => import('../../components/Feed/DesktopNewsFeed'));
+const WeatherWidget = React.lazy(() => import('../../components/Weather/WeatherWidget'));
+const LiveUpdates = React.lazy(() => import('../../components/Live/LiveUpdates'));
+const TrendingTopics = React.lazy(() => import('../../components/Trending/TrendingTopics'));
+const TrendingTopicsWidget = React.lazy(() => import('../../components/Topics/TrendingTopicsWidget'));
+const EventsCalendar = React.lazy(() => import('../../components/Events/EventsCalendar'));
+const PollWidget = React.lazy(() => import('../../components/Polls/PollWidget'));
+const AIPicksReal = React.lazy(() => import('../../components/AI/AIPicksReal'));
+const ReadingStreak = React.lazy(() => import('../../components/Gamification/ReadingStreak'));
+const CampaignAssistantChat = React.lazy(() => import('../../components/Leads/CampaignAssistantChat'));
+
 const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all' }) => {
   const { t } = useTranslation();
   const [activeCategory, setActiveCategory] = useState(initialCategory || 'all');
@@ -43,9 +46,11 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [feedTab, setFeedTab] = useState('for-you'); // 'for-you' | 'following' | 'all'
   const [selectedTopic, setSelectedTopic] = useState(null);
-  const [areTopControlsHidden, setAreTopControlsHidden] = useState(false);
-  const lastScrollY = useRef(typeof window !== 'undefined' ? window.scrollY : 0);
-  const scrollTicking = useRef(false);
+
+  // Shares the same scroll-direction logic as the fixed Header so the whole
+  // top chrome hides and reappears together.
+  const isChromeHidden = useAutoHideOnScroll({ enabled: !isDesktop && !isSectionSheetOpen });
+  const areTopControlsHidden = isChromeHidden && !isSectionSheetOpen;
 
   useEffect(() => {
     const handleResize = () => {
@@ -59,35 +64,6 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
   useEffect(() => {
     setActiveCategory(initialCategory || 'all');
   }, [initialCategory]);
-
-  useEffect(() => {
-    if (isDesktop) {
-      setAreTopControlsHidden(false);
-      return undefined;
-    }
-
-    const handleScroll = () => {
-      if (scrollTicking.current) return;
-      scrollTicking.current = true;
-
-      requestAnimationFrame(() => {
-        const currentY = Math.max(window.scrollY, 0);
-        const delta = currentY - lastScrollY.current;
-
-        if (currentY < 72 || delta < -8) {
-          setAreTopControlsHidden(false);
-        } else if (delta > 10 && currentY > 160 && !isSectionSheetOpen) {
-          setAreTopControlsHidden(true);
-        }
-
-        lastScrollY.current = currentY;
-        scrollTicking.current = false;
-      });
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [isDesktop, isSectionSheetOpen]);
 
   // Pull-to-refresh implementation
   const handleRefresh = async () => {
@@ -311,7 +287,9 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
           {activeSection && ActiveSectionComponent && (
             <div className="px-2 pt-3">
               <div className="liquid-card p-3">
-                <ActiveSectionComponent onPostClick={onPostClick} />
+                <React.Suspense fallback={<div className="h-28 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />}>
+                  <ActiveSectionComponent onPostClick={onPostClick} />
+                </React.Suspense>
               </div>
             </div>
           )}
@@ -331,12 +309,14 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
             )}
 
             <div className="px-2 mt-2 space-y-2.5">
-              <TrendingTopicsWidget
-                onTopicClick={(topic) => {
-                  setSelectedTopic(topic);
-                }}
-              />
-              <ReadingStreak compact={true} />
+              <React.Suspense fallback={null}>
+                <TrendingTopicsWidget
+                  onTopicClick={(topic) => {
+                    setSelectedTopic(topic);
+                  }}
+                />
+                <ReadingStreak compact={true} />
+              </React.Suspense>
             </div>
 
             <div className="mt-2">
@@ -352,10 +332,12 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
         </div>
       )}
 
-      <CampaignAssistantChat
-        showFab
-        fabBottomClass={isDesktop ? 'bottom-6' : 'bottom-[94px]'}
-      />
+      <React.Suspense fallback={null}>
+        <CampaignAssistantChat
+          showFab
+          fabBottomClass={isDesktop ? 'bottom-6' : 'bottom-[94px]'}
+        />
+      </React.Suspense>
 
       {/* ── More sections bottom sheet ── */}
       {isSectionSheetOpen && (

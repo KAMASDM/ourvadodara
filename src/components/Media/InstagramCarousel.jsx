@@ -22,7 +22,8 @@ const InstagramCarousel = ({
   autoPlay = false,
   autoPlayInterval = 3000,
   externalCurrentIndex = null,
-  viewCount = null
+  viewCount = null,
+  priority = false
 }) => {
   const normalizeAspectRatio = (value, fallback = '1/1') => {
     const target = value || fallback;
@@ -315,7 +316,9 @@ const InstagramCarousel = ({
                   className="w-full h-full object-cover"
                   style={{ display: 'block' }}
                   draggable={false}
-                  loading={index === currentIndex ? 'eager' : 'lazy'}
+                  loading={priority && index === 0 ? 'eager' : 'lazy'}
+                  fetchPriority={priority && index === 0 ? 'high' : 'low'}
+                  decoding="async"
                   onLoad={(e) => handleImageLoad(e, index)}
                   onError={(e) => {
                     console.error('Image failed to load in carousel:', src);

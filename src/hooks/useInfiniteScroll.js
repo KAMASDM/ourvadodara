@@ -2,7 +2,7 @@
 // src/hooks/useInfiniteScroll.js
 // Enhanced Infinite Scroll with Pagination
 // =============================================
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 /**
  * Enhanced infinite scroll hook with pagination support
@@ -13,48 +13,39 @@ import { useState, useEffect, useCallback, useRef } from 'react';
  * @returns {Object} - Paginated items and loading state
  */
 export const useInfiniteScroll = (allItems = [], options = {}) => {
-  const { pageSize = 20, threshold = 300 } = options;
-  const [displayedItems, setDisplayedItems] = useState([]);
+  const { pageSize = 20, threshold = 300, resetKey = 'default' } = options;
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const observerRef = useRef(null);
   const sentinelRef = useRef(null);
 
-  // Initialize displayed items
+  // Reset only when the active feed/filter changes. Realtime updates (likes,
+  // views, comments) must not throw away mounted pages and rebuild the feed.
   useEffect(() => {
-    if (allItems.length === 0) {
-      setDisplayedItems([]);
-      setPage(1);
-      setHasMore(false);
-      return;
-    }
-
-    const initialItems = allItems.slice(0, pageSize);
-    setDisplayedItems(initialItems);
     setPage(1);
-    setHasMore(allItems.length > pageSize);
-  }, [allItems, pageSize]);
+  }, [resetKey, pageSize]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(allItems.length / pageSize));
+    setPage(currentPage => Math.min(currentPage, maxPage));
+  }, [allItems.length, pageSize]);
+
+  const displayedItems = useMemo(
+    () => allItems.slice(0, page * pageSize),
+    [allItems, page, pageSize]
+  );
+  const hasMore = displayedItems.length < allItems.length;
 
   // Load more items
   const loadMore = useCallback(() => {
     if (isFetching || !hasMore) return;
 
     setIsFetching(true);
-    
-    // Simulate async loading for smooth UX
-    setTimeout(() => {
-      const nextPage = page + 1;
-      const startIndex = 0;
-      const endIndex = nextPage * pageSize;
-      const nextItems = allItems.slice(startIndex, endIndex);
-      
-      setDisplayedItems(nextItems);
-      setPage(nextPage);
-      setHasMore(endIndex < allItems.length);
+    requestAnimationFrame(() => {
+      setPage(currentPage => currentPage + 1);
       setIsFetching(false);
-    }, 300);
-  }, [allItems, page, pageSize, hasMore, isFetching]);
+    });
+  }, [hasMore, isFetching]);
 
   // Intersection Observer for better performance
   useEffect(() => {

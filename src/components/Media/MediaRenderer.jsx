@@ -34,7 +34,8 @@ const MediaRenderer = ({
   actionState = {},
   showCarouselDots = true,
   onCarouselChange = null,
-  externalCarouselIndex = null
+  externalCarouselIndex = null,
+  priority = false
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -373,7 +374,10 @@ const MediaRenderer = ({
         <div className="relative w-full">
           <img
             src={post.image}
-              alt={getLocalizedText(post.title, 'en') || 'News image'}
+            alt={getLocalizedText(post.title, 'en') || 'News image'}
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : 'low'}
+            decoding="async"
             className="w-full h-auto max-h-[80vh] object-contain"
           />
         </div>
@@ -427,12 +431,16 @@ const MediaRenderer = ({
               muted={isMuted}
               loop={settings.loop}
               playsInline
+              preload={priority ? 'metadata' : 'none'}
               onClick={togglePlayPause}
             />
           ) : (
             <img
               src={currentItemSource}
               alt={currentItem.caption?.en || ''}
+              loading={priority ? 'eager' : 'lazy'}
+              fetchPriority={priority ? 'high' : 'low'}
+              decoding="async"
               className="w-full h-auto max-h-[80vh] object-contain bg-black"
             />
           )}
@@ -535,7 +543,7 @@ const MediaRenderer = ({
   if (type === POST_TYPES.REEL) {
     // Auto-play logic for reels
     useEffect(() => {
-      if (!videoRef.current) return;
+      if (!autoplay || !videoRef.current) return;
 
       const video = videoRef.current;
       const observer = new IntersectionObserver(
@@ -557,7 +565,7 @@ const MediaRenderer = ({
 
       observer.observe(video);
       return () => observer.disconnect();
-    }, [videoRef.current]);
+    }, [autoplay, videoRef.current]);
 
     return (
       <div className={`relative bg-black rounded-lg overflow-hidden ${className}`} style={{ aspectRatio: '9/16', maxHeight: '100vh' }}>
@@ -569,6 +577,7 @@ const MediaRenderer = ({
           muted
           loop
           playsInline
+          preload={autoplay ? 'metadata' : 'none'}
           poster={currentItem.thumbnailUrl}
         />
 
@@ -767,6 +776,7 @@ const MediaRenderer = ({
             }
             onCarouselChange?.(index, totalSlides);
           }}
+          priority={priority}
         />
         
         {/* Caption below the carousel (never overlapping the image) */}
@@ -783,7 +793,7 @@ const MediaRenderer = ({
 
   // Auto-play logic for single video (standard posts)
   useEffect(() => {
-    if (!isVideo || !videoRef.current || type === POST_TYPES.REEL || type === POST_TYPES.STORY) {
+    if (!autoplay || !isVideo || !videoRef.current || type === POST_TYPES.REEL || type === POST_TYPES.STORY) {
       return; // Only for standard post videos
     }
 
@@ -807,7 +817,7 @@ const MediaRenderer = ({
 
     observer.observe(video);
     return () => observer.disconnect();
-  }, [isVideo, type, videoRef.current]);
+  }, [autoplay, isVideo, type, videoRef.current]);
 
   // Single Image/Video Renderer
   return (
@@ -817,6 +827,9 @@ const MediaRenderer = ({
           <img
             src={currentItemSource || logoImage}
             alt={currentItem.caption?.en || ''}
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : 'low'}
+            decoding="async"
             className="w-full h-auto object-contain max-h-[80vh]"
             style={{ display: 'block', margin: '0 auto' }}
           />
@@ -828,6 +841,7 @@ const MediaRenderer = ({
               className="w-full h-auto object-contain max-h-[80vh] bg-black"
               muted
               playsInline
+              preload={priority ? 'metadata' : 'none'}
               poster={currentItem.thumbnailUrl}
               loop={settings.loop}
             />

@@ -2,7 +2,7 @@
 // src/components/Feed/EnhancedNewsFeed.jsx
 // Enhanced News Feed with Full Media Support + Infinite Scroll
 // =============================================
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useAuth } from '../../context/Auth/AuthContext';
@@ -22,7 +22,9 @@ import {
   Eye,
   Clock,
   MapPin,
-  Loader2
+  Loader2,
+  Link2,
+  Check
 } from 'lucide-react';
 import MediaRenderer from '../Media/MediaRenderer';
 import LoadingSpinner from '../Common/LoadingSpinner';
@@ -46,12 +48,21 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
   // per-city mirrors, which only contain recent writes). City relevance is
   // applied client-side via belongsToCurrentCity below.
   const { data: postsData, isLoading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
-  const { data: storiesData, isLoading: storiesLoading } = useRealtimeData('stories', { scope: 'global' });
   const { data: reelsData, isLoading: reelsLoading } = useRealtimeData('reels', { scope: 'global' });
   const { data: carouselsData, isLoading: carouselsLoading } = useRealtimeData('carousels', { scope: 'global' });
 
   const [likedPosts, setLikedPosts] = useState(new Set());
   const [savedPosts, setSavedPosts] = useState(new Set());
+
+  // PostCard is memoized with a comparator that ignores handler props, so a
+  // card can keep handlers from an earlier render. Handlers must read auth
+  // and like/save state through refs to avoid acting on stale values.
+  const userRef = useRef(user);
+  userRef.current = user;
+  const likedPostsRef = useRef(likedPosts);
+  likedPostsRef.current = likedPosts;
+  const savedPostsRef = useRef(savedPosts);
+  savedPostsRef.current = savedPosts;
 
   // Keep the real Like button in sync across devices and reloads.
   useEffect(() => {
@@ -83,7 +94,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [shareData, setShareData] = useState(null);
 
-  const isLoading = postsLoading || storiesLoading || reelsLoading || carouselsLoading;
+  const isLoading = postsLoading || reelsLoading || carouselsLoading;
 
   // Posts created before multi-city support have no cities array; they are
   // legacy Vadodara content.
@@ -113,19 +124,6 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
       });
       
       allPosts = [...allPosts, ...posts];
-    }
-
-    // Stories (only non-expired ones for feed)
-    if (storiesData && Object.keys(storiesData).length > 0 && feedType !== 'reels') {
-      const stories = Object.entries(storiesData)
-        .map(([id, story]) => ({ id, ...story }))
-        .filter(story => new Date(story.expiresAt) > new Date() && story.isActive)
-        .map(story => ({
-          ...story,
-          type: POST_TYPES.STORY,
-          source: 'stories'
-        }));
-      allPosts = [...allPosts, ...stories];
     }
 
     // Reels
@@ -158,7 +156,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
     allPosts = allPosts.filter(belongsToCurrentCity);
 
     // Only show sample data if we're still loading or explicitly have no data at all
-    if (allPosts.length === 0 && !postsLoading && !storiesLoading && !reelsLoading && !carouselsLoading) {
+    if (allPosts.length === 0 && !postsLoading && !reelsLoading && !carouselsLoading) {
       allPosts = sampleNews.map(post => ({
         ...post,
         type: POST_TYPES.STANDARD,
@@ -251,12 +249,16 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
       const timeB = new Date(b.publishedAt || b.createdAt || 0).getTime() || 0;
       return timeB - timeA;
     });
-  }, [postsData, storiesData, reelsData, carouselsData, activeCategory, feedType, currentCity]);
+  }, [postsData, reelsData, carouselsData, activeCategory, feedType, currentCity]);
 
   // Apply infinite scroll pagination
   const { items: paginatedPosts, hasMore, isFetching, sentinelRef } = useInfiniteScroll(
     filteredPosts,
-    { pageSize: 20, threshold: 500 }
+    {
+      pageSize: typeof window !== 'undefined' && window.innerWidth < 768 ? 8 : 16,
+      threshold: 350,
+      resetKey: `${currentCity?.id || 'all'}:${activeCategory || 'all'}:${feedType}`
+    }
   );
 
   // Handle post interactions
@@ -264,12 +266,13 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
     const postId = post?.id;
     if (!postId) return;
 
-    if (!user) {
+    const currentUser = userRef.current;
+    if (!currentUser) {
       document.dispatchEvent(new CustomEvent('showGuestPrompt'));
       return;
     }
 
-    const wasLiked = likedPosts.has(postId);
+    const wasLiked = likedPostsRef.current.has(postId);
 
     setLikedPosts(prev => {
       const newLiked = new Set(prev);
@@ -284,11 +287,11 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
     try {
       const sourcePath = post.source || 'posts';
       const updates = {
-        [`likes/${postId}/${user.uid}`]: wasLiked ? null : true,
+        [`likes/${postId}/${currentUser.uid}`]: wasLiked ? null : true,
         [`${sourcePath}/${postId}/analytics/likes`]: increment(wasLiked ? -1 : 1),
         // Per-user activity tracking for the profile stats
-        [`users/${user.uid}/likes/${postId}`]: wasLiked ? null : true,
-        [`users/${user.uid}/totalLikes`]: increment(wasLiked ? -1 : 1)
+        [`users/${currentUser.uid}/likes/${postId}`]: wasLiked ? null : true,
+        [`users/${currentUser.uid}/totalLikes`]: increment(wasLiked ? -1 : 1)
       };
       await update(ref(db), updates);
     } catch (error) {
@@ -309,12 +312,13 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
     const postId = post?.id;
     if (!postId) return;
 
-    if (!user) {
+    const currentUser = userRef.current;
+    if (!currentUser) {
       document.dispatchEvent(new CustomEvent('showGuestPrompt'));
       return;
     }
 
-    const wasSaved = savedPosts.has(postId);
+    const wasSaved = savedPostsRef.current.has(postId);
 
     setSavedPosts(prev => {
       const newSaved = new Set(prev);
@@ -327,7 +331,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
     });
 
     try {
-      const bookmarkRef = ref(db, `bookmarks/${user.uid}/${postId}`);
+      const bookmarkRef = ref(db, `bookmarks/${currentUser.uid}/${postId}`);
       if (wasSaved) {
         await remove(bookmarkRef);
       } else {
@@ -363,10 +367,11 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
     });
     setShareSheetOpen(true);
 
-    if (user?.uid) {
+    const currentUser = userRef.current;
+    if (currentUser?.uid) {
       update(ref(db), {
-        [`users/${user.uid}/totalShares`]: increment(1),
-        [`users/${user.uid}/shares/${post.id}`]: Date.now()
+        [`users/${currentUser.uid}/totalShares`]: increment(1),
+        [`users/${currentUser.uid}/shares/${post.id}`]: Date.now()
       }).catch((error) => console.error('Error tracking share:', error));
     }
   };
@@ -444,6 +449,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
             isExpanded={expandedPosts.has(post.id)}
             onToggleExpanded={() => toggleExpanded(post.id)}
             currentLanguage={currentLanguage}
+            mediaPriority={index < 2}
           />
         );
       })}
@@ -477,7 +483,29 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
 };
 
 // Enhanced Post Card Component
-const PostCard = ({ 
+function arePostCardPropsEqual(previous, next) {
+  const previousAnalytics = previous.post?.analytics || {};
+  const nextAnalytics = next.post?.analytics || {};
+
+  return previous.post?.id === next.post?.id &&
+    previous.post?.updatedAt === next.post?.updatedAt &&
+    previous.post?.publishedAt === next.post?.publishedAt &&
+    previousAnalytics.views === nextAnalytics.views &&
+    previousAnalytics.likes === nextAnalytics.likes &&
+    previousAnalytics.comments === nextAnalytics.comments &&
+    previousAnalytics.shares === nextAnalytics.shares &&
+    previous.post?.views === next.post?.views &&
+    previous.post?.likes === next.post?.likes &&
+    previous.post?.comments === next.post?.comments &&
+    previous.post?.shares === next.post?.shares &&
+    previous.isLiked === next.isLiked &&
+    previous.isSaved === next.isSaved &&
+    previous.isExpanded === next.isExpanded &&
+    previous.currentLanguage === next.currentLanguage &&
+    previous.mediaPriority === next.mediaPriority;
+}
+
+const PostCard = React.memo(function PostCard({
   post, 
   onPostClick, 
   onLike, 
@@ -489,8 +517,9 @@ const PostCard = ({
   isSaved, 
   isExpanded,
   onToggleExpanded,
-  currentLanguage 
-}) => {
+  currentLanguage,
+  mediaPriority = false
+}) {
   const title = getLocalizedText(post.title, currentLanguage) || 'Untitled';
   const content = getLocalizedText(post.content, currentLanguage);
   const excerpt = getLocalizedText(post.excerpt, currentLanguage);
@@ -514,6 +543,50 @@ const PostCard = ({
   const [carouselTotal, setCarouselTotal] = useState(mediaItems.length);
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
   const [heartPosition, setHeartPosition] = useState({ x: 0, y: 0 });
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const menuRef = useRef(null);
+
+  // Close the options menu on outside tap/click or Escape
+  useEffect(() => {
+    if (!isMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setIsMenuOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMenuOpen]);
+
+  const handleCopyLink = async () => {
+    const shareUrl = `${window.location.origin}/post/${post.id}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+    } catch (error) {
+      // Clipboard API can be unavailable (http, older webviews)
+      const textArea = document.createElement('textarea');
+      textArea.value = shareUrl;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
+    setLinkCopied(true);
+    setTimeout(() => {
+      setLinkCopied(false);
+      setIsMenuOpen(false);
+    }, 1200);
+  };
   const viewCount = post.analytics?.views ?? post.views ?? 0;
   const likeCount = post.analytics?.likes ?? post.likes ?? 0;
   const commentCount = post.analytics?.comments ?? post.comments ?? 0;
@@ -564,7 +637,7 @@ const PostCard = ({
   const authorAvatar = logoImage;
 
   return (
-    <article className="group liquid-card transition-all duration-300 hover:-translate-y-0.5 rounded-[1.35rem]">
+    <article className="feed-card content-vis group liquid-card rounded-[1.35rem] lg:transition-transform lg:duration-300 lg:hover:-translate-y-0.5">
       {/* Heart animation overlay */}
       <HeartAnimation
         show={showHeartAnimation}
@@ -572,7 +645,7 @@ const PostCard = ({
         onComplete={() => setShowHeartAnimation(false)}
       />
       
-      <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.18),transparent_48%),radial-gradient(circle_at_top_right,rgba(37,99,235,0.16),transparent_42%)]"></div>
+      <div className="absolute inset-0 hidden pointer-events-none opacity-0 transition-opacity duration-500 group-hover:opacity-100 lg:block bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.18),transparent_48%),radial-gradient(circle_at_top_right,rgba(37,99,235,0.16),transparent_42%)]"></div>
 
       {/* Post Header */}
       <div className="relative px-4 pt-4">
@@ -619,9 +692,64 @@ const PostCard = ({
             </div>
           </div>
 
-          <button className="liquid-action flex h-10 w-10 items-center justify-center rounded-2xl text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100">
-            <MoreVertical className="w-4 h-4" />
-          </button>
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(open => !open)}
+              aria-haspopup="menu"
+              aria-expanded={isMenuOpen}
+              aria-label="Post options"
+              className="liquid-action flex h-10 w-10 items-center justify-center rounded-2xl text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+
+            {isMenuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-11 z-30 w-52 overflow-hidden rounded-2xl border border-white/60 bg-white shadow-xl dark:border-white/10 dark:bg-slate-900"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setIsMenuOpen(false); onSave(); }}
+                  className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+                >
+                  <Bookmark className={`h-4 w-4 ${isSaved ? 'fill-current text-blue-600 dark:text-sky-400' : ''}`} />
+                  {isSaved ? 'Remove from saved' : 'Save post'}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setIsMenuOpen(false); onShare(); }}
+                  className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+                >
+                  <Share2 className="h-4 w-4" />
+                  Share post
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleCopyLink}
+                  className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+                >
+                  {linkCopied ? <Check className="h-4 w-4 text-emerald-500" /> : <Link2 className="h-4 w-4" />}
+                  {linkCopied ? 'Link copied!' : 'Copy link'}
+                </button>
+                {isClickable && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setIsMenuOpen(false); onPostClick(post.id); }}
+                    className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Open post
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -719,6 +847,7 @@ const PostCard = ({
               showCarouselDots={!isCarouselPost}
               onCarouselChange={handleCarouselChange}
               externalCarouselIndex={carouselIndex}
+              priority={mediaPriority}
             />
           </div>
 
@@ -839,7 +968,7 @@ const PostCard = ({
       </div>
     </article>
   );
-};
+}, arePostCardPropsEqual);
 
 // Reel Card Component (for reel grid view)
 const ReelCard = ({ post, onLike, onSave, onShare, isLiked, isSaved, currentLanguage }) => {
