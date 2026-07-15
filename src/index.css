@@ -73,19 +73,22 @@ html {
 }
 
 body, #root {
-  overscroll-behavior-y: contain;
-  overflow-x: hidden;
   max-width: 100vw;
   font-family: var(--font-sans);
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 
-/* #root must GROW with content (min-height, not height): a fixed height plus
-   overflow-x:hidden turns #root into the scroll container, window.scrollY
-   stays 0 forever, and every scroll-position consumer (auto-hide chrome,
-   pull-to-refresh top check) silently breaks. The window must be the scroller. */
+/* The WINDOW must be the app's scroller, so overflow/overscroll rules live on
+   body only (the browser propagates them to the viewport). #root must stay a
+   plain growing block: a fixed height or ANY overflow value other than
+   visible turns it into a scroll container, which either hijacks scrolling
+   entirely (window.scrollY stuck at 0 → auto-hide chrome and pull-to-refresh
+   break) or, combined with overscroll-behavior contain, swallows wheel/
+   trackpad scrolling so the page appears frozen for mouse users. */
 body {
   height: 100%;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
 }
 
 #root {
