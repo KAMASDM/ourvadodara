@@ -45,7 +45,8 @@ const NotificationCenter = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-16">
+    // z-[70]: must clear the home control bar (z-[55]) and header sheets (z-[60])
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-start justify-center pt-16">
       <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-md m-4 max-h-[80vh] flex flex-col">
         <div className="p-4 border-b flex justify-between items-center">
           <h2 className="text-lg font-semibold">Notifications {unreadCount > 0 && `(${unreadCount})`}</h2>

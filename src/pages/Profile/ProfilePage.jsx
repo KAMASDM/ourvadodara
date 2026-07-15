@@ -11,6 +11,7 @@ import { ref, get, onValue } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile as updateAuthProfile } from 'firebase/auth';
 import ContactVerificationModal from '../../components/Profile/ContactVerificationModal';
+import notificationManager, { initializeNotifications, getNotificationPermission } from '../../utils/notificationManager';
 import {
   User,
   Settings,
@@ -130,6 +131,47 @@ const ProfilePage = () => {
   const [verificationValue, setVerificationValue] = useState('');
   const [expandedSection, setExpandedSection] = useState('personal'); // For accordion
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [pushEnabled, setPushEnabled] = useState(getNotificationPermission() === 'granted');
+  const [pushEnabling, setPushEnabling] = useState(false);
+  const [pushMessage, setPushMessage] = useState('');
+
+  const handleTogglePushNotifications = async () => {
+    if (pushEnabling) return;
+    setPushMessage('');
+
+    if (pushEnabled) {
+      // Browsers can't revoke notification permission from a page.
+      setPushMessage('To turn notifications off, block them for Our Vadodara in your device or browser settings.');
+      return;
+    }
+
+    if (!notificationManager.isSupported()) {
+      setPushMessage('Push notifications work in the installed mobile app. Add Our Vadodara to your home screen, then enable them here.');
+      return;
+    }
+
+    if (getNotificationPermission() === 'denied') {
+      setPushMessage('Notifications are blocked for this app. Allow them in your device or browser settings, then try again.');
+      return;
+    }
+
+    setPushEnabling(true);
+    try {
+      const ok = await initializeNotifications();
+      const granted = getNotificationPermission() === 'granted';
+      setPushEnabled(ok || granted);
+      if (ok || granted) {
+        setPushMessage('Notifications enabled. You will be alerted when new stories are published.');
+      } else {
+        setPushMessage('Could not enable notifications. Please allow the permission prompt and try again.');
+      }
+    } catch (error) {
+      console.error('Failed to enable push notifications:', error);
+      setPushMessage('Could not enable notifications. Please try again.');
+    } finally {
+      setPushEnabling(false);
+    }
+  };
   const [verificationInfo, setVerificationInfo] = useState('');
   const [userStats, setUserStats] = useState({
     postsLiked: 0,
@@ -955,15 +997,25 @@ const ProfilePage = () => {
               </select>
             </div>
 
-            <button className="w-full flex items-center justify-between rounded-xl border border-transparent bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:bg-gray-800/60 dark:hover:bg-gray-800">
-              <div className="flex items-center gap-3">
-                <Bell className="w-5 h-5" />
-                <span className="text-gray-900 dark:text-white">Notifications</span>
-              </div>
-              <div className="h-5 w-10 rounded-full bg-primary-500/30">
-                <div className="h-5 w-5 rounded-full bg-primary-500"></div>
-              </div>
-            </button>
+            <div className="rounded-xl border border-transparent bg-gray-50/80 transition-colors hover:bg-gray-100 dark:bg-gray-800/60 dark:hover:bg-gray-800">
+              <button
+                type="button"
+                onClick={handleTogglePushNotifications}
+                disabled={pushEnabling}
+                className="w-full flex items-center justify-between px-4 py-3 text-left disabled:opacity-60"
+              >
+                <div className="flex items-center gap-3">
+                  <Bell className="w-5 h-5" />
+                  <span className="text-gray-900 dark:text-white">Notifications</span>
+                </div>
+                <div className={`relative h-5 w-10 rounded-full transition-colors ${pushEnabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                  <div className={`absolute top-0 h-5 w-5 rounded-full bg-white shadow transition-transform ${pushEnabled ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                </div>
+              </button>
+              {pushMessage && (
+                <p className="px-4 pb-3 text-xs text-gray-500 dark:text-gray-400">{pushMessage}</p>
+              )}
+            </div>
 
             <button className="w-full flex items-center justify-between rounded-xl border border-transparent bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:bg-gray-800/60 dark:hover:bg-gray-800">
               <div className="flex items-center gap-3">

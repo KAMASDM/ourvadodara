@@ -41,7 +41,9 @@ class NotificationManager {
   // Initialize notifications on app install/first run
   async initialize() {
     if (this.isInitialized) {
-      return false;
+      // Already set up this session — report success so UI toggles reflect
+      // the enabled state instead of silently showing "off".
+      return true;
     }
 
     // Early return if not supported - don't log anything
