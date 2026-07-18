@@ -18,7 +18,9 @@ import {
   X,
   Save,
   RefreshCw,
-  Languages
+  Languages,
+  Radio,
+  ChevronRight
 } from 'lucide-react';
 import { ref, push, get, update, remove } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -389,40 +391,56 @@ const BreakingNewsManager = () => {
     }
   };
 
+  const openBreakingNewsDetail = (id) => {
+    window.history.pushState({ view: 'breaking-detail', newsId: id }, '', `/breaking/${encodeURIComponent(id)}`);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   if (loading && !showForm) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-red-600 border-t-transparent"></div>
+      <div className="flex min-h-[55vh] items-center justify-center">
+        <div className="h-9 w-9 animate-spin rounded-full border-2 border-teal-600 border-t-transparent"></div>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
+    <div className="mx-auto min-h-screen max-w-6xl px-3 pb-24 pt-2 sm:px-5 sm:pt-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-3">
-          <AlertTriangle className="w-6 h-6 text-red-500" />
-          <h1 className="text-2xl font-bold text-gray-900">Breaking News Manager</h1>
+      <div className="liquid-panel mb-3 flex items-center justify-between gap-3 rounded-[1.75rem] border border-white/70 p-4 dark:border-white/10 sm:mb-4 sm:p-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 ring-1 ring-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:ring-rose-800">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="eyebrow text-rose-600 dark:text-rose-300">Newsroom</p>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-800"><Radio className="h-3 w-3" /> Live</span>
+            </div>
+            <h1 className="mt-1 truncate text-xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-2xl">Breaking News</h1>
+            <p className="hidden text-sm text-slate-500 dark:text-slate-400 sm:block">Create, review and publish urgent city updates.</p>
+          </div>
         </div>
         <button
+          type="button"
           onClick={() => {
             resetForm();
             setShowForm(true);
           }}
-          className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-teal-700 px-3.5 py-2.5 text-sm font-bold text-white shadow-md shadow-teal-700/20 transition hover:bg-teal-800 sm:px-4"
         >
           <Plus className="w-4 h-4" />
-          <span>Add Breaking News</span>
+          <span className="hidden sm:inline">Add Breaking News</span>
+          <span className="sm:hidden">Add</span>
         </button>
       </div>
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-t-[2rem] bg-white shadow-2xl dark:bg-slate-950 sm:rounded-[2rem]">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:px-6">
+              <h2 className="text-xl font-extrabold text-slate-950 dark:text-white">
                 {editingId ? 'Edit Breaking News' : 'Create Breaking News'}
               </h2>
               <button
@@ -430,15 +448,15 @@ const BreakingNewsManager = () => {
                   setShowForm(false);
                   resetForm();
                 }}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6 p-5 sm:p-6">
               {/* Language Selector */}
-              <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
+              <div className="flex w-fit space-x-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-900">
                 {Object.entries(languageLabels).map(([lang, label]) => (
                   <button
                     key={lang}
@@ -446,8 +464,8 @@ const BreakingNewsManager = () => {
                     onClick={() => setActiveLanguage(lang)}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                       activeLanguage === lang
-                        ? 'bg-white text-red-600 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-white text-teal-700 shadow-sm dark:bg-slate-800 dark:text-teal-300'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                     }`}
                   >
                     {label}
@@ -693,53 +711,61 @@ const BreakingNewsManager = () => {
       )}
 
       {/* News List */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {news.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-            <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Breaking News</h3>
-            <p className="text-gray-500">Create your first breaking news alert</p>
+          <div className="liquid-panel col-span-full rounded-[1.75rem] px-6 py-14 text-center">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-rose-50 text-rose-500 dark:bg-rose-950/50"><AlertTriangle className="h-7 w-7" /></div>
+            <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-white">No Breaking News</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Create your first newsroom alert.</p>
           </div>
         ) : (
           news.map((item) => (
             <div
               key={item.id}
-              className={`bg-white rounded-lg shadow-sm border-l-4 p-5 h-full ${
-                priorities.find(p => p.value === item.priority)?.color || 'border-gray-400'
-              }`}
+              role="link"
+              tabIndex={0}
+              onClick={() => openBreakingNewsDetail(item.id)}
+              onKeyDown={(event) => {
+                if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                  event.preventDefault();
+                  openBreakingNewsDetail(item.id);
+                }
+              }}
+              aria-label={`Open breaking news: ${typeof item.title === 'object' ? item.title.en : item.title}`}
+              className="liquid-panel group h-full cursor-pointer rounded-[1.75rem] border border-white/70 p-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-teal-600 dark:border-white/10 sm:p-5"
             >
               <div className="flex h-full flex-col justify-between gap-4">
                 <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      item.priority === 'urgent' ? 'bg-red-100 text-red-800' :
-                      item.priority === 'high' ? 'bg-orange-100 text-orange-800' :
-                      item.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-blue-100 text-blue-800'
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide ring-1 ${
+                      item.priority === 'urgent' ? 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800' :
+                      item.priority === 'high' ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800' :
+                      item.priority === 'medium' ? 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:ring-sky-800' :
+                      'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:ring-teal-800'
                     }`}>
                       {item.priority?.toUpperCase()}
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       {item.category?.toUpperCase()}
                     </span>
                     {item.isActive ? (
-                      <span className="flex items-center text-green-600 text-xs">
+                      <span className="ml-auto flex items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                         <Eye className="w-3 h-3 mr-1" />
                         Active
                       </span>
                     ) : (
-                      <span className="flex items-center text-gray-500 text-xs">
+                      <span className="ml-auto flex items-center text-xs font-semibold text-slate-400">
                         <EyeOff className="w-3 h-3 mr-1" />
                         Inactive
                       </span>
                     )}
                   </div>
                   
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  <h3 className="mb-2 text-lg font-extrabold leading-snug text-slate-950 group-hover:text-teal-800 dark:text-white dark:group-hover:text-teal-300">
                     {typeof item.title === 'object' ? item.title.en : item.title}
                   </h3>
                   
-                  <p className="text-gray-600 mb-3">
+                  <p className="mb-3 line-clamp-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
                     {typeof item.content === 'object' ? item.content.en : item.content}
                   </p>
 
@@ -769,7 +795,7 @@ const BreakingNewsManager = () => {
                     </div>
                   )}
                   
-                  <div className="flex items-center space-x-4 text-xs text-gray-500">
+                  <div className="flex items-center space-x-4 text-xs text-slate-500 dark:text-slate-400">
                     <span className="flex items-center">
                       <Clock className="w-3 h-3 mr-1" />
                       {new Date(item.createdAt).toLocaleDateString()}
@@ -782,9 +808,12 @@ const BreakingNewsManager = () => {
                   </div>
                 </div>
                 
-                <div className="flex items-center justify-end space-x-2">
+                <div className="flex items-center justify-end gap-1 border-t border-slate-200/70 pt-3 dark:border-slate-700/70">
                   <button
-                    onClick={() => toggleActive(item.id, item.isActive)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleActive(item.id, item.isActive);
+                    }}
                     className={`p-2 rounded-lg transition-colors ${
                       item.isActive 
                         ? 'text-green-600 hover:bg-green-50' 
@@ -794,9 +823,13 @@ const BreakingNewsManager = () => {
                   >
                     {item.isActive ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                   </button>
+                  <span className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-teal-700 dark:text-teal-300">Open <ChevronRight className="h-4 w-4" /></span>
                   
                   <button
-                    onClick={() => handleEdit(item)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleEdit(item);
+                    }}
                     className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Edit"
                   >
@@ -804,7 +837,10 @@ const BreakingNewsManager = () => {
                   </button>
                   
                   <button
-                    onClick={() => handleDelete(item.id)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDelete(item.id);
+                    }}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     title="Delete"
                   >

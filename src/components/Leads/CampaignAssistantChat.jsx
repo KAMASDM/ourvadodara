@@ -193,16 +193,38 @@ const CampaignAssistantChat = ({
     const nextErrors = {};
     const phone = leadForm.phone.trim();
     const email = leadForm.email.trim();
-    const normalizedPhone = phone.replace(/[\s()-]/g, '');
-    if (!leadForm.contactName.trim()) nextErrors.contactName = 'Name is required';
+    const name = leadForm.contactName.trim();
+    const brandName = leadForm.brandName.trim();
+    const city = leadForm.city.trim();
+    const businessCategory = leadForm.businessCategory.trim();
+    const personOrPlacePattern = /^[\p{L}\p{M}][\p{L}\p{M}\s.'-]*$/u;
+
+    if (!name) nextErrors.contactName = 'Name is required';
+    else if (name.length < 2) nextErrors.contactName = 'Enter at least 2 characters';
+    else if (name.length > 80 || !personOrPlacePattern.test(name)) nextErrors.contactName = 'Enter a valid name';
     if (!phone) nextErrors.phone = 'Phone is required';
-    else if (!/^\+?[1-9]\d{7,14}$/.test(normalizedPhone)) nextErrors.phone = 'Enter a valid phone number';
+    else if (!/^[6-9]\d{9}$/.test(phone)) nextErrors.phone = 'Enter a valid 10-digit mobile number';
     if (!email) nextErrors.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) nextErrors.email = 'Enter a valid email address';
-    if (!leadForm.brandName.trim()) nextErrors.brandName = 'Brand name is required';
-    if (!leadForm.city.trim()) nextErrors.city = 'City is required';
+    else if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) nextErrors.email = 'Enter a valid email address';
+    if (!brandName) nextErrors.brandName = 'Brand name is required';
+    else if (brandName.length < 2 || brandName.length > 120) nextErrors.brandName = 'Enter a valid brand name';
+    if (!city) nextErrors.city = 'City is required';
+    else if (city.length < 2 || city.length > 80 || !personOrPlacePattern.test(city)) nextErrors.city = 'Enter a valid city';
+    if (businessCategory.length > 80) nextErrors.businessCategory = 'Keep the category under 80 characters';
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
+  };
+
+  const updateLeadField = (field, value) => {
+    const nextValue = field === 'phone' ? value.replace(/\D/g, '').slice(0, 10) : value;
+    setLeadForm(prev => ({ ...prev, [field]: nextValue }));
+    setErrors(prev => {
+      if (!prev[field] && !prev.submit) return prev;
+      const next = { ...prev };
+      delete next[field];
+      delete next.submit;
+      return next;
+    });
   };
 
   const submitLeadCapture = async (event) => {
@@ -254,9 +276,25 @@ const CampaignAssistantChat = ({
 
   const validateRequirementForm = () => {
     const nextErrors = {};
-    if (!requirementForm.requirement.trim()) nextErrors.requirement = 'Requirement is required';
+    const requirement = requirementForm.requirement.trim();
+    if (!requirement) nextErrors.requirement = 'Requirement is required';
+    else if (requirement.length < 10) nextErrors.requirement = 'Please add a little more detail';
+    else if (requirement.length > 2000) nextErrors.requirement = 'Keep the requirement under 2,000 characters';
+    if (requirementForm.budget.trim().length > 100) nextErrors.budget = 'Keep the budget under 100 characters';
+    if (requirementForm.timeline.trim().length > 100) nextErrors.timeline = 'Keep the timeline under 100 characters';
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
+  };
+
+  const updateRequirementField = (field, value) => {
+    setRequirementForm(prev => ({ ...prev, [field]: value }));
+    setErrors(prev => {
+      if (!prev[field] && !prev.submit) return prev;
+      const next = { ...prev };
+      delete next[field];
+      delete next.submit;
+      return next;
+    });
   };
 
   const submitRequirement = async (event) => {
@@ -531,29 +569,32 @@ const CampaignAssistantChat = ({
             <p className="mt-1 text-xs text-slate-500">This creates a lead in admin before the assistant starts.</p>
             <div className="mt-4 grid gap-3">
               <div>
-                <input value={leadForm.contactName} onChange={(e) => setLeadForm(prev => ({ ...prev, contactName: e.target.value }))} placeholder="Your name *" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                <input value={leadForm.contactName} onChange={(e) => updateLeadField('contactName', e.target.value)} placeholder="Your name *" autoComplete="name" minLength={2} maxLength={80} required aria-invalid={Boolean(errors.contactName)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
                 {errors.contactName && <p className="mt-1 text-xs text-red-600">{errors.contactName}</p>}
               </div>
               <div>
-                <input value={leadForm.brandName} onChange={(e) => setLeadForm(prev => ({ ...prev, brandName: e.target.value }))} placeholder="Brand name *" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                <input value={leadForm.brandName} onChange={(e) => updateLeadField('brandName', e.target.value)} placeholder="Brand name *" autoComplete="organization" minLength={2} maxLength={120} required aria-invalid={Boolean(errors.brandName)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
                 {errors.brandName && <p className="mt-1 text-xs text-red-600">{errors.brandName}</p>}
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 <div>
-                  <input value={leadForm.phone} onChange={(e) => setLeadForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Phone *" type="tel" inputMode="tel" autoComplete="tel" required className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                  <input value={leadForm.phone} onChange={(e) => updateLeadField('phone', e.target.value)} placeholder="10-digit phone *" type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" minLength={10} maxLength={10} autoComplete="tel-national" required aria-invalid={Boolean(errors.phone)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
                   {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
                 </div>
                 <div>
-                  <input value={leadForm.email} onChange={(e) => setLeadForm(prev => ({ ...prev, email: e.target.value }))} placeholder="Email *" type="email" autoComplete="email" required className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                  <input value={leadForm.email} onChange={(e) => updateLeadField('email', e.target.value)} placeholder="Email *" type="email" autoComplete="email" maxLength={254} required aria-invalid={Boolean(errors.email)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
                   {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 <div>
-                  <input value={leadForm.city} onChange={(e) => setLeadForm(prev => ({ ...prev, city: e.target.value }))} placeholder="City *" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                  <input value={leadForm.city} onChange={(e) => updateLeadField('city', e.target.value)} placeholder="City *" autoComplete="address-level2" minLength={2} maxLength={80} required aria-invalid={Boolean(errors.city)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
                   {errors.city && <p className="mt-1 text-xs text-red-600">{errors.city}</p>}
                 </div>
-                <input value={leadForm.businessCategory} onChange={(e) => setLeadForm(prev => ({ ...prev, businessCategory: e.target.value }))} placeholder="Category" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                <div>
+                  <input value={leadForm.businessCategory} onChange={(e) => updateLeadField('businessCategory', e.target.value)} placeholder="Category" maxLength={80} aria-invalid={Boolean(errors.businessCategory)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                  {errors.businessCategory && <p className="mt-1 text-xs text-red-600">{errors.businessCategory}</p>}
+                </div>
               </div>
             </div>
             {errors.submit && <p className="mt-2 text-xs font-semibold text-red-600">{errors.submit}</p>}
@@ -579,12 +620,18 @@ const CampaignAssistantChat = ({
             </div>
             <div className="mt-4 grid gap-3">
               <div>
-                <textarea value={requirementForm.requirement} onChange={(e) => setRequirementForm(prev => ({ ...prev, requirement: e.target.value }))} rows={3} placeholder="Requirement *" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                <textarea value={requirementForm.requirement} onChange={(e) => updateRequirementField('requirement', e.target.value)} rows={3} minLength={10} maxLength={2000} required aria-invalid={Boolean(errors.requirement)} placeholder="Requirement *" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
                 {errors.requirement && <p className="mt-1 text-xs text-red-600">{errors.requirement}</p>}
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <input value={requirementForm.budget} onChange={(e) => setRequirementForm(prev => ({ ...prev, budget: e.target.value }))} placeholder="Budget range" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
-                <input value={requirementForm.timeline} onChange={(e) => setRequirementForm(prev => ({ ...prev, timeline: e.target.value }))} placeholder="Timeline" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <input value={requirementForm.budget} onChange={(e) => updateRequirementField('budget', e.target.value)} maxLength={100} aria-invalid={Boolean(errors.budget)} placeholder="Budget range" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                  {errors.budget && <p className="mt-1 text-xs text-red-600">{errors.budget}</p>}
+                </div>
+                <div>
+                  <input value={requirementForm.timeline} onChange={(e) => updateRequirementField('timeline', e.target.value)} maxLength={100} aria-invalid={Boolean(errors.timeline)} placeholder="Timeline" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                  {errors.timeline && <p className="mt-1 text-xs text-red-600">{errors.timeline}</p>}
+                </div>
               </div>
             </div>
             {errors.submit && <p className="mt-2 text-xs font-semibold text-red-600">{errors.submit}</p>}

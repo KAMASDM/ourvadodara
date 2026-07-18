@@ -31,11 +31,9 @@ const DesktopNewsFeed = React.lazy(() => import('../../components/Feed/DesktopNe
 const WeatherWidget = React.lazy(() => import('../../components/Weather/WeatherWidget'));
 const LiveUpdates = React.lazy(() => import('../../components/Live/LiveUpdates'));
 const TrendingTopics = React.lazy(() => import('../../components/Trending/TrendingTopics'));
-const TrendingTopicsWidget = React.lazy(() => import('../../components/Topics/TrendingTopicsWidget'));
 const EventsCalendar = React.lazy(() => import('../../components/Events/EventsCalendar'));
 const PollWidget = React.lazy(() => import('../../components/Polls/PollWidget'));
 const AIPicksReal = React.lazy(() => import('../../components/AI/AIPicksReal'));
-const ReadingStreak = React.lazy(() => import('../../components/Gamification/ReadingStreak'));
 const CampaignAssistantChat = React.lazy(() => import('../../components/Leads/CampaignAssistantChat'));
 const CouponMarketplace = React.lazy(() => import('../../components/Coupons/CouponMarketplace'));
 
@@ -47,7 +45,6 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
   const [refreshKey, setRefreshKey] = useState(0);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [feedTab, setFeedTab] = useState('for-you'); // 'for-you' | 'following' | 'all'
-  const [selectedTopic, setSelectedTopic] = useState(null);
 
   // Shares the same scroll-direction logic as the fixed Header so the whole
   // top chrome hides and reappears together.
@@ -317,20 +314,9 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
               </div>
             )}
 
-            <div className="px-2 mt-2 space-y-2.5">
-              <React.Suspense fallback={null}>
-                <TrendingTopicsWidget
-                  onTopicClick={(topic) => {
-                    setSelectedTopic(topic);
-                  }}
-                />
-                <ReadingStreak compact={true} />
-              </React.Suspense>
-            </div>
-
             <div className="mt-2">
               <EnhancedNewsFeed
-                key={`${refreshKey}-${feedTab}-${selectedTopic}`}
+                key={`${refreshKey}-${feedTab}`}
                 activeCategory={activeCategory}
                 onPostClick={onPostClick}
                 onShowReels={onShowReels}

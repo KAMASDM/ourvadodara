@@ -6,7 +6,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import useViewTracking from '../../hooks/useViewTracking';
-import { ref, update, increment, get, onValue } from 'firebase/database';
+import { ref, update, increment, get } from 'firebase/database';
 import { db } from '../../firebase-config';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import ThreadedCommentSection from '../../components/Comments/ThreadedCommentSection';
@@ -23,9 +23,7 @@ import {
   User,
   Plus,
   Play,
-  Pause,
-  ChevronUp,
-  ChevronDown
+  Pause
 } from 'lucide-react';
 import { POST_TYPES } from '../../utils/mediaSchema';
 import { getLocalizedText } from '../../utils/textUtils';
@@ -46,17 +44,22 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const [showPlayPauseIcon, setShowPlayPauseIcon] = useState(false);
   const [showHints, setShowHints] = useState(true);
   const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+  );
   
   const containerRef = useRef(null);
   const videoRefs = useRef({});
-  const touchStartY = useRef(0);
-  const touchEndY = useRef(0);
-  const touchStartX = useRef(0);
-  const progressInterval = useRef(null);
-  const preloadedVideos = useRef(new Set());
-  const isNavigating = useRef(false);
+  const scrollFrameRef = useRef(null);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
+    const handleViewportChange = event => setIsDesktop(event.matches);
+    setIsDesktop(mediaQuery.matches);
+    mediaQuery.addEventListener?.('change', handleViewportChange);
+    return () => mediaQuery.removeEventListener?.('change', handleViewportChange);
+  }, []);
 
   // Process reels data - memoized for performance
   const reels = useMemo(() => {
@@ -68,58 +71,9 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   }, [reelsData]);
 
   const currentReel = reels[currentReelIndex];
-  const prevReel = currentReelIndex > 0 ? reels[currentReelIndex - 1] : null;
-  const nextReel = currentReelIndex < reels.length - 1 ? reels[currentReelIndex + 1] : null;
 
   // Track view for current reel
   useViewTracking(currentReel?.id, 'reels');
-
-  // Preload videos for current and adjacent reels
-  useEffect(() => {
-    const preloadVideo = (reel) => {
-      if (!reel || preloadedVideos.current.has(reel.id)) return;
-      
-      const videoUrl = reel.mediaContent?.items?.[0]?.url || reel.videoUrl;
-      if (!videoUrl) return;
-
-      const video = document.createElement('video');
-      video.preload = 'auto';
-      video.src = videoUrl;
-      video.muted = true;
-      
-      // Store reference
-      if (!videoRefs.current[reel.id]) {
-        videoRefs.current[reel.id] = video;
-      }
-      
-      preloadedVideos.current.add(reel.id);
-    };
-
-    // Preload current, previous, and next videos
-    if (currentReel) preloadVideo(currentReel);
-    if (prevReel) preloadVideo(prevReel);
-    if (nextReel) preloadVideo(nextReel);
-
-    // Cleanup old video refs (keep only nearby reels)
-    const keepIds = new Set([
-      currentReel?.id,
-      prevReel?.id,
-      nextReel?.id
-    ].filter(Boolean));
-
-    Object.keys(videoRefs.current).forEach(id => {
-      if (!keepIds.has(id)) {
-        const video = videoRefs.current[id];
-        if (video) {
-          video.pause();
-          video.src = '';
-          video.load();
-        }
-        delete videoRefs.current[id];
-        preloadedVideos.current.delete(id);
-      }
-    });
-  }, [currentReel, prevReel, nextReel]);
 
   // Load user's likes and saves - optimized with lazy loading
   useEffect(() => {
@@ -162,6 +116,10 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   useEffect(() => {
     const video = videoRefs.current[currentReel?.id];
     if (!video) return;
+
+    Object.entries(videoRefs.current).forEach(([reelId, reelVideo]) => {
+      if (reelId !== currentReel?.id && reelVideo) reelVideo.pause();
+    });
 
     const playVideo = async () => {
       try {
@@ -221,29 +179,11 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       rafId = requestAnimationFrame(updateProgress);
     };
 
-    const handleLoadedMetadata = () => {
-      setDuration(video.duration);
-      setProgress(0);
-    };
-
-    const handleEnded = () => {
-      // Auto-advance to next reel when current one ends
-      if (currentReelIndex < reels.length - 1) {
-        goToNext();
-      } else {
-        setProgress(100);
-      }
-    };
-
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    video.addEventListener('ended', handleEnded);
-    
+    setProgress(video.duration ? (video.currentTime / video.duration) * 100 : 0);
     rafId = requestAnimationFrame(updateProgress);
 
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      video.removeEventListener('ended', handleEnded);
     };
   }, [currentReelIndex, reels.length, currentReel]);
 
@@ -263,6 +203,10 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     const initialIndex = reels.findIndex(reel => reel.id === initialReelId);
     if (initialIndex >= 0) {
       setCurrentReelIndex(initialIndex);
+      requestAnimationFrame(() => {
+        const container = containerRef.current;
+        if (container) container.scrollTop = initialIndex * container.clientHeight;
+      });
     }
   }, [initialReelId, reels]);
 
@@ -274,37 +218,47 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     return () => clearTimeout(timer);
   }, []);
 
-  const goToNext = useCallback(() => {
-    if (currentReelIndex < reels.length - 1 && !isNavigating.current) {
-      isNavigating.current = true;
-
-      const currentVideo = videoRefs.current[currentReel?.id];
-      if (currentVideo) currentVideo.pause();
-
-      setCurrentReelIndex(prev => prev + 1);
-      setIsPlaying(true);
-
-      requestAnimationFrame(() => {
-        isNavigating.current = false;
-      });
+  const scrollToReel = useCallback((index, behavior = 'smooth') => {
+    const targetIndex = Math.max(0, Math.min(index, reels.length - 1));
+    const container = containerRef.current;
+    const currentVideo = videoRefs.current[currentReel?.id];
+    if (currentVideo) currentVideo.pause();
+    setIsPlaying(true);
+    if (container) {
+      container.scrollTo({ top: targetIndex * container.clientHeight, behavior });
+    } else {
+      setCurrentReelIndex(targetIndex);
     }
-  }, [currentReelIndex, reels.length, currentReel]);
+  }, [currentReel?.id, reels.length]);
+
+  const goToNext = useCallback(() => {
+    if (currentReelIndex < reels.length - 1) scrollToReel(currentReelIndex + 1);
+  }, [currentReelIndex, reels.length, scrollToReel]);
 
   const goToPrevious = useCallback(() => {
-    if (currentReelIndex > 0 && !isNavigating.current) {
-      isNavigating.current = true;
+    if (currentReelIndex > 0) scrollToReel(currentReelIndex - 1);
+  }, [currentReelIndex, scrollToReel]);
 
-      const currentVideo = videoRefs.current[currentReel?.id];
-      if (currentVideo) currentVideo.pause();
-
-      setCurrentReelIndex(prev => prev - 1);
-      setIsPlaying(true);
-
-      requestAnimationFrame(() => {
-        isNavigating.current = false;
+  const handleReelScroll = useCallback(() => {
+    if (scrollFrameRef.current) return;
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      const container = containerRef.current;
+      if (!container?.clientHeight) return;
+      const nextIndex = Math.max(0, Math.min(reels.length - 1, Math.round(container.scrollTop / container.clientHeight)));
+      setCurrentReelIndex(previousIndex => {
+        if (previousIndex === nextIndex) return previousIndex;
+        setIsPlaying(true);
+        setShowActionsMenu(false);
+        setShowComments(false);
+        return nextIndex;
       });
-    }
-  }, [currentReelIndex, currentReel]);
+    });
+  }, [reels.length]);
+
+  useEffect(() => () => {
+    if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
+  }, []);
 
   const togglePlay = useCallback(() => {
     setIsPlaying(prev => !prev);
@@ -345,86 +299,6 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [goToNext, goToPrevious, togglePlay, toggleMute]);
-
-
-
-  // Enhanced touch gestures for mobile - optimized
-  useEffect(() => {
-    let isScrolling = false;
-    let scrollTimeout;
-
-    const handleTouchStart = (e) => {
-      touchStartY.current = e.touches[0].clientY;
-      touchStartX.current = e.touches[0].clientX;
-      isScrolling = false;
-    };
-
-    const handleTouchMove = (e) => {
-      const currentY = e.touches[0].clientY;
-      const currentX = e.touches[0].clientX;
-      const diffY = Math.abs(currentY - touchStartY.current);
-      const diffX = Math.abs(currentX - touchStartX.current);
-      
-      // Only prevent default if it's a clear vertical swipe
-      if (diffY > diffX && diffY > 20) {
-        e.preventDefault();
-        isScrolling = true;
-      }
-    };
-
-    const handleTouchEnd = (e) => {
-      if (!isScrolling) return;
-      
-      touchEndY.current = e.changedTouches[0].clientY;
-      const swipeDistance = touchStartY.current - touchEndY.current;
-      const minSwipeDistance = 50;
-
-      if (Math.abs(swipeDistance) > minSwipeDistance) {
-        if (swipeDistance > 0) {
-          // Swipe up - next reel
-          goToNext();
-        } else if (swipeDistance < 0) {
-          // Swipe down - previous reel
-          goToPrevious();
-        }
-      }
-      
-      isScrolling = false;
-    };
-
-    const container = containerRef.current;
-    if (container) {
-      container.addEventListener('touchstart', handleTouchStart, { passive: true });
-      container.addEventListener('touchmove', handleTouchMove, { passive: false });
-      container.addEventListener('touchend', handleTouchEnd, { passive: true });
-
-      return () => {
-        container.removeEventListener('touchstart', handleTouchStart);
-        container.removeEventListener('touchmove', handleTouchMove);
-        container.removeEventListener('touchend', handleTouchEnd);
-      };
-    }
-  }, [goToNext, goToPrevious]);
-
-  // Desktop reels use one full-height item at a time, so translate mouse-wheel
-  // input into a single navigation step with a short cooldown. Without this,
-  // the page looked scrollable but ignored the most common desktop gesture.
-  useEffect(() => {
-    if (!isDesktop) return undefined;
-    const container = containerRef.current;
-    if (!container) return undefined;
-    let locked = false;
-    const handleWheel = (event) => {
-      if (Math.abs(event.deltaY) < 18 || locked) return;
-      event.preventDefault();
-      locked = true;
-      if (event.deltaY > 0) goToNext();
-      else goToPrevious();
-      window.setTimeout(() => { locked = false; }, 420);
-    };
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, [isDesktop, goToNext, goToPrevious]);
 
   const handleLike = async (reelId) => {
     if (!user) {
@@ -582,11 +456,6 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     setShowComments(true);
   };
 
-  const handleFollow = (userId) => {
-    // TODO: Implement follow functionality
-    console.log('Follow user:', userId);
-  };
-
   if (isLoading) {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center">
@@ -615,14 +484,9 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     );
   }
 
-  // Detect if we're on desktop
-  const isDesktop = window.innerWidth >= 1024;
-
   return (
     <div 
-      ref={containerRef}
       className={`reel-container ${isDesktop ? 'relative w-full h-screen' : 'fixed inset-0'} bg-black overflow-hidden select-none`}
-      style={{ touchAction: 'pan-y' }}
     >
       {/* Progress Bar - Subtle Modern Design with Buffer Indicator */}
       <div className="absolute top-0 left-0 right-0 z-[60] h-1 bg-white/10">
@@ -636,6 +500,48 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           className="absolute h-full bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 reel-progress shadow-lg"
           style={{ width: `${progress}%` }}
         />
+      </div>
+
+      {/* Native scrolling reel track. Keeping every video in a full-height
+          snap panel creates the physical slide transition users expect from
+          Instagram instead of replacing the current video in place. */}
+      <div
+        ref={containerRef}
+        onScroll={handleReelScroll}
+        className="absolute inset-0 overflow-y-auto overscroll-y-contain snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
+      >
+        {reels.map((reel, index) => (
+          <section
+            key={reel.id}
+            className="relative flex h-full min-h-full snap-start snap-always items-center justify-center bg-black"
+            aria-label={`Reel ${index + 1} of ${reels.length}`}
+          >
+            <div className={`relative h-full w-full ${isDesktop ? 'max-w-md' : ''}`}>
+              <video
+                ref={element => {
+                  if (element) videoRefs.current[reel.id] = element;
+                  else delete videoRefs.current[reel.id];
+                }}
+                data-reel="true"
+                src={reel.mediaContent?.items?.[0]?.url || reel.videoUrl}
+                poster={reel.mediaContent?.items?.[0]?.thumbnailUrl || reel.thumbnail}
+                className={`h-full w-full ${isDesktop ? 'object-contain' : 'object-cover'}`}
+                loop
+                playsInline
+                preload={Math.abs(index - currentReelIndex) <= 1 ? 'auto' : 'metadata'}
+                muted={isMuted}
+              />
+              <button
+                type="button"
+                className="absolute inset-0 z-10 cursor-pointer bg-transparent"
+                style={{ touchAction: 'pan-y' }}
+                onClick={togglePlay}
+                aria-label={isPlaying && index === currentReelIndex ? 'Pause reel' : 'Play reel'}
+              />
+            </div>
+          </section>
+        ))}
       </div>
 
       {/* Header */}
@@ -674,31 +580,9 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
       {/* Current Reel */}
       {currentReel && (
-        <div className={`relative ${isDesktop ? 'flex items-center justify-center h-full' : 'w-full h-full'}`}>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           {/* Reel Video Container */}
           <div className={`relative ${isDesktop ? 'w-full max-w-md h-full' : 'w-full h-full'}`}>
-            {/* Reel Video */}
-            <video
-              ref={(el) => {
-                if (el && currentReel) {
-                  videoRefs.current[currentReel.id] = el;
-                }
-              }}
-              key={currentReel.id}
-              data-reel="true"
-              src={currentReel.mediaContent?.items?.[0]?.url || currentReel.videoUrl}
-              poster={currentReel.mediaContent?.items?.[0]?.thumbnailUrl || currentReel.thumbnail}
-              className={`w-full h-full ${isDesktop ? 'object-contain' : 'object-cover'} cursor-pointer reel-video-transition`}
-              loop
-              playsInline
-              preload="auto"
-              muted={isMuted}
-              onClick={(event) => {
-                event.stopPropagation();
-                togglePlay();
-              }}
-            />
-
           {/* Bottom Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/80 pointer-events-none reel-overlay" />
 
@@ -721,18 +605,6 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
               </div>
             </div>
           )}
-
-          {/* Tap areas for navigation */}
-          <div className="absolute inset-0 flex z-10">
-            {/* Center tap area to toggle play/pause */}
-            <button
-              className="flex-1 bg-transparent"
-              onClick={(event) => {
-                event.stopPropagation();
-                togglePlay();
-              }}
-            />
-          </div>
 
           {/* Author Info & Content */}
           <div className="absolute bottom-20 left-4 right-20 text-white z-20 reel-content">
@@ -775,7 +647,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           </div>
 
           {/* Action Buttons - Right Side */}
-          <div className="absolute bottom-24 right-4 flex flex-col space-y-4 z-20">
+          <div className="pointer-events-auto absolute bottom-24 right-4 z-20 flex flex-col space-y-4">
             {/* Like Button - Primary */}
             <button
               type="button"
@@ -950,24 +822,6 @@ const CommentsModal = ({ reel, onClose }) => {
       </div>
     </div>
   );
-};
-
-// Utility functions
-const formatTimeAgo = (timestamp) => {
-  const now = new Date();
-  const time = new Date(timestamp);
-  const diffInMinutes = Math.floor((now - time) / (1000 * 60));
-  
-  if (diffInMinutes < 1) return 'Just now';
-  if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-  
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) return `${diffInHours}h ago`;
-  
-  const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) return `${diffInDays}d ago`;
-  
-  return time.toLocaleDateString();
 };
 
 const formatNumber = (num) => {

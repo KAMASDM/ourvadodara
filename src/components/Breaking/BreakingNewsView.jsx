@@ -1,315 +1,173 @@
-// =============================================
-// src/components/Breaking/BreakingNewsView.jsx
-// Public Breaking News View for Regular Users
-// =============================================
-import React, { useState, useEffect } from 'react';
-import { 
-  AlertTriangle, 
-  Clock, 
-  Calendar,
-  MapPin,
-  Share2,
-  ChevronRight,
-  Zap
-} from 'lucide-react';
-import { ref, onValue } from 'firebase/database';
+import React, { useEffect, useState } from 'react';
+import { AlertTriangle, Calendar, ChevronRight, Clock, MapPin, Radio, Share2, Zap } from 'lucide-react';
+import { onValue, ref } from 'firebase/database';
+import { formatDistanceToNow } from 'date-fns';
 import { db } from '../../firebase-config';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { getLocalizedText } from '../../utils/textUtils';
-import { useTranslation } from 'react-i18next';
-import { formatDistanceToNow } from 'date-fns';
 import ShareSheet from '../Common/ShareSheet';
 
-const BreakingNewsView = ({ onPostClick }) => {
+const priorityStyles = {
+  urgent: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800',
+  critical: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800',
+  high: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800',
+  medium: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:ring-sky-800',
+  normal: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:ring-sky-800',
+  low: 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:ring-teal-800'
+};
+
+const normalizePriority = priority => {
+  if (priority === 'critical') return 'urgent';
+  if (priority === 'normal') return 'medium';
+  return priority || 'medium';
+};
+
+const getMedia = news => {
+  if (Array.isArray(news.media) && news.media.length) return news.media;
+  if (news.media && typeof news.media === 'object') return Object.values(news.media);
+  return news.mediaUrl ? [{ url: news.mediaUrl }] : [];
+};
+
+const BreakingNewsView = () => {
   const { currentLanguage } = useLanguage();
-  const { t } = useTranslation();
   const [breakingNews, setBreakingNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPriority, setSelectedPriority] = useState('all');
   const [shareData, setShareData] = useState(null);
 
-  useEffect(() => {
-    const breakingRef = ref(db, 'breakingNews');
-    const unsubscribe = onValue(breakingRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const newsArray = Object.entries(data)
-          .map(([id, news]) => ({ id, ...news }))
-          .filter(news => news.isActive && (!news.expiresAt || new Date(news.expiresAt) > new Date()))
-          .sort((a, b) => {
-            // Sort by priority first, then by creation date
-            const priorityOrder = { urgent: 4, critical: 4, high: 3, medium: 2, normal: 2, low: 1 };
-            const aOrder = priorityOrder[a.priority] || 0;
-            const bOrder = priorityOrder[b.priority] || 0;
-            if (aOrder !== bOrder) {
-              return bOrder - aOrder;
-            }
-            return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-          });
-        setBreakingNews(newsArray);
-      } else {
-        setBreakingNews([]);
-      }
-      setLoading(false);
-    });
+  useEffect(() => onValue(ref(db, 'breakingNews'), snapshot => {
+    const now = Date.now();
+    const priorityOrder = { urgent: 4, critical: 4, high: 3, medium: 2, normal: 2, low: 1 };
+    const items = Object.entries(snapshot.val() || {})
+      .map(([id, news]) => ({ id, ...news }))
+      .filter(news => news.isActive && (!news.expiresAt || new Date(news.expiresAt).getTime() > now))
+      .sort((a, b) => (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0)
+        || new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    setBreakingNews(items);
+    setLoading(false);
+  }), []);
 
-    return () => unsubscribe();
-  }, []);
-
-  const getTextContent = (content) => {
-    return getLocalizedText(content, currentLanguage);
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'urgent':
-      case 'critical':
-        return 'bg-gradient-to-r from-red-600 via-rose-600 to-red-500 text-white shadow-inner shadow-red-900/30';
-      case 'high':
-        return 'bg-gradient-to-r from-orange-600 to-amber-500 text-white shadow-inner shadow-orange-900/20';
-      case 'medium':
-        return 'bg-gradient-to-r from-yellow-400 to-amber-300 text-gray-900 shadow-inner shadow-amber-500/20';
-      case 'low':
-        return 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-inner shadow-blue-900/20';
-      default:
-        return 'bg-gradient-to-r from-gray-600 to-slate-500 text-white shadow-inner shadow-gray-900/20';
-    }
-  };
-
-  const getPriorityIcon = (priority) => {
-    switch (priority) {
-      case 'urgent':
-      case 'critical': return <Zap className="w-4 h-4" />;
-      case 'high': return <AlertTriangle className="w-4 h-4" />;
-      default: return <AlertTriangle className="w-4 h-4" />;
-    }
-  };
-
-  // Admin tools save 'urgent'/'normal'; older data may use 'critical'.
-  // Normalize so the filter chips match every stored value.
-  const normalizePriority = (priority) => {
-    if (priority === 'critical') return 'urgent';
-    if (priority === 'normal') return 'medium';
-    return priority || 'medium';
-  };
-
+  const getText = content => getLocalizedText(content, currentLanguage);
   const filteredNews = selectedPriority === 'all'
     ? breakingNews
     : breakingNews.filter(news => normalizePriority(news.priority) === selectedPriority);
 
-  const handleNewsClick = (news) => {
-    if (news.externalLink) {
-      window.open(news.externalLink, '_blank');
-    } else if (news.relatedPostId && onPostClick) {
-      onPostClick(news.relatedPostId);
-    } else {
-      window.history.pushState({ view: 'breaking-detail', newsId: news.id }, '', `/breaking/${encodeURIComponent(news.id)}`);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    }
+  const openDetail = news => {
+    window.history.pushState({ view: 'breaking-detail', newsId: news.id }, '', `/breaking/${encodeURIComponent(news.id)}`);
+    window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="grid min-h-[55vh] place-items-center">
+      <div className="h-9 w-9 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 pb-24">
-      <div className="px-4 pt-8 pb-6 sm:pt-12">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Header */}
-          <div className="rounded-3xl border border-red-200/60 dark:border-red-500/40 bg-gradient-to-br from-red-600 via-rose-600 to-orange-500 text-white shadow-lg shadow-red-500/30 p-6 sm:p-8">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-3 rounded-2xl bg-white/20">
-                  <AlertTriangle className="w-7 h-7 animate-pulse" />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold tracking-tight">Breaking News</h1>
-                  <p className="text-sm sm:text-base text-white/80">
-                    Stay updated with urgent alerts curated by the newsroom team.
-                  </p>
-                </div>
+    <div className="min-h-screen pb-24 dark:text-white">
+      <div className="mx-auto max-w-4xl px-3 pb-6 pt-2 sm:px-5 sm:pt-4">
+        <section className="liquid-panel rounded-[1.75rem] border border-white/70 p-4 dark:border-white/10 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 ring-1 ring-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:ring-rose-800">
+              <Zap className="h-5 w-5" fill="currentColor" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="eyebrow text-rose-600 dark:text-rose-300">Live newsroom</p>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-800">
+                  <Radio className="h-3 w-3" /> Live
+                </span>
               </div>
-              <div className="flex items-center text-sm text-white/80">
-                <Clock className="w-4 h-4 mr-2" />
-                Live feed auto-refreshes every few minutes.
-              </div>
+              <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-3xl">Breaking News</h1>
+              <p className="mt-1 text-sm leading-5 text-slate-600 dark:text-slate-300">Important updates from Vadodara, as they happen.</p>
             </div>
           </div>
 
-          {/* Priority Filter */}
-          <div className="rounded-2xl border border-gray-200/70 dark:border-gray-800/70 bg-white/90 dark:bg-gray-900/90 backdrop-blur p-4 shadow-sm shadow-gray-200/40 dark:shadow-black/30">
-            <div className="flex flex-wrap gap-2">
-              {['all', 'urgent', 'high', 'medium', 'low'].map(priority => (
-                <button
-                  key={priority}
-                  onClick={() => setSelectedPriority(priority)}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap ${
-                    selectedPriority === priority
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-500/20'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {priority === 'all' ? 'All Updates' : `${priority.charAt(0).toUpperCase() + priority.slice(1)} Priority`}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Breaking News List */}
-          <div className="space-y-5">
-        {filteredNews.length === 0 ? (
-          <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-gradient-to-b from-white/95 via-white to-gray-50 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 shadow-sm shadow-gray-200/40 dark:shadow-black/30 p-12 text-center">
-            <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-              No Breaking News
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300">
-              {selectedPriority === 'all' 
-                ? 'There are currently no active breaking news updates.'
-                : `No ${selectedPriority} priority updates at this time.`
-              }
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredNews.map(news => (
-              <div 
-                key={news.id} 
-                className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-gradient-to-b from-white/95 via-white to-gray-50 dark:from-gray-900/95 dark:via-gray-900 dark:to-gray-950 overflow-hidden shadow-sm shadow-gray-200/40 dark:shadow-black/30 hover:-translate-y-1 hover:shadow-2xl transition-all"
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {['all', 'urgent', 'high', 'medium', 'low'].map(priority => (
+              <button
+                key={priority}
+                type="button"
+                onClick={() => setSelectedPriority(priority)}
+                className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-bold capitalize transition ${selectedPriority === priority
+                  ? 'bg-teal-700 text-white shadow-md shadow-teal-700/20'
+                  : 'bg-white/70 text-slate-600 ring-1 ring-slate-200 hover:bg-white dark:bg-slate-900/70 dark:text-slate-300 dark:ring-slate-700'}`}
               >
-                {/* Priority Badge */}
-                <div className={`px-4 py-2 ${getPriorityColor(news.priority)} flex items-center justify-between`}> 
-                  <div className="flex items-center space-x-2">
-                    {getPriorityIcon(news.priority)}
-                    <span className="font-medium text-sm uppercase">
-                      {news.priority} Priority
-                    </span>
-                    {news.category && (
-                      <span className="text-xs opacity-80">
-                        • {news.category}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-1 text-xs opacity-80">
-                    <Clock className="w-3 h-3" />
-                    <span>
-                      {news.createdAt && !isNaN(new Date(news.createdAt).getTime())
-                        ? `${formatDistanceToNow(new Date(news.createdAt))} ago`
-                        : 'Just now'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="p-6">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
-                    {getTextContent(news.title) || getTextContent(news.headline)}
-                  </h2>
-                  
-                  <p className="text-gray-600 dark:text-gray-300 mb-4 leading-relaxed">
-                    {getTextContent(news.content) || getTextContent(news.summary)}
-                  </p>
-
-                  {/* Media (uploaded files or a single media URL) */}
-                  {(() => {
-                    const mediaItems = Array.isArray(news.media) && news.media.length > 0
-                      ? news.media
-                      : news.mediaUrl
-                        ? [{ url: news.mediaUrl, type: /\.(mp4|webm|mov)(\?|$)/i.test(news.mediaUrl) ? 'video' : 'image' }]
-                        : [];
-                    if (mediaItems.length === 0) return null;
-                    return (
-                    <div className="mb-4">
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {mediaItems.slice(0, 3).map((media, index) => (
-                          <div key={index} className="relative">
-                            {media.type === 'image' ? (
-                              <img 
-                                src={media.url} 
-                                alt="Breaking news media"
-                                className="w-full h-32 object-cover rounded-lg"
-                              />
-                            ) : (
-                              <video 
-                                src={media.url}
-                                className="w-full h-32 object-cover rounded-lg"
-                                controls={false}
-                                muted
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    );
-                  })()}
-
-                  {/* Metadata */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                      <span className="flex items-center">
-                        <Calendar className="w-4 h-4 mr-1" />
-                        {new Date(news.createdAt).toLocaleDateString()}
-                      </span>
-                      {news.location && (
-                        <span className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-1" />
-                          {news.location}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => setShareData({
-                          title: getTextContent(news.title) || getTextContent(news.headline),
-                          text: getTextContent(news.content) || getTextContent(news.summary),
-                          url: `${window.location.origin}/breaking/${encodeURIComponent(news.id)}`
-                        })}
-                        className="p-2 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
-                        title="Share"
-                      >
-                        <Share2 className="w-4 h-4" />
-                      </button>
-                      
-                      <button
-                        onClick={() => handleNewsClick(news)}
-                        className="flex items-center space-x-1 px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-full hover:bg-red-700 shadow shadow-red-500/30 transition-colors"
-                      >
-                        <span>Read More</span>
-                        <ChevronRight className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                {priority === 'all' ? 'All updates' : priority}
+              </button>
             ))}
           </div>
-        )}
-      </div>
-    </div>
-  </div>
+        </section>
 
-  {/* Live Updates Banner */}
-  {breakingNews.some(news => news.priority === 'critical' || news.priority === 'urgent') && (
-        <div className="fixed bottom-20 left-4 right-4 z-40 max-w-sm mx-auto">
-          <div className="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg animate-pulse">
-            <div className="flex items-center space-x-2">
-              <Zap className="w-5 h-5" />
-              <span className="text-sm font-medium">
-                Critical updates available • Check latest news
-              </span>
+        <div className="mt-3 space-y-3 sm:mt-4">
+          {filteredNews.length === 0 ? (
+            <div className="liquid-panel rounded-[1.75rem] px-6 py-14 text-center">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-rose-50 text-rose-500 dark:bg-rose-950/50"><AlertTriangle className="h-7 w-7" /></div>
+              <h2 className="mt-4 text-lg font-bold text-slate-900 dark:text-white">No breaking news right now</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">New newsroom alerts will appear here.</p>
             </div>
-          </div>
+          ) : filteredNews.map(news => {
+            const title = getText(news.title) || getText(news.headline);
+            const content = getText(news.content) || getText(news.summary);
+            const media = getMedia(news);
+            const firstMedia = media[0];
+            const mediaUrl = typeof firstMedia === 'string' ? firstMedia : firstMedia?.url;
+            const isVideo = firstMedia?.type === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(mediaUrl || '');
+            const priority = normalizePriority(news.priority);
+
+            return (
+              <article
+                key={news.id}
+                role="link"
+                tabIndex={0}
+                onClick={() => openDetail(news)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openDetail(news);
+                  }
+                }}
+                aria-label={`Read breaking news: ${title}`}
+                className="liquid-panel group cursor-pointer overflow-hidden rounded-[1.75rem] border border-white/70 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-teal-600 dark:border-white/10"
+              >
+                {mediaUrl && (isVideo
+                  ? <video src={mediaUrl} muted playsInline className="h-44 w-full bg-slate-900 object-cover sm:h-56" />
+                  : <img src={mediaUrl} alt="" className="h-44 w-full bg-slate-100 object-cover sm:h-56 dark:bg-slate-900" />)}
+                <div className="p-4 sm:p-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide ring-1 ${priorityStyles[news.priority] || priorityStyles[priority]}`}>
+                      <Zap className="h-3 w-3" /> {priority}
+                    </span>
+                    {news.category && <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{news.category}</span>}
+                    <span className="ml-auto inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                      <Clock className="h-3.5 w-3.5" />
+                      {news.createdAt && !Number.isNaN(new Date(news.createdAt).getTime()) ? `${formatDistanceToNow(new Date(news.createdAt))} ago` : 'Just now'}
+                    </span>
+                  </div>
+                  <h2 className="mt-3 text-lg font-extrabold leading-snug text-slate-950 group-hover:text-teal-800 dark:text-white dark:group-hover:text-teal-300 sm:text-xl">{title}</h2>
+                  {content && <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{content.replace(/<[^>]*>/g, '')}</p>}
+                  <div className="mt-4 flex items-center gap-3 border-t border-slate-200/70 pt-3 text-xs text-slate-500 dark:border-slate-700/70 dark:text-slate-400">
+                    <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{new Date(news.createdAt || Date.now()).toLocaleDateString('en-IN')}</span>
+                    {news.location && <span className="inline-flex min-w-0 items-center gap-1"><MapPin className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{news.location}</span></span>}
+                    <button
+                      type="button"
+                      onClick={event => {
+                        event.stopPropagation();
+                        setShareData({ title, text: content?.replace(/<[^>]*>/g, '').slice(0, 160), url: `${window.location.origin}/breaking/${encodeURIComponent(news.id)}` });
+                      }}
+                      className="ml-auto rounded-full p-2 text-slate-500 hover:bg-slate-100 hover:text-teal-700 dark:hover:bg-slate-800"
+                      aria-label="Share news"
+                    ><Share2 className="h-4 w-4" /></button>
+                    <span className="inline-flex items-center gap-1 font-bold text-teal-700 dark:text-teal-300">Read <ChevronRight className="h-4 w-4" /></span>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
-  )}
-  <ShareSheet isOpen={Boolean(shareData)} onClose={() => setShareData(null)} shareData={shareData} />
-</div>
+      </div>
+      <ShareSheet isOpen={Boolean(shareData)} onClose={() => setShareData(null)} shareData={shareData} />
+    </div>
   );
 };
 
