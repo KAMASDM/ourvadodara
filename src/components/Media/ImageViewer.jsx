@@ -3,18 +3,14 @@
 // =============================================
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ZoomIn, ZoomOut, RotateCw, Download, Share2 } from 'lucide-react';
+import { X } from 'lucide-react';
 
 const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [scale, setScale] = useState(1);
-  const [rotation, setRotation] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
       setCurrentIndex(initialIndex);
-      setScale(1);
-      setRotation(0);
     }
   }, [isOpen, initialIndex]);
 
@@ -32,13 +28,6 @@ const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
         case 'ArrowRight':
           handleNext();
           break;
-        case '+':
-        case '=':
-          handleZoomIn();
-          break;
-        case '-':
-          handleZoomOut();
-          break;
         default:
           break;
       }
@@ -50,52 +39,10 @@ const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
 
   const handlePrevious = () => {
     setCurrentIndex(prev => (prev > 0 ? prev - 1 : images.length - 1));
-    setScale(1);
-    setRotation(0);
   };
 
   const handleNext = () => {
     setCurrentIndex(prev => (prev < images.length - 1 ? prev + 1 : 0));
-    setScale(1);
-    setRotation(0);
-  };
-
-  const handleZoomIn = () => {
-    setScale(prev => Math.min(prev * 1.2, 5));
-  };
-
-  const handleZoomOut = () => {
-    setScale(prev => Math.max(prev / 1.2, 0.1));
-  };
-
-  const handleRotate = () => {
-    setRotation(prev => (prev + 90) % 360);
-  };
-
-  const handleDownload = () => {
-    const currentImage = images[currentIndex];
-    if (currentImage) {
-      const link = document.createElement('a');
-      link.href = currentImage.url;
-      link.download = currentImage.name || `image-${currentIndex + 1}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  };
-
-  const handleShare = async () => {
-    const currentImage = images[currentIndex];
-    if (currentImage && navigator.share) {
-      try {
-        await navigator.share({
-          title: currentImage.caption || 'Image',
-          url: currentImage.url
-        });
-      } catch (error) {
-        console.log('Error sharing:', error);
-      }
-    }
   };
 
   if (!isOpen || !images.length) return null;
@@ -105,7 +52,7 @@ const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
   // Portal to <body> so no ancestor stacking context can trap the overlay
   // under the app header (which sits at z-50 within its own context).
   return createPortal(
-    <div className="fixed inset-0 bg-black bg-opacity-90 z-[100] flex items-center justify-center">
+    <div className="fixed inset-0 bg-black bg-opacity-95 z-[100] flex items-center justify-center" onClick={onClose}>
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-black bg-opacity-50 p-4">
         <div className="flex items-center justify-between text-white">
@@ -118,41 +65,6 @@ const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
             )}
           </div>
           <div className="flex items-center space-x-2">
-            <button
-              onClick={handleZoomOut}
-              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-              title="Zoom Out"
-            >
-              <ZoomOut className="w-5 h-5" />
-            </button>
-            <button
-              onClick={handleZoomIn}
-              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-              title="Zoom In"
-            >
-              <ZoomIn className="w-5 h-5" />
-            </button>
-            <button
-              onClick={handleRotate}
-              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-              title="Rotate"
-            >
-              <RotateCw className="w-5 h-5" />
-            </button>
-            <button
-              onClick={handleDownload}
-              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-              title="Download"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-            <button
-              onClick={handleShare}
-              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-              title="Share"
-            >
-              <Share2 className="w-5 h-5" />
-            </button>
             <button
               onClick={onClose}
               className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
@@ -194,9 +106,6 @@ const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
           src={currentImage.url}
           alt={currentImage.caption || `Image ${currentIndex + 1}`}
           className="max-w-full max-h-full object-contain transition-transform duration-200"
-          style={{
-            transform: `scale(${scale}) rotate(${rotation}deg)`
-          }}
           onClick={(e) => {
             e.stopPropagation();
           }}
@@ -212,8 +121,6 @@ const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
                 key={index}
                 onClick={() => {
                   setCurrentIndex(index);
-                  setScale(1);
-                  setRotation(0);
                 }}
                 className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
                   index === currentIndex
@@ -231,11 +138,6 @@ const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
         </div>
       )}
 
-      {/* Click outside to close */}
-      <div
-        className="absolute inset-0 -z-10"
-        onClick={onClose}
-      />
     </div>,
     document.body
   );

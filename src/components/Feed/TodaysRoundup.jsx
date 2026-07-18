@@ -6,7 +6,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ref, get, update, increment } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { getTodayRoundupId, formatDateForTitle, ROUNDUP_STATUS } from '../../utils/roundupSchema';
-import { useNavigate } from 'react-router-dom';
 import {
   X,
   ChevronLeft,
@@ -29,14 +28,6 @@ const TodaysRoundup = ({ onClose }) => {
   const touchEndX = useRef(0);
   const containerRef = useRef(null);
   
-  // Safe navigation - try useNavigate, fallback to window.location
-  let navigate;
-  try {
-    navigate = useNavigate();
-  } catch (err) {
-    navigate = null;
-  }
-
   useEffect(() => {
     loadRoundup();
   }, []);
@@ -151,11 +142,7 @@ const TodaysRoundup = ({ onClose }) => {
 
     // Navigate to post detail
     onClose();
-    if (navigate) {
-      navigate(`/news/${postId}`);
-    } else {
-      window.location.href = `/news/${postId}`;
-    }
+    window.location.href = `/post/${postId}`;
   };
 
   const handleShare = async () => {
@@ -184,7 +171,7 @@ const TodaysRoundup = ({ onClose }) => {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white text-lg">Loading today's roundup...</p>
@@ -195,7 +182,7 @@ const TodaysRoundup = ({ onClose }) => {
 
   if (error || !roundup) {
     return (
-      <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full text-center">
           <Newspaper className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
@@ -220,7 +207,7 @@ const TodaysRoundup = ({ onClose }) => {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 bg-black z-50 flex flex-col"
+      className="fixed inset-0 bg-black z-[100] flex flex-col"
       style={{ touchAction: 'pan-y' }}
     >
       {/* Header */}

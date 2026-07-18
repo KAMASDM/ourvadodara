@@ -115,7 +115,7 @@ const BloodSOSButton = ({ onRequireLogin }) => {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-8" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 py-8" role="dialog" aria-modal="true">
           <div className="relative w-full max-w-lg rounded-3xl border border-red-200/50 bg-white/95 p-6 shadow-2xl shadow-red-500/30 dark:border-red-500/30 dark:bg-gray-900/95">
             <button
               type="button"

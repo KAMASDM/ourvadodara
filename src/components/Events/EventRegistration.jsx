@@ -24,7 +24,7 @@ import {
   Shield
 } from 'lucide-react';
 import { ref, onValue, push, update, get } from 'firebase/database';
-import { db } from '../../firebase-config';
+import { db, functions, httpsCallable } from '../../firebase-config';
 import QRCode from 'qrcode';
 import {
   getEventStartDate,
@@ -277,7 +277,7 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
     }
   };
 
-  const submitRegistration = async () => {
+  const submitRegistration = async (verifiedPayment = null) => {
     setRegistering(true);
     setError('');
 
@@ -291,24 +291,29 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
         throw new Error('Please select at least one ticket');
       }
 
-      // One attendee must be filled per ticket booked.
+      // Collect one attendee per ticket when the organizer requires it.
       const ticketCount = Object.values(registrationData.selectedTickets).reduce((s, q) => s + q, 0);
-      if (registrationData.attendees.length < ticketCount) {
+      const requiredAttendees = event.requireAttendeeDetails === false ? 1 : ticketCount;
+      if (registrationData.attendees.length < requiredAttendees) {
         throw new Error(`Please provide attendee details for all ${ticketCount} tickets`);
       }
 
-      if (registrationData.attendees.some(a => !a.name || !a.email)) {
+      const attendeesToSave = registrationData.attendees.slice(0, requiredAttendees);
+      if (attendeesToSave.some(a => !a.name || !a.email)) {
         throw new Error('Please fill in all required attendee information');
       }
 
       // Contact number is mandatory and must be a valid 10-digit number.
-      const invalidPhone = registrationData.attendees.find(a => !/^\d{10}$/.test(String(a.phone || '')));
+      const invalidPhone = attendeesToSave.find(a => !/^\d{10}$/.test(String(a.phone || '')));
       if (invalidPhone) {
         throw new Error('Please enter a valid 10-digit phone number for every attendee');
       }
 
       if (!registrationData.agreeTerms) {
         throw new Error('Please agree to the terms and conditions');
+      }
+      if (registrationData.finalAmount > 0 && !verifiedPayment?.verified) {
+        throw new Error('Payment must be verified before registration is confirmed');
       }
 
       // Create registration record
@@ -317,7 +322,7 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
         userId: user.uid,
         userName: user.displayName,
         userEmail: user.email,
-        attendees: registrationData.attendees,
+        attendees: attendeesToSave,
         tickets: registrationData.selectedTickets,
         totalAmount: registrationData.totalAmount,
         discount: registrationData.discount,
@@ -329,7 +334,9 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
         registeredAt: new Date().toISOString(),
         status: 'confirmed',
         checkedIn: false,
-        paymentStatus: registrationData.finalAmount === 0 ? 'free' : 'paid'
+        paymentStatus: registrationData.finalAmount === 0 ? 'free' : 'paid',
+        paymentOrderId: verifiedPayment?.orderId || null,
+        paymentId: verifiedPayment?.paymentId || null
       };
 
       // Save to database
@@ -373,6 +380,12 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
         revenue: (currentAnalytics.revenue || 0) + registrationData.finalAmount
       });
 
+      if (registrationData.promoCode) {
+        const promoRef = ref(db, `events/${eventId}/promoCodes/${registrationData.promoCode.toUpperCase()}`);
+        const promoSnapshot = await get(promoRef);
+        if (promoSnapshot.exists()) await update(promoRef, { usedCount: Number(promoSnapshot.val()?.usedCount || 0) + 1 });
+      }
+
       // Generate QR Code
       await generateQRCode(newRegistrationId);
 
@@ -381,6 +394,58 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
 
     } catch (err) {
       setError(err.message);
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  const startPayment = async () => {
+    if (registrationData.finalAmount === 0) {
+      await submitRegistration();
+      return;
+    }
+    setRegistering(true);
+    setError('');
+    try {
+      if (!user?.uid) throw new Error('Please sign in before paying');
+      if (!registrationData.agreeTerms) throw new Error('Please agree to the terms and conditions');
+      if (!window.Razorpay) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Unable to load the secure payment checkout'));
+          document.head.appendChild(script);
+        });
+      }
+      const createOrder = httpsCallable(functions, 'createEventPaymentOrder');
+      const orderResult = await createOrder({ eventId, selectedTickets: registrationData.selectedTickets, promoCode: registrationData.promoCode || '' });
+      const order = orderResult.data;
+      await new Promise((resolve, reject) => {
+        const checkout = new window.Razorpay({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency,
+          order_id: order.orderId,
+          name: 'Our Vadodara',
+          description: event.title,
+          prefill: { name: user.displayName || '', email: user.email || '', contact: registrationData.attendees[0]?.phone || '' },
+          theme: { color: '#059669' },
+          modal: { ondismiss: () => reject(new Error('Payment was cancelled')) },
+          handler: async (response) => {
+            try {
+              const verify = httpsCallable(functions, 'verifyEventPayment');
+              const verified = await verify(response);
+              await submitRegistration(verified.data);
+              resolve();
+            } catch (verificationError) { reject(verificationError); }
+          }
+        });
+        checkout.on('payment.failed', response => reject(new Error(response.error?.description || 'Payment failed')));
+        checkout.open();
+      });
+    } catch (paymentError) {
+      setError(paymentError?.message || 'Payment could not be completed');
     } finally {
       setRegistering(false);
     }
@@ -922,12 +987,11 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
                   </div>
                 </div>
 
-                {/* Payment form would go here in a real implementation */}
-                <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-2xl p-4">
+                <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-4">
                   <div className="flex items-center">
-                    <AlertTriangle className="w-5 h-5 text-yellow-600 mr-2" />
-                    <span className="text-yellow-800 dark:text-yellow-100 text-sm">
-                      Payment processing is simulated for this demo. In a real app, integrate with payment gateways like Razorpay or Stripe.
+                    <Shield className="w-5 h-5 text-blue-600 mr-2" />
+                    <span className="text-blue-800 dark:text-blue-100 text-sm">
+                      Secure payment is processed by Razorpay. Your registration is confirmed only after server-side payment verification.
                     </span>
                   </div>
                 </div>
@@ -995,7 +1059,7 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
                 Back
               </button>
               <button
-                onClick={submitRegistration}
+                onClick={startPayment}
                 disabled={registering || !registrationData.agreeTerms}
                 className="bg-emerald-600 text-white px-6 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center shadow-lg shadow-emerald-500/20"
               >

@@ -18,6 +18,7 @@ import { useLanguage } from '../../context/Language/LanguageContext';
 import { getLocalizedText } from '../../utils/textUtils';
 import { useTranslation } from 'react-i18next';
 import { formatDistanceToNow } from 'date-fns';
+import ShareSheet from '../Common/ShareSheet';
 
 const BreakingNewsView = ({ onPostClick }) => {
   const { currentLanguage } = useLanguage();
@@ -25,6 +26,7 @@ const BreakingNewsView = ({ onPostClick }) => {
   const [breakingNews, setBreakingNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPriority, setSelectedPriority] = useState('all');
+  const [shareData, setShareData] = useState(null);
 
   useEffect(() => {
     const breakingRef = ref(db, 'breakingNews');
@@ -98,8 +100,11 @@ const BreakingNewsView = ({ onPostClick }) => {
   const handleNewsClick = (news) => {
     if (news.externalLink) {
       window.open(news.externalLink, '_blank');
-    } else if (onPostClick && news.relatedPostId) {
+    } else if (news.relatedPostId && onPostClick) {
       onPostClick(news.relatedPostId);
+    } else {
+      window.history.pushState({ view: 'breaking-detail', newsId: news.id }, '', `/breaking/${encodeURIComponent(news.id)}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
     }
   };
 
@@ -261,22 +266,24 @@ const BreakingNewsView = ({ onPostClick }) => {
 
                     <div className="flex items-center space-x-2">
                       <button
-                        onClick={() => {/* Handle share */}}
+                        onClick={() => setShareData({
+                          title: getTextContent(news.title) || getTextContent(news.headline),
+                          text: getTextContent(news.content) || getTextContent(news.summary),
+                          url: `${window.location.origin}/breaking/${encodeURIComponent(news.id)}`
+                        })}
                         className="p-2 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
                         title="Share"
                       >
                         <Share2 className="w-4 h-4" />
                       </button>
                       
-                      {(news.externalLink || news.relatedPostId) && (
-                        <button
-                          onClick={() => handleNewsClick(news)}
-                          className="flex items-center space-x-1 px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-full hover:bg-red-700 shadow shadow-red-500/30 transition-colors"
-                        >
-                          <span>Read More</span>
-                          <ChevronRight className="w-3 h-3" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleNewsClick(news)}
+                        className="flex items-center space-x-1 px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-full hover:bg-red-700 shadow shadow-red-500/30 transition-colors"
+                      >
+                        <span>Read More</span>
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -301,6 +308,7 @@ const BreakingNewsView = ({ onPostClick }) => {
           </div>
         </div>
   )}
+  <ShareSheet isOpen={Boolean(shareData)} onClose={() => setShareData(null)} shareData={shareData} />
 </div>
   );
 };

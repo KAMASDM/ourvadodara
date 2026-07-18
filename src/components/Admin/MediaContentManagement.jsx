@@ -59,6 +59,8 @@ const MediaContentManagement = () => {
   const [previewItem, setPreviewItem] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const {
     data: storiesData,
@@ -156,6 +158,11 @@ const MediaContentManagement = () => {
       return matchesType && matchesCity && matchesSearch;
     });
   }, [mediaItems, selectedType, selectedCity, searchTerm]);
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+  const paginatedItems = filteredItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => setCurrentPage(1), [selectedType, selectedCity, searchTerm, pageSize]);
+  useEffect(() => setCurrentPage(page => Math.min(page, totalPages)), [totalPages]);
 
   const loading = storiesLoading || reelsLoading || carouselsLoading;
   const hasError = storiesError || reelsError || carouselsError;
@@ -329,7 +336,15 @@ const MediaContentManagement = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredItems.map((item) => {
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-900">
+            <span className="text-gray-600 dark:text-gray-300">Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredItems.length)} of {filteredItems.length}</span>
+            <label className="flex items-center gap-2">Items per page
+              <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} className="rounded border border-gray-300 bg-white px-2 py-1 dark:border-gray-600 dark:bg-gray-800">
+                {[10, 20, 50].map(size => <option key={size} value={size}>{size}</option>)}
+              </select>
+            </label>
+          </div>
+          {paginatedItems.map((item) => {
             const primaryMedia = getPrimaryMediaItem(item);
             const isDeleting = deletingId === item.id;
             const cityTags = Array.isArray(item.cities) && item.cities.length > 0
@@ -443,6 +458,11 @@ const MediaContentManagement = () => {
               </div>
             );
           })}
+          <div className="flex items-center justify-center gap-3 py-3">
+            <button disabled={currentPage === 1} onClick={() => setCurrentPage(page => page - 1)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm disabled:opacity-40 dark:border-gray-600">Previous</button>
+            <span className="text-sm text-gray-600 dark:text-gray-300">Page {currentPage} of {totalPages}</span>
+            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(page => page + 1)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm disabled:opacity-40 dark:border-gray-600">Next</button>
+          </div>
         </div>
       )}
 

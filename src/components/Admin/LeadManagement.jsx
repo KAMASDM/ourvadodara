@@ -13,6 +13,7 @@ import {
   CalendarClock,
   CheckCircle,
   Clock,
+  Download,
   Edit3,
   FileText,
   IndianRupee,
@@ -400,6 +401,9 @@ const LeadManagement = () => {
   const [stageFilter, setStageFilter] = useState('all');
   const [serviceFilter, setServiceFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('updated_desc');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [whatsAppLead, setWhatsAppLead] = useState(null);
   const [whatsAppForm, setWhatsAppForm] = useState(EMPTY_WHATSAPP_FORM);
   const [whatsAppSending, setWhatsAppSending] = useState(false);
@@ -465,7 +469,7 @@ const LeadManagement = () => {
 
   const filteredLeads = useMemo(() => {
     const text = query.trim().toLowerCase();
-    return leads.filter((lead) => {
+    const result = leads.filter((lead) => {
       const stage = getStage(lead);
       const matchesStage = stageFilter === 'all' || stage === stageFilter;
       const matchesService = serviceFilter === 'all' || lead.serviceType === serviceFilter;
@@ -483,7 +487,27 @@ const LeadManagement = () => {
       ].filter(Boolean).join(' ').toLowerCase();
       return matchesStage && matchesService && matchesPriority && (!text || haystack.includes(text));
     });
-  }, [leads, query, stageFilter, serviceFilter, priorityFilter]);
+    return result.sort((a, b) => {
+      if (sortBy === 'value_desc') return (Number(b.expectedValue || b.budget) || 0) - (Number(a.expectedValue || a.budget) || 0);
+      if (sortBy === 'company_asc') return (a.companyName || '').localeCompare(b.companyName || '');
+      if (sortBy === 'followup_asc') return new Date(a.followUpDate || '9999-12-31') - new Date(b.followUpDate || '9999-12-31');
+      return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+    });
+  }, [leads, query, stageFilter, serviceFilter, priorityFilter, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
+  const paginatedLeads = useMemo(
+    () => filteredLeads.slice((page - 1) * pageSize, page * pageSize),
+    [filteredLeads, page, pageSize]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, stageFilter, serviceFilter, priorityFilter, sortBy, pageSize]);
+
+  useEffect(() => {
+    setPage(current => Math.min(current, totalPages));
+  }, [totalPages]);
 
   const templatePreviewLead = useMemo(() => ({
     companyName: 'Shree Foods',
@@ -975,6 +999,37 @@ const LeadManagement = () => {
     await remove(ref(db, `${TEMPLATE_PATH}/${template.id}`));
   };
 
+  const exportLeads = () => {
+    const columns = [
+      ['Company', lead => lead.companyName],
+      ['Contact', lead => lead.contactName],
+      ['Phone', lead => lead.phone],
+      ['Email', lead => lead.email],
+      ['City', lead => lead.city],
+      ['Service', lead => lead.serviceType],
+      ['Package', lead => lead.packageInterest],
+      ['Stage', lead => getStageConfig(getStage(lead)).label],
+      ['Priority', lead => getPriorityConfig(lead.priority).label],
+      ['Value', lead => lead.expectedValue || lead.budget || 0],
+      ['Source', lead => lead.source],
+      ['Owner', lead => lead.assignedTo],
+      ['Follow-up', lead => lead.followUpDate],
+      ['Created', lead => lead.createdAt]
+    ];
+    const escapeCsv = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const csv = [
+      columns.map(([label]) => escapeCsv(label)).join(','),
+      ...filteredLeads.map(lead => columns.map(([, getter]) => escapeCsv(getter(lead))).join(','))
+    ].join('\n');
+    const blob = new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `our-vadodara-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 text-gray-900 dark:text-gray-100">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -985,6 +1040,15 @@ const LeadManagement = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={exportLeads}
+            disabled={!filteredLeads.length}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </button>
           <button
             type="button"
             onClick={() => openTemplateForm()}
@@ -1912,7 +1976,7 @@ const LeadManagement = () => {
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-        <div className="grid gap-3 xl:grid-cols-[1fr_180px_220px_160px]">
+        <div className="grid gap-3 xl:grid-cols-[1fr_160px_200px_150px_180px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -1945,6 +2009,17 @@ const LeadManagement = () => {
           >
             <option value="all">All Priority</option>
             {PRIORITIES.map(priority => <option key={priority.id} value={priority.id}>{priority.label}</option>)}
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+            aria-label="Sort leads"
+          >
+            <option value="updated_desc">Recently updated</option>
+            <option value="value_desc">Highest value</option>
+            <option value="company_asc">Company A–Z</option>
+            <option value="followup_asc">Next follow-up</option>
           </select>
         </div>
       </div>
@@ -2089,7 +2164,7 @@ const LeadManagement = () => {
           </div>
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredLeads.map((lead) => {
+            {paginatedLeads.map((lead) => {
               const stage = getStageConfig(getStage(lead));
               const priority = getPriorityConfig(lead.priority);
               const service = SERVICE_TYPES.find(type => type.id === lead.serviceType);
@@ -2235,6 +2310,26 @@ const LeadManagement = () => {
                 </div>
               );
             })}
+          </div>
+        )}
+        {!loading && filteredLeads.length > 0 && (
+          <div className="flex flex-col gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-500">
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredLeads.length)} of {filteredLeads.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800"
+                aria-label="Leads per page"
+              >
+                {[10, 25, 50].map(size => <option key={size} value={size}>{size} / page</option>)}
+              </select>
+              <button type="button" onClick={() => setPage(value => Math.max(1, value - 1))} disabled={page === 1} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 dark:border-gray-700">Previous</button>
+              <span className="text-sm font-medium">{page} / {totalPages}</span>
+              <button type="button" onClick={() => setPage(value => Math.min(totalPages, value + 1))} disabled={page === totalPages} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 dark:border-gray-700">Next</button>
+            </div>
           </div>
         )}
       </div>

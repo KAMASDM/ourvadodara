@@ -85,9 +85,9 @@ const EventQRScanner = ({ eventId, onBack }) => {
 
   // Load scan history
   useEffect(() => {
-    if (!eventId) return;
+    if (!selectedEvent?.id) return;
 
-    const scansRef = ref(db, `eventScans/${eventId}`);
+    const scansRef = ref(db, `events/${selectedEvent.id}/scanHistory`);
     const unsubscribe = onValue(scansRef, (snapshot) => {
       if (snapshot.exists()) {
         const scansData = snapshot.val();
@@ -142,7 +142,7 @@ const EventQRScanner = ({ eventId, onBack }) => {
     });
 
     return () => unsubscribe();
-  }, [eventId, selectedEvent?.multipleQRScansAllowed]);
+  }, [selectedEvent?.id, selectedEvent?.multipleQRScansAllowed]);
 
   const startCamera = async () => {
     try {
@@ -216,10 +216,7 @@ const EventQRScanner = ({ eventId, onBack }) => {
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0);
 
-    // In a real implementation, you would use a QR code library here
-    // For now, we'll simulate QR code detection
-    const simulatedQRData = `event-${eventId}-user-${Math.random().toString(36).substr(2, 9)}`;
-    processQRCode(simulatedQRData);
+    setError('Automatic QR detection is not available in this browser. Paste the registration QR value below.');
   };
 
   const processQRCode = async (qrData) => {
@@ -236,18 +233,25 @@ const EventQRScanner = ({ eventId, onBack }) => {
         throw new Error('Invalid QR code format');
       }
 
-      // Check if user is registered for this event
-      const registrationRef = ref(db, `eventRegistrations/${eventId}/${userData.userId}`);
-      const registrationSnapshot = await get(registrationRef);
-      
-      if (!registrationSnapshot.exists()) {
-        throw new Error('User not registered for this event');
+      if (userData.eventId && userData.eventId !== selectedEvent.id && userData.eventId !== eventId) {
+        throw new Error('This QR code belongs to a different event');
       }
 
-      const registrationData = registrationSnapshot.val();
+      const registrationsRef = ref(db, `events/${selectedEvent.id}/registrations`);
+      const registrationsSnapshot = await get(registrationsRef);
+      const allRegistrations = registrationsSnapshot.val() || {};
+      const registrationId = userData.registrationId || Object.keys(allRegistrations).find(id => allRegistrations[id]?.userId === userData.userId);
+      const registrationData = registrationId ? allRegistrations[registrationId] : null;
+      
+      if (!registrationData) {
+        throw new Error('User not registered for this event');
+      }
+      if (registrationData.checkedIn && !selectedEvent.multipleQRScansAllowed) {
+        throw new Error('This ticket has already been checked in');
+      }
       
       // Perform the scan action
-      await performScan(userData, registrationData);
+      await performScan({ ...userData, registrationId, userId: userData.userId || registrationData.userId }, registrationData);
       
     } catch (error) {
       console.error('QR processing error:', error);
@@ -266,7 +270,7 @@ const EventQRScanner = ({ eventId, onBack }) => {
     // Implement your QR code format parsing here
     // This is a simplified version
     try {
-      if (qrData.includes('event-')) {
+      if (qrData.startsWith('event-')) {
         const parts = qrData.split('-');
         return {
           userId: parts[parts.length - 1],
@@ -280,19 +284,21 @@ const EventQRScanner = ({ eventId, onBack }) => {
   };
 
   const performScan = async (userData, registrationData) => {
+    const attendee = registrationData.attendees?.[0] || {};
     const scanData = {
       userId: userData.userId,
-      userName: registrationData.userName,
-      userEmail: registrationData.userEmail,
-      userPhone: registrationData.userPhone,
-      ticketType: registrationData.ticketType,
+      registrationId: userData.registrationId,
+      userName: registrationData.userName || attendee.name || 'Attendee',
+      userEmail: registrationData.userEmail || attendee.email || '',
+      userPhone: registrationData.userPhone || attendee.phone || '',
+      ticketType: registrationData.ticketType || Object.keys(registrationData.tickets || {}).join(', '),
       timestamp: new Date().toISOString(),
       scannedBy: 'admin',
       action: selectedEvent.multipleQRScansAllowed ? scanMode : 'checkin'
     };
 
     // Save scan record
-    const scansRef = ref(db, `eventScans/${eventId}`);
+    const scansRef = ref(db, `events/${selectedEvent.id}/scanHistory`);
     await push(scansRef, scanData);
 
     // Update registration status
@@ -302,13 +308,13 @@ const EventQRScanner = ({ eventId, onBack }) => {
       checkedInBy: 'qr-scanner'
     };
     
-    const registrationRef = ref(db, `eventRegistrations/${eventId}/${userData.userId}`);
+    const registrationRef = ref(db, `events/${selectedEvent.id}/registrations/${userData.registrationId}`);
     await update(registrationRef, updateData);
 
     // Set success result
     setScanResult({
       success: true,
-      message: `${scanData.action === 'entry' ? 'Entry' : scanData.action === 'exit' ? 'Exit' : 'Check-in'} successful for ${registrationData.userName}`,
+      message: `${scanData.action === 'entry' ? 'Entry' : scanData.action === 'exit' ? 'Exit' : 'Check-in'} successful for ${scanData.userName}`,
       timestamp: scanData.timestamp
     });
 

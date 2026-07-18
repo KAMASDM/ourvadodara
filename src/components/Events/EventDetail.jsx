@@ -29,8 +29,10 @@ import {
   Globe
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, set, remove } from 'firebase/database';
 import { db } from '../../firebase-config';
+import { useAuth } from '../../context/Auth/AuthContext';
+import ShareSheet from '../Common/ShareSheet';
 import EventRegistration from './EventRegistration';
 import {
   getEventStartDate,
@@ -42,12 +44,14 @@ import {
 
 const EventDetail = ({ eventId, onBack }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showRegistration, setShowRegistration] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (eventId) {
@@ -63,6 +67,24 @@ const EventDetail = ({ eventId, onBack }) => {
       return () => unsubscribe();
     }
   }, [eventId]);
+
+  useEffect(() => {
+    if (!user?.uid || !eventId) {
+      setIsBookmarked(false);
+      return undefined;
+    }
+    return onValue(ref(db, `eventBookmarks/${user.uid}/${eventId}`), snapshot => setIsBookmarked(snapshot.exists()));
+  }, [user?.uid, eventId]);
+
+  const toggleBookmark = async () => {
+    if (!user?.uid) {
+      document.dispatchEvent(new CustomEvent('showGuestPrompt'));
+      return;
+    }
+    const bookmarkRef = ref(db, `eventBookmarks/${user.uid}/${eventId}`);
+    if (isBookmarked) await remove(bookmarkRef);
+    else await set(bookmarkRef, { savedAt: Date.now() });
+  };
 
   if (loading) {
     return (
@@ -150,7 +172,7 @@ const EventDetail = ({ eventId, onBack }) => {
           
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => setIsBookmarked(!isBookmarked)}
+              onClick={toggleBookmark}
               className={`p-3 rounded-full backdrop-blur-sm transition-colors ${
                 isBookmarked 
                   ? 'bg-red-600 text-white' 
@@ -159,7 +181,7 @@ const EventDetail = ({ eventId, onBack }) => {
             >
               <Heart className={`w-6 h-6 ${isBookmarked ? 'fill-current' : ''}`} />
             </button>
-            <button className="bg-white/20 backdrop-blur-sm text-white p-3 rounded-full hover:bg-white/30 transition-colors">
+            <button onClick={() => setShareOpen(true)} className="bg-white/20 backdrop-blur-sm text-white p-3 rounded-full hover:bg-white/30 transition-colors">
               <Share2 className="w-6 h-6" />
             </button>
           </div>
@@ -451,7 +473,7 @@ const EventDetail = ({ eventId, onBack }) => {
 
       {/* Registration Modal */}
       {showRegistration && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
             <EventRegistration 
               eventId={event.id}
@@ -460,10 +482,15 @@ const EventDetail = ({ eventId, onBack }) => {
           </div>
         </div>
       )}
+      <ShareSheet
+        isOpen={shareOpen}
+        onClose={() => setShareOpen(false)}
+        shareData={{ title: event.title, text: event.description || '', url: `${window.location.origin}/events/${encodeURIComponent(eventId)}` }}
+      />
 
       {/* Media Modal */}
       {selectedMedia && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black bg-opacity-90 flex items-center justify-center p-4">
           <div className="relative max-w-4xl w-full">
             <button
               onClick={() => setSelectedMedia(null)}

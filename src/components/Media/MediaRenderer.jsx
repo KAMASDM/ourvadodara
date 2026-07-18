@@ -136,6 +136,12 @@ const MediaRenderer = ({
   ), [effectiveItems, resolveMediaUrl]);
   const validSlidesCount = validSlides.length;
   const hasMultipleItems = effectiveItems.length > 1;
+  const currentItem = validSlides[currentIndex] || validSlides[0] || null;
+  const currentItemSource = resolveMediaUrl(currentItem);
+  const inferredMime = typeof currentItem === 'object' ? currentItem?.mimeType || currentItem?.metadata?.format : '';
+  const isVideo = (typeof currentItem === 'object' && currentItem?.type === 'video')
+    || (inferredMime && inferredMime.startsWith('video/'))
+    || /\.(mp4|webm|mov|m4v)(\?|$)/i.test(currentItemSource || '');
 
   useEffect(() => {
     if (currentIndex > effectiveItems.length - 1) {
@@ -181,15 +187,6 @@ const MediaRenderer = ({
       setCurrentIndex(clampedIndex);
     }
   }, [externalCarouselIndex, validSlidesCount, currentIndex]);
-
-  // If no media items, return placeholder
-  if (!effectiveItems || effectiveItems.length === 0) {
-    return (
-      <div className={`bg-gray-200 dark:bg-gray-700 aspect-video flex items-center justify-center rounded-lg ${className}`}>
-        <span className="text-gray-500 dark:text-gray-400">No media available</span>
-      </div>
-    );
-  }
 
   // Handle video playback
   useEffect(() => {
@@ -276,6 +273,27 @@ const MediaRenderer = ({
       document.removeEventListener('touchend', handleGlobalEnd);
     };
   }, [isDragging]);
+
+  // One observer handles reels and standard post videos. Keeping this hook at
+  // the component top level prevents hook-order crashes when filters swap a
+  // card from image to video content.
+  useEffect(() => {
+    const shouldObserve = autoplay && isVideo && type !== POST_TYPES.STORY;
+    if (!shouldObserve || !videoRef.current) return undefined;
+    const video = videoRef.current;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+          video.play().catch(() => setIsPlaying(false));
+        } else {
+          video.pause();
+          setIsPlaying(false);
+        }
+      });
+    }, { threshold: [0, 0.5, 1] });
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [autoplay, isVideo, type, currentItemSource]);
 
   const togglePlayPause = () => {
     if (videoRef.current) {
@@ -388,13 +406,6 @@ const MediaRenderer = ({
   if (!validSlides || validSlides.length === 0) {
     return null; // Don't render anything if no media
   }
-
-  const currentItem = validSlides[currentIndex] || validSlides[0];
-  const currentItemSource = resolveMediaUrl(currentItem);
-  const inferredMime = typeof currentItem === 'object' ? currentItem?.mimeType || currentItem?.metadata?.format : '';
-  const isVideo = (typeof currentItem === 'object' && currentItem.type === 'video')
-    || (inferredMime && inferredMime.startsWith('video/'))
-    || /\.(mp4|webm|mov|m4v)(\?|$)/i.test(currentItemSource || '');
 
   // Story Renderer
   if (type === POST_TYPES.STORY) {
@@ -541,32 +552,6 @@ const MediaRenderer = ({
 
   // Reel Renderer
   if (type === POST_TYPES.REEL) {
-    // Auto-play logic for reels
-    useEffect(() => {
-      if (!autoplay || !videoRef.current) return;
-
-      const video = videoRef.current;
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-              video.play().catch((err) => {
-                console.log('Reel auto-play prevented:', err.message);
-                setIsPlaying(false);
-              });
-            } else {
-              video.pause();
-              setIsPlaying(false);
-            }
-          });
-        },
-        { threshold: [0, 0.5, 1.0] }
-      );
-
-      observer.observe(video);
-      return () => observer.disconnect();
-    }, [autoplay, videoRef.current]);
-
     return (
       <div className={`relative bg-black rounded-lg overflow-hidden ${className}`} style={{ aspectRatio: '9/16', maxHeight: '100vh' }}>
         {/* Video */}
@@ -790,34 +775,6 @@ const MediaRenderer = ({
       </div>
     );
   }
-
-  // Auto-play logic for single video (standard posts)
-  useEffect(() => {
-    if (!autoplay || !isVideo || !videoRef.current || type === POST_TYPES.REEL || type === POST_TYPES.STORY) {
-      return; // Only for standard post videos
-    }
-
-    const video = videoRef.current;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-            video.play().catch((err) => {
-              console.log('Auto-play prevented:', err.message);
-              setIsPlaying(false);
-            });
-          } else {
-            video.pause();
-            setIsPlaying(false);
-          }
-        });
-      },
-      { threshold: [0, 0.5, 1.0] }
-    );
-
-    observer.observe(video);
-    return () => observer.disconnect();
-  }, [autoplay, isVideo, type, videoRef.current]);
 
   // Single Image/Video Renderer
   return (

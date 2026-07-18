@@ -10,7 +10,6 @@ import { getLocalizedText } from '../../utils/textUtils';
 import { db } from '../../firebase-config';
 import { ref, onValue } from 'firebase/database';
 import { Bookmark, Search, Filter, Calendar, Grid, List } from 'lucide-react';
-import PostCard from '../Feed/PostCard';
 import EmptyState from '../Common/EmptyState';
 
 const SavedPosts = ({ onPostClick }) => {
@@ -18,7 +17,7 @@ const SavedPosts = ({ onPostClick }) => {
   const { currentLanguage } = useLanguage();
   const { user } = useAuth();
   const [bookmarks, setBookmarks] = useState(null);
-  const [viewMode, setViewMode] = useState('list');
+  const [viewMode, setViewMode] = useState('grid');
   const [sortBy, setSortBy] = useState('newest');
   const [filterCategory, setFilterCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,6 +83,10 @@ const SavedPosts = ({ onPostClick }) => {
     });
 
   const categories = ['all', 'local', 'politics', 'sports', 'entertainment', 'business', 'technology', 'weather', 'india', 'world', 'science', 'space', 'health'];
+  const openPost = (postId) => {
+    if (onPostClick) onPostClick(postId);
+    else window.location.href = `/post/${postId}`;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20">
@@ -164,19 +167,22 @@ const SavedPosts = ({ onPostClick }) => {
       {/* Content */}
       <div className="px-4 py-6">
         {filteredAndSortedPosts.length > 0 ? (
-          <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-4' : 'space-y-4'}>
+          <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3' : 'mx-auto max-w-3xl space-y-4'}>
             {filteredAndSortedPosts.map((post) => (
-              <div key={post.id} className="bg-white dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                <PostCard post={post} onPostClick={onPostClick} />
-                <div className="px-4 pb-3">
+              <article key={post.id} className={`bg-white dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 ${viewMode === 'list' ? 'flex' : ''}`}>
+                {(post.imageUrl || post.image || post.media?.[0]?.url || post.media?.images?.[0]?.url) && <img src={post.imageUrl || post.image || post.media?.[0]?.url || post.media?.images?.[0]?.url} alt="" className={viewMode === 'list' ? 'h-28 w-36 flex-shrink-0 object-cover' : 'h-36 w-full object-cover'} />}
+                <button type="button" onClick={() => openPost(post.id)} className="min-w-0 flex-1 p-4 text-left">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-primary-600">{post.category || 'News'}</span>
+                  <h2 className="mt-1 line-clamp-2 font-semibold leading-snug text-gray-950 dark:text-white">{getLocalizedText(post.title, currentLanguage) || 'Saved story'}</h2>
+                  <p className="mt-2 line-clamp-2 text-sm text-gray-500">{getLocalizedText(post.content, currentLanguage)}</p>
                   <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
                     <Calendar className="w-3 h-3" />
                     <span>
                       Saved on {new Date(post.savedAt).toLocaleDateString()}
                     </span>
                   </div>
-                </div>
-              </div>
+                </button>
+              </article>
             ))}
           </div>
         ) : (

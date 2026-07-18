@@ -2,6 +2,7 @@
 // src/components/Report/ReportModal.jsx
 // =============================================
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { X, Flag, AlertTriangle } from 'lucide-react';
 
@@ -55,13 +56,13 @@ const ReportModal = ({ isOpen, onClose, contentId, contentType = 'post' }) => {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-4" onClick={onClose} role="presentation">
+      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="report-dialog-title">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-2">
             <Flag className="w-5 h-5 text-red-500" />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            <h2 id="report-dialog-title" className="text-xl font-semibold text-gray-900 dark:text-white">
               {t('report.title')}
             </h2>
           </div>
@@ -169,7 +170,8 @@ const ReportModal = ({ isOpen, onClose, contentId, contentType = 'post' }) => {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

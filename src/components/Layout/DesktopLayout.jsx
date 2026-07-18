@@ -28,7 +28,8 @@ import {
   Play,
   Calendar,
   Bookmark,
-  X
+  X,
+  Gift
 } from 'lucide-react';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 
@@ -53,6 +54,7 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
     { key: 'breaking', label: { en: 'Breaking', gu: 'બ્રેકિંગ', hi: 'ब्रेकिंग' }, icon: Zap, view: 'breaking', badge: 'Live' },
     { key: 'reels', label: { en: 'Reels', gu: 'રીલ્સ', hi: 'रील्स' }, icon: Play, view: 'reels' },
     { key: 'events', label: { en: 'Events', gu: 'ઇવેન્ટ્સ', hi: 'इवेंट्स' }, icon: Calendar, view: 'events' }
+    ,{ key: 'offers', label: { en: 'Offers', gu: 'ઓફર્સ', hi: 'ऑफ़र' }, icon: Gift, view: 'offers' }
   ];
 
   const categoryItems = [

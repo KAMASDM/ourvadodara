@@ -24,7 +24,8 @@ import {
   MapPin,
   Film,
   Newspaper,
-  Handshake
+  Handshake,
+  TicketPercent
 } from 'lucide-react';
 import EnhancedDashboard from './EnhancedDashboard';
 import UserManager from './UserManager';
@@ -43,6 +44,8 @@ import RoundupManagement from './RoundupManagement';
 import MediaContentManagement from './MediaContentManagement';
 import LeadManagement from './LeadManagement';
 import ErrorBoundary from '../Common/ErrorBoundary';
+import CouponManagement from './CouponManagement';
+import PaymentManagement from './PaymentManagement';
 
 const AdminLayout = () => {
   const { user } = useAuth();
@@ -82,9 +85,11 @@ const AdminLayout = () => {
     { id: 'content-management', label: 'Content Manager', icon: FileText },
     { id: 'news-roundup', label: 'News Roundup', icon: Newspaper },
     { id: 'lead-management', label: 'Lead Management', icon: Handshake },
+    { id: 'coupons', label: 'Coupons & Brands', icon: TicketPercent },
+    { id: 'payments', label: 'Event Payments', icon: TicketPercent },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'city-management', label: 'City Management', icon: MapPin },
-    { id: 'auth-management', label: 'Authentication', icon: Globe },
+    { id: 'auth-management', label: 'Authentication & Security', icon: Globe },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     { id: 'comment-moderation', label: 'Moderation', icon: CheckSquare },
     { id: 'events', label: 'Events', icon: Calendar },
@@ -120,6 +125,10 @@ const AdminLayout = () => {
         return isMobile ? <MobileContentWarning /> : <RoundupManagement />;
       case 'lead-management':
         return isMobile ? <MobileContentWarning /> : <LeadManagement />;
+      case 'coupons':
+        return isMobile ? <MobileContentWarning /> : <CouponManagement />;
+      case 'payments':
+        return isMobile ? <MobileContentWarning /> : <PaymentManagement />;
       case 'users':
         return <UserManager />;
       case 'city-management':

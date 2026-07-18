@@ -10,7 +10,7 @@ import { db } from '../../firebase-config';
 import { Send, Heart, LogIn } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import LoadingSpinner from '../Common/LoadingSpinner';
-import Login from '../Auth/Login';
+import EnhancedLogin from '../Auth/EnhancedLogin';
 
 const CommentSection = ({ postId }) => {
   const { user } = useAuth();
@@ -111,7 +111,7 @@ const CommentSection = ({ postId }) => {
         </div>
       )}
 
-      {showLogin && <Login onClose={() => setShowLogin(false)} />}
+      {showLogin && <EnhancedLogin onClose={() => setShowLogin(false)} />}
     </div>
   );
 };

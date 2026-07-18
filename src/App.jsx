@@ -18,7 +18,6 @@ import Navigation from './components/Layout/Navigation.jsx';
 import HomePage from './pages/Home/HomePage.jsx';
 import SearchPage from './pages/Search/SearchPage.jsx';
 import ProfilePage from './pages/Profile/ProfilePage.jsx';
-import Login from './components/Auth/Login.jsx';
 import EnhancedLogin from './components/Auth/EnhancedLogin.jsx';
 import GuestModePrompt from './components/Auth/GuestModePrompt.jsx';
 import FirebaseSetupGuide from './components/Auth/FirebaseSetupGuide.jsx';
@@ -34,11 +33,15 @@ const ReelsPage = React.lazy(() => import('./pages/Reels/ReelsPage.jsx'));
 const RoundupPage = React.lazy(() => import('./pages/Roundup/RoundupPage.jsx'));
 const AdvertisePage = React.lazy(() => import('./pages/Advertise/AdvertisePage.jsx'));
 const EventsCalendar = React.lazy(() => import('./components/Events/EventsCalendar.jsx'));
+const EventDetail = React.lazy(() => import('./components/Events/EventDetail.jsx'));
 const FirebaseSetup = React.lazy(() => import('./components/Admin/FirebaseSetup.jsx'));
 const AdminUpgrade = React.lazy(() => import('./components/Admin/AdminUpgrade.jsx'));
 const EventQRScanner = React.lazy(() => import('./components/Admin/EventQRScanner.jsx'));
 const BreakingNewsManager = React.lazy(() => import('./components/Breaking/BreakingNewsManager.jsx'));
 const BreakingNewsView = React.lazy(() => import('./components/Breaking/BreakingNewsView.jsx'));
+const BreakingNewsDetail = React.lazy(() => import('./components/Breaking/BreakingNewsDetail.jsx'));
+const LegalPage = React.lazy(() => import('./pages/Legal/LegalPage.jsx'));
+const CouponMarketplace = React.lazy(() => import('./components/Coupons/CouponMarketplace.jsx'));
 import { BloodSOSProvider } from './context/SOS/BloodSOSContext.jsx';
 import { TopicFollowingProvider } from './context/Topics/TopicFollowingContext.jsx';
 import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
@@ -86,7 +89,7 @@ function AppContent() {
     }
 
     // Check for QR scanner routes: /eventname/scanqr or /events/eventid/scanqr
-    const scannerMatch = path.match(/^\/(.+)\/scanqr$/) || path.match(/^\/events\/(.+)\/scanqr$/);
+    const scannerMatch = path.match(/^\/events\/([^/]+)\/scanqr$/) || path.match(/^\/([^/]+)\/scanqr$/);
     if (scannerMatch) {
       const eventIdentifier = scannerMatch[1];
       setCurrentView({ type: 'qr-scanner', data: { eventId: eventIdentifier } });
@@ -94,9 +97,23 @@ function AppContent() {
       return;
     }
 
+    const eventMatch = path.match(/^\/events\/([^/]+)$/);
+    if (eventMatch) {
+      const eventId = decodeURIComponent(eventMatch[1]);
+      setCurrentView({ type: 'event-detail', data: { eventId } });
+      setActiveTab('events');
+      return;
+    }
+
     if (path === '/marketing') {
       setCurrentView({ type: 'marketing', data: null });
       setActiveTab('marketing');
+      return;
+    }
+
+    if (['/contact', '/terms', '/privacy'].includes(path)) {
+      setCurrentView({ type: 'legal', data: { page: path.slice(1) } });
+      setActiveTab('home');
       return;
     }
 
@@ -117,6 +134,10 @@ function AppContent() {
       setActiveTab('advertise');
       return;
     }
+    if (path === '/offers' || path === '/coupons') {
+      setCurrentView({ type: 'offers', data: null });
+      return;
+    }
 
     if (path === '/search') {
       setCurrentView({ type: 'search', data: null });
@@ -128,6 +149,13 @@ function AppContent() {
       const category = decodeURIComponent(path.replace('/category/', ''));
       setCurrentView({ type: 'category', data: { category } });
       setActiveTab('home');
+      return;
+    }
+
+    const breakingMatch = path.match(/^\/breaking\/([^/]+)$/);
+    if (breakingMatch) {
+      setCurrentView({ type: 'breaking-detail', data: { newsId: decodeURIComponent(breakingMatch[1]) } });
+      setActiveTab('breaking');
       return;
     }
 
@@ -240,9 +268,7 @@ function AppContent() {
     }
     
     // Listen for guest prompt event
-    const handleShowGuestPrompt = () => {
-      setShowGuestPrompt(true);
-    };
+    const handleShowGuestPrompt = () => setShowLogin(true);
     
     // Listen for Firebase setup needed event
     const handleShowFirebaseSetup = () => {
@@ -483,17 +509,47 @@ function AppContent() {
         return <AdvertisePage onBack={handleBackToHome} />;
       case 'events':
         return <EventsCalendar />;
+      case 'offers':
+        return <CouponMarketplace />;
+      case 'event-detail':
+        return (
+          <EventDetail
+            eventId={currentView.data?.eventId}
+            onBack={() => {
+              window.history.pushState({ view: 'events' }, '', '/events');
+              setCurrentView({ type: 'events', data: null });
+              setActiveTab('events');
+            }}
+          />
+        );
       case 'profile':
         return <ProfilePage />;
       case 'admin':
         return <AdminDashboard />;
       case 'marketing':
         return <MarketingDashboard />;
+      case 'legal':
+        return <LegalPage page={currentView.data?.page} onBack={handleBackToHome} />;
       case 'breaking':
         return user?.role === 'admin' ? (
           <BreakingNewsManager />
         ) : (
           <BreakingNewsView onPostClick={handlePostClick} />
+        );
+      case 'breaking-detail':
+        return (
+          <BreakingNewsDetail
+            newsId={currentView.data?.newsId}
+            onBack={() => {
+              window.history.pushState({ view: 'breaking' }, '', '/breaking');
+              setCurrentView({ type: 'breaking', data: null });
+              setActiveTab('breaking');
+            }}
+            onNavigate={(newsId) => {
+              window.history.pushState({ view: 'breaking-detail', newsId }, '', `/breaking/${encodeURIComponent(newsId)}`);
+              setCurrentView({ type: 'breaking-detail', data: { newsId } });
+            }}
+          />
         );
       case 'firebase-setup':
         return <FirebaseSetup />;

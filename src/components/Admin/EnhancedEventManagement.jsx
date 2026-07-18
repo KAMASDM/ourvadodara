@@ -43,6 +43,7 @@ import { ref, onValue, push, update, remove } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase-config';
 import { adminStyles } from './adminStyles';
+import EventQRScanner from './EventQRScanner';
 
 const EnhancedEventManagement = () => {
   const { user } = useAuth();
@@ -52,6 +53,7 @@ const EnhancedEventManagement = () => {
   const [activeTab, setActiveTab] = useState('events'); // events, registrations, analytics, checkin
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const imageInputRef = useRef(null);
@@ -102,6 +104,8 @@ const EnhancedEventManagement = () => {
     status: 'draft', // draft, published, cancelled
     registrationRequired: true,
     multipleQRScansAllowed: false,
+    maxTicketsPerUser: 10,
+    requireAttendeeDetails: true,
     maxCapacity: 100,
     tags: [],
     socialLinks: {},
@@ -159,6 +163,25 @@ const EnhancedEventManagement = () => {
       capacity: event.maxCapacity || event.venue?.capacity || 0,
       registered: event.analytics?.registrations || registrationCount
     };
+  };
+
+  const registrations = events.flatMap(event => Object.entries(event.registrations || {}).map(([id, registration]) => ({
+    id,
+    eventId: event.id,
+    eventTitle: event.title,
+    ...registration
+  })));
+
+  const exportRegistrations = () => {
+    const escape = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const rows = registrations.map(item => [item.eventTitle, item.userDetails?.name || item.name, item.userDetails?.email || item.email, item.userDetails?.phone || item.phone, item.ticketType?.name || item.ticketType, item.quantity, item.totalAmount, item.paymentStatus, item.checkedIn ? 'Yes' : 'No', item.registeredAt || item.createdAt]);
+    const csv = [['Event', 'Name', 'Email', 'Phone', 'Ticket', 'Quantity', 'Amount', 'Payment', 'Checked in', 'Registered at'], ...rows].map(row => row.map(escape).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `event-registrations-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -410,6 +433,8 @@ const EnhancedEventManagement = () => {
       status: 'draft',
       registrationRequired: true,
       multipleQRScansAllowed: false,
+      maxTicketsPerUser: 10,
+      requireAttendeeDetails: true,
       maxCapacity: 100,
       tags: [],
       socialLinks: {},
@@ -470,6 +495,8 @@ const EnhancedEventManagement = () => {
       tags: Array.isArray(event.tags) ? event.tags : [],
       socialLinks: event.socialLinks || {},
       promoCodes: promoCodes
+      ,maxTicketsPerUser: Number(event.maxTicketsPerUser) || 10
+      ,requireAttendeeDetails: event.requireAttendeeDetails !== false
     });
     setShowCreateForm(true);
   };
@@ -1292,6 +1319,26 @@ const EnhancedEventManagement = () => {
                 />
                 <span className="text-sm text-gray-700">Registration Required</span>
               </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={eventForm.requireAttendeeDetails}
+                  onChange={(e) => handleInputChange('requireAttendeeDetails', e.target.checked)}
+                  className="mr-2"
+                />
+                <span className="text-sm text-gray-700">Collect details for every attendee</span>
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                Maximum tickets per booking
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={eventForm.maxTicketsPerUser}
+                  onChange={(e) => handleInputChange('maxTicketsPerUser', Math.max(1, Number(e.target.value) || 1))}
+                  className="w-20 rounded border border-gray-300 px-2 py-1"
+                />
+              </label>
               
               <label className="flex items-center">
                 <input
@@ -1419,7 +1466,7 @@ const EnhancedEventManagement = () => {
               <button
                 onClick={() => {
                   setActiveTab('registrations');
-                  // Set selected event for viewing registrations
+                  setSelectedEvent(event);
                 }}
                 className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
               >
@@ -1429,7 +1476,7 @@ const EnhancedEventManagement = () => {
               <button
                 onClick={() => {
                   setActiveTab('checkin');
-                  // Set selected event for check-in
+                  setSelectedEvent(event);
                 }}
                 className="text-sm text-green-600 hover:text-green-800 flex items-center"
               >
@@ -1545,26 +1592,38 @@ const EnhancedEventManagement = () => {
 
       {/* Other tab content would go here */}
       {activeTab === 'registrations' && (
-        <div className="text-center py-12">
-          <UserCheck className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Event Registrations</h3>
-          <p className="text-gray-500">View and manage event registrations</p>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <select value={selectedEvent?.id || 'all'} onChange={(e) => setSelectedEvent(events.find(event => event.id === e.target.value) || null)} className="rounded-lg border border-gray-300 px-3 py-2">
+              <option value="all">All events</option>
+              {events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}
+            </select>
+            <button type="button" onClick={exportRegistrations} disabled={!registrations.length} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:opacity-40"><Download className="h-4 w-4" /> Export CSV</button>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50"><tr>{['Event', 'Attendee', 'Contact', 'Tickets', 'Amount', 'Payment', 'Check-in'].map(label => <th key={label} className="px-4 py-3 text-left font-semibold text-gray-600">{label}</th>)}</tr></thead>
+              <tbody className="divide-y divide-gray-100">{registrations.filter(item => !selectedEvent || item.eventId === selectedEvent.id).map(item => (
+                <tr key={`${item.eventId}-${item.id}`}><td className="px-4 py-3 font-medium">{item.eventTitle}</td><td className="px-4 py-3">{item.userDetails?.name || item.name || '—'}</td><td className="px-4 py-3">{item.userDetails?.email || item.email || item.userDetails?.phone || item.phone || '—'}</td><td className="px-4 py-3">{item.quantity || item.attendees?.length || 1}</td><td className="px-4 py-3">₹{Number(item.totalAmount || 0).toLocaleString('en-IN')}</td><td className="px-4 py-3 capitalize">{item.paymentStatus || 'pending'}</td><td className="px-4 py-3">{item.checkedIn ? 'Checked in' : 'Not checked in'}</td></tr>
+              ))}</tbody>
+            </table>
+            {!registrations.filter(item => !selectedEvent || item.eventId === selectedEvent.id).length && <p className="p-8 text-center text-gray-500">No registrations found.</p>}
+          </div>
         </div>
       )}
 
       {activeTab === 'checkin' && (
-        <div className="text-center py-12">
-          <QrCode className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">QR Code Check-in</h3>
-          <p className="text-gray-500">Scan attendee QR codes for event check-in</p>
-        </div>
+        selectedEvent ? <EventQRScanner eventId={selectedEvent.id} onBack={() => setSelectedEvent(null)} /> : <div className="mx-auto max-w-lg py-12 text-center"><QrCode className="mx-auto mb-4 h-12 w-12 text-gray-400" /><h3 className="mb-4 text-lg font-medium">Choose an event to start scanning</h3><select onChange={(e) => setSelectedEvent(events.find(event => event.id === e.target.value) || null)} defaultValue="" className="w-full rounded-lg border border-gray-300 px-3 py-2"><option value="" disabled>Select event</option>{events.map(event => <option key={event.id} value={event.id}>{event.title}</option>)}</select></div>
       )}
 
       {activeTab === 'analytics' && (
-        <div className="text-center py-12">
-          <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Event Analytics</h3>
-          <p className="text-gray-500">View detailed analytics and insights</p>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            ['Published events', events.filter(event => event.status === 'published').length],
+            ['Registrations', registrations.length],
+            ['Checked in', registrations.filter(item => item.checkedIn).length],
+            ['Revenue', `₹${registrations.filter(item => item.paymentStatus === 'paid').reduce((sum, item) => sum + Number(item.totalAmount || 0), 0).toLocaleString('en-IN')}`]
+          ].map(([label, value]) => <div key={label} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><p className="text-sm text-gray-500">{label}</p><p className="mt-2 text-3xl font-bold">{value}</p></div>)}
         </div>
       )}
 

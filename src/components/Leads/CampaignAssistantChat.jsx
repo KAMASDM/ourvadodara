@@ -191,8 +191,14 @@ const CampaignAssistantChat = ({
 
   const validateLeadForm = () => {
     const nextErrors = {};
+    const phone = leadForm.phone.trim();
+    const email = leadForm.email.trim();
+    const normalizedPhone = phone.replace(/[\s()-]/g, '');
     if (!leadForm.contactName.trim()) nextErrors.contactName = 'Name is required';
-    if (!leadForm.phone.trim() && !leadForm.email.trim()) nextErrors.contact = 'Phone or email is required';
+    if (!phone) nextErrors.phone = 'Phone is required';
+    else if (!/^\+?[1-9]\d{7,14}$/.test(normalizedPhone)) nextErrors.phone = 'Enter a valid phone number';
+    if (!email) nextErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) nextErrors.email = 'Enter a valid email address';
     if (!leadForm.brandName.trim()) nextErrors.brandName = 'Brand name is required';
     if (!leadForm.city.trim()) nextErrors.city = 'City is required';
     setErrors(nextErrors);
@@ -534,10 +540,13 @@ const CampaignAssistantChat = ({
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <input value={leadForm.phone} onChange={(e) => setLeadForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Phone" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
-                  {errors.contact && <p className="mt-1 text-xs text-red-600">{errors.contact}</p>}
+                  <input value={leadForm.phone} onChange={(e) => setLeadForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Phone *" type="tel" inputMode="tel" autoComplete="tel" required className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                  {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
                 </div>
-                <input value={leadForm.email} onChange={(e) => setLeadForm(prev => ({ ...prev, email: e.target.value }))} placeholder="Email" type="email" className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                <div>
+                  <input value={leadForm.email} onChange={(e) => setLeadForm(prev => ({ ...prev, email: e.target.value }))} placeholder="Email *" type="email" autoComplete="email" required className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
+                  {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>

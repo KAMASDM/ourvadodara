@@ -15,8 +15,10 @@ import {
   Bookmark,
   X
 } from 'lucide-react';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, set, remove } from 'firebase/database';
 import { db } from '../../firebase-config';
+import { useAuth } from '../../context/Auth/AuthContext';
+import ShareSheet from '../Common/ShareSheet';
 import EventRegistration from './EventRegistration';
 import EventCard from './EventCard';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +34,7 @@ import {
 
 const EventsCalendar = ({ className = '' }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState([]);
@@ -44,6 +47,7 @@ const EventsCalendar = ({ className = '' }) => {
   const [dateFilter, setDateFilter] = useState('all');
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [shareData, setShareData] = useState(null);
 
   const categories = [
     { id: 'all', name: 'All Events', color: 'blue' },
@@ -87,6 +91,16 @@ const EventsCalendar = ({ className = '' }) => {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setSavedEvents(new Set());
+      return undefined;
+    }
+    return onValue(ref(db, `eventBookmarks/${user.uid}`), snapshot => {
+      setSavedEvents(new Set(Object.keys(snapshot.val() || {})));
+    });
+  }, [user?.uid]);
 
   const filteredEvents = events.filter(event => {
     // Category filter
@@ -158,16 +172,19 @@ const EventsCalendar = ({ className = '' }) => {
     setCustomDateRange({ start: '', end: '' });
   };
 
-  const handleSaveEvent = (eventId) => {
-    setSavedEvents(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(eventId)) {
-        newSet.delete(eventId);
-      } else {
-        newSet.add(eventId);
-      }
-      return newSet;
-    });
+  const handleSaveEvent = async (eventId) => {
+    if (!user?.uid) {
+      document.dispatchEvent(new CustomEvent('showGuestPrompt'));
+      return;
+    }
+    const bookmarkRef = ref(db, `eventBookmarks/${user.uid}/${eventId}`);
+    if (savedEvents.has(eventId)) await remove(bookmarkRef);
+    else await set(bookmarkRef, { savedAt: Date.now() });
+  };
+
+  const openEvent = (eventId) => {
+    window.history.pushState({ view: 'event-detail', eventId }, '', `/events/${encodeURIComponent(eventId)}`);
+    window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
   const navigateMonth = (direction) => {
@@ -370,7 +387,7 @@ const EventsCalendar = ({ className = '' }) => {
             </p>
           </div>
         ) : (
-          <div className="grid gap-6">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {filteredEvents.map((event) => {
               const eventDate = new Date(getEventStartDate(event));
               const isExpired = eventDate < new Date();
@@ -383,11 +400,11 @@ const EventsCalendar = ({ className = '' }) => {
                 >
                   <div className="relative">
                     {/* Event Image */}
-                    <div className="relative h-48 md:h-56">
+                    <div className="relative aspect-[4/3] bg-gray-100 dark:bg-gray-900">
                       <img
                         src={event.image || 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800'}
                         alt={event.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                       />
                       {/* Status Badge */}
                       <div className="absolute top-4 left-4">
@@ -439,9 +456,9 @@ const EventsCalendar = ({ className = '' }) => {
                       </div>
 
                       {/* Event Title */}
-                      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 line-clamp-2">
-                        {event.title}
-                      </h3>
+                      <button type="button" onClick={() => openEvent(event.id)} className="text-left">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 line-clamp-2 hover:text-blue-600">{event.title}</h3>
+                      </button>
                       
                       {/* Event Description */}
                       <p className="text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
@@ -528,7 +545,11 @@ const EventsCalendar = ({ className = '' }) => {
                         
                         <div className="flex space-x-3">
                           <button
-                            onClick={() => {/* Share functionality */}}
+                            onClick={() => setShareData({
+                              title: event.title || 'Our Vadodara Event',
+                              text: event.description || '',
+                              url: `${window.location.origin}/events/${encodeURIComponent(event.id)}`
+                            })}
                             className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 rounded-lg transition-colors"
                             title="Share Event"
                           >
@@ -563,7 +584,7 @@ const EventsCalendar = ({ className = '' }) => {
       {/* Event Registration Modal */}
       {showRegistration && selectedEventId && (
         <div 
-          className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[100] bg-black bg-opacity-50 flex items-center justify-center p-4"
           onClick={(e) => {
             // Close modal when clicking on backdrop
             if (e.target === e.currentTarget) {
@@ -598,6 +619,7 @@ const EventsCalendar = ({ className = '' }) => {
           </div>
         </div>
       )}
+      <ShareSheet isOpen={Boolean(shareData)} onClose={() => setShareData(null)} shareData={shareData} />
     </div>
   );
 };

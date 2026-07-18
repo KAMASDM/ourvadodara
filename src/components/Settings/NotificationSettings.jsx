@@ -5,12 +5,16 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bell, BellOff, Smartphone, Mail, MessageSquare, AlertCircle, CheckCircle } from 'lucide-react';
 import { initializeNotifications } from '../../utils/notificationManager.js';
+import { onValue, ref, set } from 'firebase/database';
+import { db } from '../../firebase-config';
+import { useAuth } from '../../context/Auth/AuthContext';
 
 const getPermission = () =>
   (typeof Notification !== 'undefined' ? Notification.permission : 'default');
 
 const NotificationSettings = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const permissionGranted = getPermission() === 'granted';
   const [settings, setSettings] = useState({
     pushNotifications: permissionGranted,
@@ -24,10 +28,36 @@ const NotificationSettings = () => {
   });
   const [pushStatus, setPushStatus] = useState(getPermission()); // 'default' | 'granted' | 'denied'
   const [enabling, setEnabling] = useState(false);
+  const [savedSettings, setSavedSettings] = useState(null);
+  const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
     setPushStatus(getPermission());
   }, []);
+
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+    return onValue(ref(db, `notificationPreferences/${user.uid}`), snapshot => {
+      if (!snapshot.exists()) return;
+      const loaded = { ...settings, ...snapshot.val(), pushNotifications: getPermission() === 'granted' && snapshot.val()?.pushNotifications !== false };
+      setSettings(loaded);
+      setSavedSettings(loaded);
+    });
+  // Preferences are loaded once per signed-in user.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
+
+  const saveSettings = async () => {
+    if (!user?.uid) return;
+    await set(ref(db, `notificationPreferences/${user.uid}`), { ...settings, updatedAt: Date.now() });
+    setSavedSettings(settings);
+    setSaveMessage('Preferences saved.');
+  };
+
+  const cancelChanges = () => {
+    if (savedSettings) setSettings(savedSettings);
+    setSaveMessage('Changes discarded.');
+  };
 
   const handleTogglePush = async () => {
     // Turning OFF: browsers can't revoke permission programmatically, so just
@@ -200,10 +230,11 @@ const NotificationSettings = () => {
       </div>
 
       <div className="mt-6 flex justify-end space-x-3">
-        <button className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+        {saveMessage && <span className="self-center text-sm text-gray-500">{saveMessage}</span>}
+        <button onClick={cancelChanges} className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
           {t('common.cancel')}
         </button>
-        <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+        <button onClick={saveSettings} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
           {t('common.save_changes')}
         </button>
       </div>

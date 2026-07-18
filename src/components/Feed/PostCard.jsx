@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { Heart, MessageCircle, Share, Bookmark, MoreHorizontal, Play, Pause } from 'lucide-react';
-import { ref, update } from 'firebase/database';
+import { ref, update, set, remove, onValue, increment } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { formatTime } from '../../utils/helpers';
 import { useToast } from '../Common/Toast';
@@ -26,6 +26,20 @@ const PostCard = ({ post, onPostClick }) => {
   const [showMenu, setShowMenu] = useState(false);
   const videoRef = useRef(null);
   const cardRef = useRef(null);
+
+  useEffect(() => {
+    if (!user?.uid || !post?.id) {
+      setIsLiked(false);
+      setIsSaved(false);
+      return undefined;
+    }
+    const unlike = onValue(ref(db, `users/${user.uid}/likes/${post.id}`), snapshot => setIsLiked(snapshot.exists()));
+    const unsave = onValue(ref(db, `bookmarks/${user.uid}/${post.id}`), snapshot => setIsSaved(snapshot.exists()));
+    return () => {
+      unlike();
+      unsave();
+    };
+  }, [user?.uid, post?.id]);
 
   const normalizeMediaCollection = (collection) => {
     if (!collection) return [];
@@ -214,13 +228,10 @@ const PostCard = ({ post, onPostClick }) => {
       const updates = {
         [`posts/${post.id}/likes`]: newLikedState ? currentLikes + 1 : Math.max(0, currentLikes - 1),
         [`posts/${post.id}/lastInteraction`]: new Date().toISOString(),
-        [`likes/${post.id}/${user?.uid}`]: newLikedState ? true : null
+        [`likes/${post.id}/${user.uid}`]: newLikedState ? true : null,
+        [`users/${user.uid}/likes/${post.id}`]: newLikedState ? Date.now() : null,
+        [`users/${user.uid}/totalLikes`]: increment(newLikedState ? 1 : -1)
       };
-      
-      // Update user's total likes count
-      if (user?.uid) {
-        updates[`users/${user.uid}/totalLikes`] = newLikedState ? (user.totalLikes || 0) + 1 : Math.max(0, (user.totalLikes || 1) - 1);
-      }
       
       await update(ref(db), updates);
     } catch (error) {
@@ -230,9 +241,23 @@ const PostCard = ({ post, onPostClick }) => {
     }
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.stopPropagation(); // Prevent triggering post click
-    setIsSaved(!isSaved);
+    if (!user?.uid) {
+      showError('Please log in to save posts');
+      return;
+    }
+    const wasSaved = isSaved;
+    setIsSaved(!wasSaved);
+    try {
+      const bookmarkRef = ref(db, `bookmarks/${user.uid}/${post.id}`);
+      if (wasSaved) await remove(bookmarkRef);
+      else await set(bookmarkRef, { timestamp: Date.now(), type: post.type || 'post', source: 'posts' });
+    } catch (error) {
+      console.error('Error updating bookmark:', error);
+      setIsSaved(wasSaved);
+      showError('Unable to update saved posts');
+    }
   };
 
   const handleShare = async (e) => {
@@ -240,20 +265,15 @@ const PostCard = ({ post, onPostClick }) => {
     
     // Update shares count in Firebase
     try {
-      const postRef = ref(db, `posts/${post.id}`);
-      const currentShares = post.shares || 0;
-      await update(postRef, {
-        shares: currentShares + 1,
-        lastInteraction: new Date().toISOString()
-      });
-      
-      // Track user's total shares if logged in
+      const updates = {
+        [`posts/${post.id}/shares`]: increment(1),
+        [`posts/${post.id}/lastInteraction`]: new Date().toISOString()
+      };
       if (user?.uid) {
-        const userRef = ref(db, `users/${user.uid}`);
-        await update(userRef, {
-          totalShares: (user.totalShares || 0) + 1
-        });
+        updates[`users/${user.uid}/totalShares`] = increment(1);
+        updates[`users/${user.uid}/shares/${post.id}`] = Date.now();
       }
+      await update(ref(db), updates);
     } catch (error) {
       console.error('Error updating shares:', error);
     }
@@ -264,11 +284,11 @@ const PostCard = ({ post, onPostClick }) => {
       navigator.share({
         title: getTitleForLanguage(),
         text: contentText.substring(0, 100) + '...',
-        url: window.location.href,
+        url: `${window.location.origin}/post/${encodeURIComponent(post.id)}`,
       });
     } else {
       // Fallback: copy to clipboard
-      const shareText = `${getTitleForLanguage()}\n${window.location.href}`;
+      const shareText = `${getTitleForLanguage()}\n${window.location.origin}/post/${encodeURIComponent(post.id)}`;
       navigator.clipboard.writeText(shareText).then(() => {
         alert('Link copied to clipboard!');
       }).catch(() => {

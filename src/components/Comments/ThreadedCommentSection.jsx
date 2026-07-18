@@ -10,7 +10,7 @@ import { db } from '../../firebase-config';
 import { Send, Heart, MessageCircle, LogIn, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { CommentSkeleton } from '../Common/SkeletonLoader';
-import Login from '../Auth/Login';
+import EnhancedLogin from '../Auth/EnhancedLogin';
 
 const Comment = ({
   comment,
@@ -396,7 +396,7 @@ const ThreadedCommentSection = ({ postId }) => {
         </div>
       )}
 
-      {showLogin && <Login onClose={() => setShowLogin(false)} />}
+      {showLogin && <EnhancedLogin onClose={() => setShowLogin(false)} />}
     </div>
   );
 };

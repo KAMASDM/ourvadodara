@@ -693,7 +693,7 @@ const BreakingNewsManager = () => {
       )}
 
       {/* News List */}
-      <div className="grid gap-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {news.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-lg shadow-sm">
             <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -704,11 +704,11 @@ const BreakingNewsManager = () => {
           news.map((item) => (
             <div
               key={item.id}
-              className={`bg-white rounded-lg shadow-sm border-l-4 p-6 ${
+              className={`bg-white rounded-lg shadow-sm border-l-4 p-5 h-full ${
                 priorities.find(p => p.value === item.priority)?.color || 'border-gray-400'
               }`}
             >
-              <div className="flex items-start justify-between">
+              <div className="flex h-full flex-col justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-2">
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -782,7 +782,7 @@ const BreakingNewsManager = () => {
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-2 ml-4">
+                <div className="flex items-center justify-end space-x-2">
                   <button
                     onClick={() => toggleActive(item.id, item.isActive)}
                     className={`p-2 rounded-lg transition-colors ${

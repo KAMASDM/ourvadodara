@@ -3,6 +3,7 @@
 // =============================================
 const functions = require('firebase-functions/v1');
 const admin = require('firebase-admin');
+const crypto = require('crypto');
 
 admin.initializeApp();
 
@@ -1380,4 +1381,143 @@ exports.unsubscribeFromTopics = functions.https.onCall(async (data, context) => 
     console.error('Error unsubscribing from topics:', error);
     throw new functions.https.HttpsError('internal', 'Error unsubscribing from topics');
   }
+});
+
+// Create a Razorpay order using server-side event pricing. Configure
+// RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the Functions environment.
+exports.createEventPaymentOrder = functions.runWith({ secrets: ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET'] }).https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Please sign in to pay');
+  const { eventId, selectedTickets = {}, promoCode = '' } = data || {};
+  if (!eventId) throw new functions.https.HttpsError('invalid-argument', 'Event is required');
+
+  const eventSnapshot = await admin.database().ref(`events/${eventId}`).once('value');
+  const event = eventSnapshot.val();
+  if (!event || event.status !== 'published') throw new functions.https.HttpsError('not-found', 'Published event not found');
+  const tickets = Array.isArray(event.ticketTypes) ? event.ticketTypes : Object.values(event.ticketTypes || {});
+  let total = 0;
+  let quantity = 0;
+  for (const [ticketId, rawQty] of Object.entries(selectedTickets)) {
+    const qty = Math.max(0, Math.floor(Number(rawQty) || 0));
+    if (!qty) continue;
+    const ticket = tickets.find(item => String(item.id) === String(ticketId));
+    if (!ticket || qty > Number(ticket.availableSeats || 0)) throw new functions.https.HttpsError('failed-precondition', 'Selected tickets are no longer available');
+    total += Number(ticket.price || 0) * qty;
+    quantity += qty;
+  }
+  if (!quantity || quantity > Number(event.maxTicketsPerUser || 10)) throw new functions.https.HttpsError('invalid-argument', 'Invalid ticket quantity');
+
+  if (promoCode) {
+    const promo = event.promoCodes?.[String(promoCode).toUpperCase()];
+    const valid = promo?.active !== false && (!promo?.expiresAt || new Date(promo.expiresAt) >= new Date()) && (!Number(promo?.maxUses) || Number(promo.usedCount || 0) < Number(promo.maxUses));
+    if (!valid) throw new functions.https.HttpsError('failed-precondition', 'Promo code is not valid');
+    total = promo.type === 'fixed' ? Math.max(0, total - Number(promo.value || 0)) : Math.max(0, total - total * Number(promo.value || 0) / 100);
+  }
+
+  const amount = Math.round(total * 100);
+  if (amount < 100) throw new functions.https.HttpsError('failed-precondition', 'No online payment is required');
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) throw new functions.https.HttpsError('failed-precondition', 'Payment gateway is not configured');
+  const response = await fetch('https://api.razorpay.com/v1/orders', {
+    method: 'POST',
+    headers: { Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString('base64')}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount, currency: 'INR', receipt: `${eventId.slice(-12)}-${Date.now()}`, notes: { eventId, userId: context.auth.uid } })
+  });
+  const order = await response.json();
+  if (!response.ok) throw new functions.https.HttpsError('internal', order?.error?.description || 'Unable to create payment order');
+  await admin.database().ref(`eventPayments/${order.id}`).set({ eventId, userId: context.auth.uid, amount, currency: 'INR', status: 'created', createdAt: admin.database.ServerValue.TIMESTAMP });
+  return { orderId: order.id, amount, currency: 'INR', keyId };
+});
+
+exports.verifyEventPayment = functions.runWith({ secrets: ['RAZORPAY_KEY_SECRET'] }).https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Please sign in to verify payment');
+  const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = data || {};
+  if (!orderId || !paymentId || !signature) throw new functions.https.HttpsError('invalid-argument', 'Incomplete payment response');
+  const paymentSnapshot = await admin.database().ref(`eventPayments/${orderId}`).once('value');
+  const payment = paymentSnapshot.val();
+  if (!payment || payment.userId !== context.auth.uid) throw new functions.https.HttpsError('permission-denied', 'Payment does not belong to this user');
+  const expected = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '').update(`${orderId}|${paymentId}`).digest('hex');
+  if (String(signature).length !== expected.length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(String(signature)))) throw new functions.https.HttpsError('permission-denied', 'Payment signature is invalid');
+  await admin.database().ref(`eventPayments/${orderId}`).update({ paymentId, status: 'verified', verifiedAt: admin.database.ServerValue.TIMESTAMP });
+  return { verified: true, orderId, paymentId, amount: payment.amount };
+});
+
+exports.redeemBrandCoupon = functions.https.onCall(async (data, context) => {
+  if (!context.auth || context.auth.token.firebase?.sign_in_provider === 'anonymous') throw new functions.https.HttpsError('unauthenticated', 'Sign in with a verified account to claim offers');
+  const brandId = String(data?.brandId || '');
+  if (!brandId) throw new functions.https.HttpsError('invalid-argument', 'Brand is required');
+  const brandRef = admin.database().ref(`couponBrands/${brandId}`);
+  const userClaimRef = admin.database().ref(`couponClaimsByUser/${context.auth.uid}/${brandId}`);
+  const existing = await userClaimRef.once('value');
+  if (existing.exists()) throw new functions.https.HttpsError('already-exists', 'You have already claimed this brand offer');
+
+  let brand;
+  const result = await brandRef.transaction(current => {
+    if (!current) return;
+    const now = Date.now();
+    const starts = current.startsAt ? new Date(current.startsAt).getTime() : 0;
+    const ends = current.endsAt ? new Date(current.endsAt).getTime() : Infinity;
+    if (current.active === false || now < starts || now > ends || (Number(current.redemptionLimit) > 0 && Number(current.redeemedCount || 0) >= Number(current.redemptionLimit))) return;
+    brand = current;
+    return { ...current, redeemedCount: Number(current.redeemedCount || 0) + 1, updatedAt: now };
+  });
+  if (!result.committed || !brand) throw new functions.https.HttpsError('failed-precondition', 'This offer is unavailable or sold out');
+
+  // Recheck inside a claim transaction to close simultaneous duplicate requests.
+  const claimLock = await userClaimRef.transaction(current => current ? undefined : { lockedAt: admin.database.ServerValue.TIMESTAMP });
+  if (!claimLock.committed) {
+    await brandRef.child('redeemedCount').transaction(count => Math.max(0, Number(count || 1) - 1));
+    throw new functions.https.HttpsError('already-exists', 'You have already claimed this brand offer');
+  }
+  const code = `OV-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+  const redemptionRef = admin.database().ref('couponRedemptions').push();
+  const redemption = { id: redemptionRef.key, brandId, brandName: brand.name || '', userId: context.auth.uid, userEmail: context.auth.token.email || '', code, status: 'issued', issuedAt: admin.database.ServerValue.TIMESTAMP, expiresAt: brand.endsAt || null };
+  await Promise.all([
+    redemptionRef.set(redemption),
+    userClaimRef.set({ redemptionId: redemptionRef.key, code, claimedAt: admin.database.ServerValue.TIMESTAMP }),
+    admin.database().ref(`userCoupons/${context.auth.uid}/${redemptionRef.key}`).set(redemption),
+    admin.database().ref(`couponAudit/${redemptionRef.key}`).push({ action: 'issued', at: admin.database.ServerValue.TIMESTAMP, actor: context.auth.uid })
+  ]);
+  return { redemptionId: redemptionRef.key, code, brandName: brand.name || '', expiresAt: brand.endsAt || null };
+});
+
+exports.verifyBrandCoupon = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('permission-denied', 'Admin access required');
+  const adminUser = await admin.database().ref(`users/${context.auth.uid}/role`).once('value');
+  const legacyAdmin = await admin.database().ref(`admins/${context.auth.uid}`).once('value');
+  if (context.auth.token.role !== 'admin' && adminUser.val() !== 'admin' && !legacyAdmin.exists()) throw new functions.https.HttpsError('permission-denied', 'Admin access required');
+  const code = String(data?.code || '').trim().toUpperCase();
+  const snapshot = await admin.database().ref('couponRedemptions').orderByChild('code').equalTo(code).once('value');
+  const matches = snapshot.val() || {};
+  const [id, coupon] = Object.entries(matches)[0] || [];
+  if (!coupon) throw new functions.https.HttpsError('not-found', 'Coupon code was not found');
+  if (data?.consume) {
+    if (coupon.status === 'redeemed') throw new functions.https.HttpsError('already-exists', 'Coupon was already redeemed');
+    if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) throw new functions.https.HttpsError('failed-precondition', 'Coupon has expired');
+    const updates = { status: 'redeemed', redeemedAt: admin.database.ServerValue.TIMESTAMP, redeemedBy: context.auth.uid };
+    await Promise.all([
+      admin.database().ref(`couponRedemptions/${id}`).update(updates),
+      admin.database().ref(`userCoupons/${coupon.userId}/${id}`).update(updates),
+      admin.database().ref(`couponAudit/${id}`).push({ action: 'redeemed', at: admin.database.ServerValue.TIMESTAMP, actor: context.auth.uid })
+    ]);
+    return { ...coupon, ...updates, valid: true };
+  }
+  return { ...coupon, valid: coupon.status === 'issued' && (!coupon.expiresAt || new Date(coupon.expiresAt) >= new Date()) };
+});
+
+exports.verifyRegistrationChallenge = functions.https.onCall(async (data) => {
+  const token = String(data?.token || '');
+  if (!token) throw new functions.https.HttpsError('invalid-argument', 'Security challenge is required');
+  const projectId = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
+  const siteKey = process.env.RECAPTCHA_SITE_KEY || '6LeXXPsrAAAAAJEpQ2J-1TPTTmNvE5G8U1GSWsVQ';
+  const accessToken = await admin.app().options.credential.getAccessToken();
+  const response = await fetch(`https://recaptchaenterprise.googleapis.com/v1/projects/${projectId}/assessments`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event: { token, siteKey, expectedAction: 'REGISTER' } })
+  });
+  const assessment = await response.json();
+  if (!response.ok) throw new functions.https.HttpsError('internal', 'Security verification is unavailable');
+  const valid = assessment.tokenProperties?.valid === true && assessment.tokenProperties?.action === 'REGISTER' && Number(assessment.riskAnalysis?.score || 0) >= 0.5;
+  return { valid };
 });

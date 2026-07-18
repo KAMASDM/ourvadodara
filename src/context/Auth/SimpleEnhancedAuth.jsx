@@ -4,6 +4,7 @@
 // =============================================
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { enforceRegistrationRateLimit, validateRegistrationEmail } from '../../utils/registrationSecurity';
 
 const SimpleEnhancedAuthContext = createContext();
 
@@ -102,6 +103,8 @@ export const EnhancedAuthProvider = ({ children }) => {
     setLoading(true);
     setAuthError(null);
     try {
+      validateRegistrationEmail(email);
+      enforceRegistrationRateLimit();
       const { linkWithCredential, EmailAuthProvider, updateProfile } = await import('firebase/auth');
       const { firebaseAuth } = await import('../../firebase-config');
       
@@ -345,10 +348,18 @@ export const EnhancedAuthProvider = ({ children }) => {
     setLoading(true);
     setAuthError(null);
     try {
+      const safeEmail = validateRegistrationEmail(email);
+      enforceRegistrationRateLimit();
+      if (!window.grecaptcha?.enterprise) throw new Error('Security verification is still loading. Please try again.');
+      const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeXXPsrAAAAAJEpQ2J-1TPTTmNvE5G8U1GSWsVQ';
+      const captchaToken = await new Promise((resolve, reject) => window.grecaptcha.enterprise.ready(() => window.grecaptcha.enterprise.execute(siteKey, { action: 'REGISTER' }).then(resolve).catch(reject)));
+      const { functions, httpsCallable } = await import('../../firebase-config');
+      const captchaResult = await httpsCallable(functions, 'verifyRegistrationChallenge')({ token: captchaToken });
+      if (!captchaResult.data?.valid) throw new Error('Security verification failed. Please try again.');
       const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
       const { firebaseAuth } = await import('../../firebase-config');
       
-      const result = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+      const result = await createUserWithEmailAndPassword(firebaseAuth, safeEmail, password);
       
       // Update display name if provided
       if (displayName) {

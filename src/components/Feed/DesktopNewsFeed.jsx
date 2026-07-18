@@ -29,6 +29,16 @@ import InstagramCarousel from '../Media/InstagramCarousel';
 const PostMedia = ({ src, alt, className, fallback = true, post }) => {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const videoRef = React.useRef(null);
+  const [isPlaying, setIsPlaying] = React.useState(false);
+
+  const isVideo = Boolean(src) && (src.includes('.mp4') ||
+                  src.includes('.webm') ||
+                  src.includes('.mov') ||
+                  src.includes('video') ||
+                  post?.type === 'video' ||
+                  post?.type === 'reel' ||
+                  post?.mediaContent?.type === 'video');
 
   if (!src || error) {
     return fallback ? (
@@ -38,19 +48,7 @@ const PostMedia = ({ src, alt, className, fallback = true, post }) => {
     ) : null;
   }
 
-  // Check if it's a video based on URL or post type
-  const isVideo = src.includes('.mp4') || 
-                  src.includes('.webm') || 
-                  src.includes('.mov') ||
-                  src.includes('video') ||
-                  post?.type === 'video' ||
-                  post?.type === 'reel' ||
-                  post?.mediaContent?.type === 'video';
-
   if (isVideo) {
-    const videoRef = React.useRef(null);
-    const [isPlaying, setIsPlaying] = React.useState(false);
-
     const handleMouseEnter = () => {
       if (videoRef.current) {
         videoRef.current.play();
@@ -148,9 +146,9 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
     return () => unsubscribe();
   }, [user?.uid]);
 
-  // Fetch data - posts and carousels; reels stay on their dedicated page
+  // Desktop home intentionally shows standard posts only. Carousels and reels
+  // have dedicated, touch-friendly views and made the desktop grid inconsistent.
   const { data: postsData, loading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
-  const { data: carouselsData } = useRealtimeData('carousels', { scope: 'global' });
   const { data: reelsData } = useRealtimeData(null); // Disabled for performance
 
   // Combine and filter posts
@@ -164,18 +162,6 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
         type: POST_TYPES.STANDARD,
         source: 'posts'
       })).filter(post => post.status !== 'draft' && post.status !== 'scheduled');
-    }
-
-    if (carouselsData && feedType === 'all') {
-      const carousels = Object.entries(carouselsData)
-        .map(([id, carousel]) => ({
-          id,
-          ...carousel,
-          type: POST_TYPES.CAROUSEL,
-          source: 'carousels'
-        }))
-        .filter(carousel => carousel.isPublished);
-      posts = [...posts, ...carousels];
     }
 
     if (reelsData && feedType === 'all') {
@@ -211,7 +197,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
     posts.sort((a, b) => postTime(b) - postTime(a));
 
     return posts;
-  }, [postsData, carouselsData, reelsData, category, feedType, currentCity]);
+  }, [postsData, reelsData, category, feedType, currentCity]);
 
   // Use simple pagination instead of infinite scroll hook
   const [displayCount, setDisplayCount] = useState(15);

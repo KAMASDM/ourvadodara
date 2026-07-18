@@ -248,26 +248,26 @@ const EnhancedDashboard = () => {
   }, [filteredPosts, commentsData, users, dateRange, posts]);
 
   const handleExportData = () => {
-    const exportData = {
-      generatedAt: new Date().toISOString(),
-      filters: { dateRange, selectedCategory, selectedPost },
-      stats,
-      posts: filteredPosts.map(p => ({
-        id: p.id,
-        title: p.title,
-        category: p.category,
-        views: p.analytics?.views || p.views || 0,
-        likes: p.analytics?.likes || p.likes || 0,
-        publishedAt: p.publishedAt
-      }))
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const escapeCsv = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const rows = filteredPosts.map(p => [
+      p.id,
+      typeof p.title === 'string' ? p.title : p.title?.en || p.title?.gu || p.title?.hi || '',
+      p.category || '',
+      p.analytics?.views || p.views || 0,
+      p.analytics?.likes || p.likes || 0,
+      p.analytics?.comments || p.comments || 0,
+      p.publishedAt || p.createdAt || ''
+    ]);
+    const csv = [['Post ID', 'Title', 'Category', 'Views', 'Likes', 'Comments', 'Published At'], ...rows]
+      .map(row => row.map(escapeCsv).join(','))
+      .join('\n');
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `analytics-${Date.now()}.json`;
+    a.download = `our-vadodara-analytics-${Date.now()}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
   };
 
   if (postsLoading) {

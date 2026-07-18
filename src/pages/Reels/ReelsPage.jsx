@@ -406,6 +406,26 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     }
   }, [goToNext, goToPrevious]);
 
+  // Desktop reels use one full-height item at a time, so translate mouse-wheel
+  // input into a single navigation step with a short cooldown. Without this,
+  // the page looked scrollable but ignored the most common desktop gesture.
+  useEffect(() => {
+    if (!isDesktop) return undefined;
+    const container = containerRef.current;
+    if (!container) return undefined;
+    let locked = false;
+    const handleWheel = (event) => {
+      if (Math.abs(event.deltaY) < 18 || locked) return;
+      event.preventDefault();
+      locked = true;
+      if (event.deltaY > 0) goToNext();
+      else goToPrevious();
+      window.setTimeout(() => { locked = false; }, 420);
+    };
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [isDesktop, goToNext, goToPrevious]);
+
   const handleLike = async (reelId) => {
     if (!user) {
       alert('Please sign in to like reels');

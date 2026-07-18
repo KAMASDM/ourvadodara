@@ -2,6 +2,7 @@
 // src/components/Social/ShareModal.jsx
 // =============================================
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   X, 
@@ -19,7 +20,10 @@ const ShareModal = ({ isOpen, onClose, post }) => {
 
   if (!isOpen || !post) return null;
 
-  const shareUrl = `${window.location.origin}/post/${post.id}`;
+  const postId = post.id || post.key || post.postId;
+  const shareUrl = postId
+    ? `${window.location.origin}/post/${encodeURIComponent(postId)}`
+    : window.location.href;
   const shareTitle = getLocalizedText(post.title, 'en') || 'Check out this article';
   const cleanContent = getLocalizedText(post.content || post.excerpt, 'en');
   const shareText = cleanContent ? `${cleanContent.substring(0, 100)}...` : '';
@@ -84,9 +88,9 @@ const ShareModal = ({ isOpen, onClose, post }) => {
     }
   ];
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end justify-center">
-      <div className="bg-white dark:bg-gray-900 rounded-t-xl w-full max-w-md">
+  return createPortal(
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-end justify-center" onClick={onClose} role="presentation">
+      <div className="bg-white dark:bg-gray-900 rounded-t-xl w-full max-w-md" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Share article">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -123,7 +127,8 @@ const ShareModal = ({ isOpen, onClose, post }) => {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

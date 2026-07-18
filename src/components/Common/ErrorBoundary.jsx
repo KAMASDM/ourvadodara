@@ -41,12 +41,6 @@ class ErrorBoundary extends React.Component {
               We're sorry for the inconvenience. The app encountered an unexpected error.
             </p>
 
-            {this.state.error && (
-              <p className="text-xs font-mono text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded p-2 mb-6 break-words">
-                {this.state.error.toString()}
-              </p>
-            )}
-            
             <div className="space-y-3">
               <button
                 onClick={this.handleRetry}
@@ -64,7 +58,7 @@ class ErrorBoundary extends React.Component {
               </button>
             </div>
             
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <details className="mt-6 text-left">
                 <summary className="cursor-pointer text-red-600 dark:text-red-400 font-medium">
                   Error Details (Development)

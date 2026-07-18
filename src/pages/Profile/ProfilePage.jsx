@@ -11,6 +11,7 @@ import { ref, get, onValue } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile as updateAuthProfile } from 'firebase/auth';
 import ContactVerificationModal from '../../components/Profile/ContactVerificationModal';
+import CouponMarketplace from '../../components/Coupons/CouponMarketplace';
 import notificationManager, { initializeNotifications, getNotificationPermission } from '../../utils/notificationManager';
 import {
   User,
@@ -181,12 +182,7 @@ const ProfilePage = () => {
   });
   const [loadingStats, setLoadingStats] = useState(true);
 
-  const recentActivity = [
-    { type: 'like', article: 'Vadodara Smart City Project Update', time: '2 hours ago' },
-    { type: 'comment', article: 'Traffic Changes on RC Dutt Road', time: '5 hours ago' },
-    { type: 'save', article: 'Cricket Tournament Announcement', time: '1 day ago' },
-    { type: 'share', article: 'Local Weather Update', time: '2 days ago' }
-  ];
+  const [recentActivity, setRecentActivity] = useState([]);
 
   // Handle mobile detection
   useEffect(() => {
@@ -239,6 +235,58 @@ const ProfilePage = () => {
       unsubscribeBookmarks();
     };
   }, [user?.uid]);
+
+  // Build the activity feed from the user's real interaction indexes instead
+  // of showing the same sample rows to every account.
+  useEffect(() => {
+    if (!user?.uid) {
+      setRecentActivity([]);
+      return undefined;
+    }
+
+    let userActivity = {};
+    let bookmarks = {};
+    let posts = {};
+    const relativeTime = (timestamp) => {
+      const time = new Date(timestamp || 0).getTime();
+      if (!time) return 'Recently';
+      const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
+      if (minutes < 1) return 'Just now';
+      if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+      const days = Math.floor(hours / 24);
+      return `${days} day${days === 1 ? '' : 's'} ago`;
+    };
+    const titleFor = (postId) => {
+      const title = posts[postId]?.title;
+      return typeof title === 'string'
+        ? title
+        : title?.[currentLanguage] || title?.en || title?.gu || title?.hi || 'News article';
+    };
+    const rebuild = () => {
+      const likes = Object.entries(userActivity.likes || {}).map(([postId, value]) => ({
+        type: 'like', postId, timestamp: typeof value === 'number' ? value : posts[postId]?.lastInteraction
+      }));
+      const shares = Object.entries(userActivity.shares || {}).map(([postId, value]) => ({
+        type: 'share', postId, timestamp: typeof value === 'number' ? value : posts[postId]?.lastInteraction
+      }));
+      const saves = Object.entries(bookmarks).map(([postId, value]) => ({
+        type: 'save', postId, timestamp: value?.timestamp || value?.savedAt
+      }));
+      setRecentActivity([...likes, ...shares, ...saves]
+        .filter(item => item.timestamp)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 8)
+        .map(item => ({ ...item, article: titleFor(item.postId), time: relativeTime(item.timestamp) })));
+    };
+    const unsubscribers = [
+      onValue(ref(db, `users/${user.uid}`), snapshot => { userActivity = snapshot.val() || {}; rebuild(); }),
+      onValue(ref(db, `bookmarks/${user.uid}`), snapshot => { bookmarks = snapshot.val() || {}; rebuild(); }),
+      onValue(ref(db, 'posts'), snapshot => { posts = snapshot.val() || {}; rebuild(); })
+    ];
+    return () => unsubscribers.forEach(unsubscribe => unsubscribe());
+  }, [user?.uid, currentLanguage]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1017,7 +1065,14 @@ const ProfilePage = () => {
               )}
             </div>
 
-            <button className="w-full flex items-center justify-between rounded-xl border border-transparent bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:bg-gray-800/60 dark:hover:bg-gray-800">
+            <button
+              type="button"
+              onClick={() => {
+                handleStartEditing();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="w-full flex items-center justify-between rounded-xl border border-transparent bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:bg-gray-800/60 dark:hover:bg-gray-800"
+            >
               <div className="flex items-center gap-3">
                 <Settings className="w-5 h-5" />
                 <span className="text-gray-900 dark:text-white">General Settings</span>
@@ -1028,11 +1083,19 @@ const ProfilePage = () => {
       </div>
 
       {/* Recent Activity */}
+      <div className="px-4">
+        <CouponMarketplace profileOnly />
+      </div>
+
+      {/* Recent Activity */}
       <div className="mt-6 px-4">
         <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-white/95 dark:bg-gray-900/95 p-6 shadow-sm shadow-gray-200/40 dark:shadow-black/30">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h2>
 
           <div className="space-y-3">
+            {recentActivity.length === 0 && (
+              <p className="rounded-2xl bg-gray-50/70 px-4 py-5 text-center text-sm text-gray-500 dark:bg-gray-800/60 dark:text-gray-400">Your likes, saves, and shares will appear here.</p>
+            )}
             {recentActivity.map((activity, index) => (
               <div key={index} className="flex items-center gap-3 rounded-2xl bg-gray-50/70 px-3 py-2 hover:bg-gray-100 dark:bg-gray-800/60 dark:hover:bg-gray-800">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-gray-900 shadow-sm">

@@ -21,7 +21,8 @@ import {
   ChevronRight,
   SlidersHorizontal,
   Megaphone,
-  X
+  X,
+  Gift
 } from 'lucide-react';
 
 // Secondary/home-desktop features are split out of the mobile feed bundle.
@@ -36,6 +37,7 @@ const PollWidget = React.lazy(() => import('../../components/Polls/PollWidget'))
 const AIPicksReal = React.lazy(() => import('../../components/AI/AIPicksReal'));
 const ReadingStreak = React.lazy(() => import('../../components/Gamification/ReadingStreak'));
 const CampaignAssistantChat = React.lazy(() => import('../../components/Leads/CampaignAssistantChat'));
+const CouponMarketplace = React.lazy(() => import('../../components/Coupons/CouponMarketplace'));
 
 const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all' }) => {
   const { t } = useTranslation();
@@ -131,6 +133,13 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
       icon: Radio,
       color: 'bg-orange-500',
       component: LiveUpdates
+    },
+    {
+      id: 'offers',
+      name: t('offers', 'Offers'),
+      icon: Gift,
+      color: 'bg-emerald-500',
+      component: CouponMarketplace
     }
   ];
 
@@ -341,7 +350,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
 
       {/* ── More sections bottom sheet ── */}
       {isSectionSheetOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end">
+        <div className="fixed inset-0 z-[90] flex flex-col justify-end">
           {/* Backdrop */}
           <button
             type="button"

@@ -3,6 +3,7 @@
 // Native-style Share Sheet with Social Options
 // =============================================
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Link2,
@@ -140,11 +141,11 @@ const ShareSheet = ({ isOpen, onClose, shareData }) => {
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 transition-opacity"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] transition-opacity"
         onClick={onClose}
         style={{
           animation: isOpen ? 'fadeIn 0.2s ease-out' : 'fadeOut 0.2s ease-out'
@@ -153,7 +154,7 @@ const ShareSheet = ({ isOpen, onClose, shareData }) => {
 
       {/* Share Sheet */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl max-w-2xl mx-auto transition-transform"
+        className="fixed bottom-0 left-0 right-0 z-[101] bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl max-w-2xl mx-auto transition-transform"
         style={{
           animation: isOpen ? 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'slideDown 0.3s ease-out'
         }}
@@ -251,7 +252,8 @@ const ShareSheet = ({ isOpen, onClose, shareData }) => {
           }
         }
       `}</style>
-    </>
+    </>,
+    document.body
   );
 };
 
