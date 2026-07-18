@@ -45,6 +45,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const [showHints, setShowHints] = useState(true);
   const [progress, setProgress] = useState(0);
   const [buffered, setBuffered] = useState(0);
+  const [isBuffering, setIsBuffering] = useState(true);
   const [isDesktop, setIsDesktop] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
   );
@@ -52,6 +53,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const containerRef = useRef(null);
   const videoRefs = useRef({});
   const scrollFrameRef = useRef(null);
+  const soundUnlockedAtRef = useRef(0);
+  const soundPreferenceSetRef = useRef(false);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1024px)');
@@ -112,43 +115,26 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     loadUserInteractions();
   }, [user, reels]);
 
-  // Control video playback - optimized with buffer check
+  // Keep exactly one reel playing. A canplay listener retries automatically
+  // when a newly visible video is still arriving over a mobile connection.
   useEffect(() => {
     const video = videoRefs.current[currentReel?.id];
     if (!video) return;
+    let cancelled = false;
 
     Object.entries(videoRefs.current).forEach(([reelId, reelVideo]) => {
       if (reelId !== currentReel?.id && reelVideo) reelVideo.pause();
     });
 
     const playVideo = async () => {
+      if (cancelled || !isPlaying) return;
       try {
-        // Check if video has buffered enough
-        if (video.readyState >= 3) { // HAVE_FUTURE_DATA
-          await video.play();
-        } else {
-          // Wait for enough data to be buffered
-          const handleCanPlay = async () => {
-            try {
-              await video.play();
-            } catch (err) {
-              console.log('Play failed:', err);
-            }
-          };
-          video.addEventListener('canplay', handleCanPlay, { once: true });
-          
-          // Timeout fallback
-          setTimeout(async () => {
-            video.removeEventListener('canplay', handleCanPlay);
-            try {
-              await video.play();
-            } catch (err) {
-              console.log('Play failed:', err);
-            }
-          }, 500);
-        }
+        video.muted = isMuted;
+        await video.play();
       } catch (err) {
-        console.log('Play failed:', err);
+        // Browsers can reject sound autoplay until the first touch. The touch
+        // handlers below retry play directly inside that user gesture.
+        if (err?.name !== 'NotAllowedError') console.log('Play failed:', err);
       }
     };
 
@@ -157,7 +143,12 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     } else {
       video.pause();
     }
-  }, [isPlaying, currentReelIndex, currentReel]);
+    video.addEventListener('canplay', playVideo);
+    return () => {
+      cancelled = true;
+      video.removeEventListener('canplay', playVideo);
+    };
+  }, [isPlaying, isMuted, currentReelIndex, currentReel]);
 
   // Track video progress - optimized with RAF
   useEffect(() => {
@@ -261,14 +252,39 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   }, []);
 
   const togglePlay = useCallback(() => {
+    if (performance.now() - soundUnlockedAtRef.current < 700) return;
     setIsPlaying(prev => !prev);
     setShowPlayPauseIcon(true);
     setTimeout(() => setShowPlayPauseIcon(false), 500);
   }, []);
 
   const toggleMute = useCallback(() => {
+    soundPreferenceSetRef.current = true;
     setIsMuted(prev => !prev);
   }, []);
+
+  // Mobile browsers prohibit audible autoplay before a user gesture. Treat
+  // the swipe itself as that gesture, so users never have to tap just to make
+  // the next reel start with sound.
+  const activateVisibleReelFromGesture = useCallback(() => {
+    const container = containerRef.current;
+    const visibleIndex = container?.clientHeight
+      ? Math.max(0, Math.min(reels.length - 1, Math.round(container.scrollTop / container.clientHeight)))
+      : currentReelIndex;
+    const visibleReel = reels[visibleIndex];
+    const video = videoRefs.current[visibleReel?.id];
+
+    const shouldEnableSound = !soundPreferenceSetRef.current;
+    if (shouldEnableSound && isMuted) soundUnlockedAtRef.current = performance.now();
+    if (shouldEnableSound) setIsMuted(false);
+    setIsPlaying(true);
+    if (video) {
+      video.muted = shouldEnableSound ? false : isMuted;
+      video.play().catch(error => {
+        if (error?.name !== 'AbortError') console.log('Gesture playback failed:', error);
+      });
+    }
+  }, [currentReelIndex, isMuted, reels]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -508,6 +524,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       <div
         ref={containerRef}
         onScroll={handleReelScroll}
+        onTouchStart={activateVisibleReelFromGesture}
+        onTouchEnd={activateVisibleReelFromGesture}
         className="absolute inset-0 overflow-y-auto overscroll-y-contain snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
       >
@@ -529,8 +547,13 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
                 className={`h-full w-full ${isDesktop ? 'object-contain' : 'object-cover'}`}
                 loop
                 playsInline
-                preload={Math.abs(index - currentReelIndex) <= 1 ? 'auto' : 'metadata'}
+                preload={index === currentReelIndex || index === currentReelIndex + 1 ? 'auto' : 'none'}
+                fetchPriority={index === currentReelIndex ? 'high' : 'auto'}
                 muted={isMuted}
+                onLoadStart={() => index === currentReelIndex && setIsBuffering(true)}
+                onWaiting={() => index === currentReelIndex && setIsBuffering(true)}
+                onCanPlay={() => index === currentReelIndex && setIsBuffering(false)}
+                onPlaying={() => index === currentReelIndex && setIsBuffering(false)}
               />
               <button
                 type="button"
@@ -571,7 +594,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
               {isDesktop ? (
                 <span>↑↓ Navigate • Space = Play/Pause</span>
               ) : (
-                <span>Swipe ↑↓ • Tap to pause</span>
+                <span>{isMuted ? 'Swipe to browse • Sound starts automatically' : 'Swipe ↑↓ • Tap to pause'}</span>
               )}
             </div>
           </div>
@@ -590,6 +613,12 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           {showLikeAnimation && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
               <Heart className="w-24 h-24 text-white fill-current animate-heart-burst" />
+            </div>
+          )}
+
+          {isBuffering && isPlaying && (
+            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/35 border-t-white drop-shadow-lg" />
             </div>
           )}
 
