@@ -29,6 +29,8 @@ const MarketingDashboard = React.lazy(() => import('./pages/Marketing/MarketingD
 const NewsDetailPage = React.lazy(() => import('./pages/NewsDetail/NewsDetailPage.jsx'));
 const SavedPosts = React.lazy(() => import('./components/Bookmarks/SavedPosts.jsx'));
 const NotificationSettings = React.lazy(() => import('./components/Settings/NotificationSettings.jsx'));
+const GeneralSettings = React.lazy(() => import('./components/Settings/GeneralSettings.jsx'));
+const ActivityHistory = React.lazy(() => import('./pages/Profile/ActivityHistory.jsx'));
 const ReelsPage = React.lazy(() => import('./pages/Reels/ReelsPage.jsx'));
 const RoundupPage = React.lazy(() => import('./pages/Roundup/RoundupPage.jsx'));
 const AdvertisePage = React.lazy(() => import('./pages/Advertise/AdvertisePage.jsx'));
@@ -192,6 +194,12 @@ function AppContent() {
     if (path === '/settings' || path === '/notifications-settings') {
       setCurrentView({ type: path === '/settings' ? 'settings' : 'notifications-settings', data: null });
       setActiveTab('home');
+      return;
+    }
+
+    if (path === '/activity') {
+      setCurrentView({ type: 'activity', data: null });
+      setActiveTab('profile');
       return;
     }
 
@@ -404,7 +412,7 @@ function AppContent() {
       }
       
       // Check authentication for protected views
-      if (['profile', 'saved', 'admin', 'notifications', 'notifications-settings', 'settings'].includes(type) && !user) {
+      if (['profile', 'saved', 'activity', 'admin', 'notifications', 'notifications-settings', 'settings'].includes(type) && !user) {
         setShowLogin(true);
         return;
       }
@@ -531,7 +539,17 @@ function AppContent() {
       case 'marketing':
         return <MarketingDashboard />;
       case 'legal':
-        return <LegalPage page={currentView.data?.page} onBack={handleBackToHome} />;
+        return (
+          <LegalPage
+            page={currentView.data?.page}
+            onBack={handleBackToHome}
+            onNavigate={(page) => {
+              window.history.pushState({ view: 'legal', page }, '', `/${page}`);
+              setCurrentView({ type: 'legal', data: { page } });
+              setActiveTab('home');
+            }}
+          />
+        );
       case 'breaking':
         return user?.role === 'admin' ? (
           <BreakingNewsManager />
@@ -558,10 +576,31 @@ function AppContent() {
       case 'admin-upgrade':
         return <AdminUpgrade />;
       case 'saved':
-        return <SavedPosts onPostClick={handlePostClick} />;
+        return (
+          <SavedPosts
+            onPostClick={handlePostClick}
+            onEventClick={(eventId) => {
+              window.history.pushState({ view: 'event-detail', eventId }, '', `/events/${encodeURIComponent(eventId)}`);
+              setCurrentView({ type: 'event-detail', data: { eventId } });
+              setActiveTab('events');
+            }}
+          />
+        );
       case 'notifications-settings':
-      case 'settings':
         return <NotificationSettings />;
+      case 'settings':
+        return <GeneralSettings />;
+      case 'activity':
+        return (
+          <ActivityHistory
+            onPostClick={handlePostClick}
+            onEventClick={(eventId) => {
+              window.history.pushState({ view: 'event-detail', eventId }, '', `/events/${encodeURIComponent(eventId)}`);
+              setCurrentView({ type: 'event-detail', data: { eventId } });
+              setActiveTab('events');
+            }}
+          />
+        );
       case 'reels':
         return <ReelsPage onBack={handleBackToHome} initialReelId={currentView.data?.reelId} />;
       default:

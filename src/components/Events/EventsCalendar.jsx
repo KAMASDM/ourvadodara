@@ -143,9 +143,9 @@ const EventsCalendar = ({ className = '' }) => {
     });
   }, [events, categoryFilter, dateFilter, customDateRange, query, currentLanguage]);
 
-  const activeFilterCount = Number(categoryFilter !== 'all')
-    + Number(dateFilter !== 'upcoming')
-    + Number(Boolean(query.trim()));
+  const selectedFilterCount = Number(categoryFilter !== 'all')
+    + Number(dateFilter !== 'upcoming');
+  const activeFilterCount = selectedFilterCount + Number(Boolean(query.trim()));
 
   const clearFilters = () => {
     setQuery('');
@@ -171,31 +171,31 @@ const EventsCalendar = ({ className = '' }) => {
 
   return (
     <div className={`min-h-screen pb-24 dark:text-white ${className}`}>
-      <div className="mx-auto max-w-7xl px-3 pb-6 pt-2 sm:px-5 sm:pt-4">
-        <section className="liquid-panel relative z-0 rounded-[1.5rem] border border-white/70 p-3 dark:border-white/10">
-          <div className="flex gap-2">
-            <label className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <div className="mx-auto max-w-7xl px-3 pb-6 pt-0 sm:px-5 sm:pt-4">
+        <section className="relative z-0 -mx-3 border-b border-slate-200/80 bg-white/85 px-3 pb-3 pt-0 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/85 sm:mx-0 sm:rounded-[1.5rem] sm:border sm:p-3">
+          <div className="flex h-14 items-center gap-1.5 rounded-b-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-950 dark:ring-slate-700 sm:rounded-2xl">
+            <label className="relative h-full min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-teal-600" />
               <input
                 type="search"
                 value={query}
                 onChange={event => setQuery(event.target.value)}
                 placeholder="Search events or venues"
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-white/75 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100 dark:border-slate-700 dark:bg-slate-900/75 dark:text-white dark:focus:ring-teal-950"
+                className="h-full w-full rounded-xl bg-transparent pl-10 pr-2 text-sm font-medium text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400 focus:bg-teal-50/70 dark:text-white dark:focus:bg-teal-950/40"
               />
             </label>
             <button
               type="button"
               onClick={() => setFiltersOpen(true)}
-              className="relative inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-slate-950 px-3.5 text-sm font-bold text-white transition hover:bg-teal-800 dark:bg-teal-700 dark:hover:bg-teal-600"
+              className="relative inline-flex h-full shrink-0 items-center gap-2 rounded-xl bg-teal-700 px-3.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-teal-800 active:scale-[0.98] dark:bg-teal-600 dark:hover:bg-teal-500"
             >
               <Filter className="h-4 w-4" />
-              <span className="hidden sm:inline">Filters</span>
-              {activeFilterCount > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px]">{activeFilterCount}</span>}
+              <span>Filters</span>
+              {selectedFilterCount > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] ring-2 ring-teal-700 dark:ring-teal-600">{selectedFilterCount}</span>}
             </button>
           </div>
 
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="mt-2 hidden gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex">
             {DATE_FILTERS.slice(0, 5).map(filter => (
               <button
                 key={filter.id}
@@ -208,7 +208,7 @@ const EventsCalendar = ({ className = '' }) => {
             ))}
           </div>
 
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="mt-2 hidden gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex">
             {categories.map(category => (
               <button
                 key={category}
@@ -264,8 +264,8 @@ const EventsCalendar = ({ className = '' }) => {
       </div>
 
       {filtersOpen && (
-        <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4" onClick={() => setFiltersOpen(false)}>
-          <div className="max-h-[88vh] w-full overflow-y-auto rounded-t-[2rem] bg-white p-5 shadow-2xl dark:bg-slate-950 sm:max-w-2xl sm:rounded-[2rem] sm:p-6" onClick={event => event.stopPropagation()}>
+        <div className="fixed inset-0 z-[80] flex items-stretch justify-end bg-slate-950/45 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4" onClick={() => setFiltersOpen(false)}>
+          <div className="h-full w-[min(88vw,380px)] overflow-y-auto rounded-l-[2rem] bg-white p-5 shadow-2xl dark:bg-slate-950 sm:h-auto sm:max-h-[88vh] sm:w-full sm:max-w-2xl sm:rounded-[2rem] sm:p-6" onClick={event => event.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div><p className="eyebrow text-teal-700 dark:text-teal-300">Refine results</p><h2 className="mt-1 text-xl font-extrabold">Event filters</h2></div>
               <button type="button" onClick={() => setFiltersOpen(false)} className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close filters"><X className="h-5 w-5" /></button>

@@ -241,7 +241,7 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
       await update(ref(db), {
         [`likes/${newsId}/${user.uid}`]: wasLiked ? null : true,
         [`posts/${newsId}/analytics/likes`]: increment(wasLiked ? -1 : 1),
-        [`users/${user.uid}/likes/${newsId}`]: wasLiked ? null : true,
+        [`users/${user.uid}/likes/${newsId}`]: wasLiked ? null : Date.now(),
         [`users/${user.uid}/totalLikes`]: increment(wasLiked ? -1 : 1)
       });
       success(wasLiked ? 'Removed from likes' : 'Added to likes');

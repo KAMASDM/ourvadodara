@@ -52,7 +52,7 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
     <>
       {/* ── Header bar ─────────────────────────────────────── */}
       <header
-        className={`fixed top-0 inset-x-0 z-50 liquid-glass border-b border-white/60 dark:border-white/10 pt-safe transition-transform duration-300 ease-out ${
+        className={`!fixed top-0 inset-x-0 z-50 liquid-glass border-b border-white/60 dark:border-white/10 pt-safe transition-transform duration-300 ease-out ${
           isChromeHidden ? '-translate-y-full pointer-events-none' : 'translate-y-0'
         }`}
         style={{ height: 'calc(56px + env(safe-area-inset-top))' }}

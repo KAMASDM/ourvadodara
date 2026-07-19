@@ -12,6 +12,8 @@ import {
   Briefcase,
   CalendarClock,
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Download,
   Edit3,
@@ -370,7 +372,7 @@ const parseJsonObject = (value, fallback = {}) => {
   try {
     const parsed = JSON.parse(value || '{}');
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
-  } catch (error) {
+  } catch {
     return fallback;
   }
 };
@@ -404,6 +406,11 @@ const LeadManagement = () => {
   const [sortBy, setSortBy] = useState('updated_desc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [workspaceTab, setWorkspaceTab] = useState('leads');
+  const [selectedLeadIds, setSelectedLeadIds] = useState(new Set());
+  const [expandedLeadId, setExpandedLeadId] = useState(null);
+  const [exportScope, setExportScope] = useState('filtered');
+  const [exportFormat, setExportFormat] = useState('csv');
   const [whatsAppLead, setWhatsAppLead] = useState(null);
   const [whatsAppForm, setWhatsAppForm] = useState(EMPTY_WHATSAPP_FORM);
   const [whatsAppSending, setWhatsAppSending] = useState(false);
@@ -508,6 +515,10 @@ const LeadManagement = () => {
   useEffect(() => {
     setPage(current => Math.min(current, totalPages));
   }, [totalPages]);
+
+  useEffect(() => {
+    setSelectedLeadIds(previous => new Set([...previous].filter(id => leads.some(lead => lead.id === id))));
+  }, [leads]);
 
   const templatePreviewLead = useMemo(() => ({
     companyName: 'Shree Foods',
@@ -999,8 +1010,15 @@ const LeadManagement = () => {
     await remove(ref(db, `${TEMPLATE_PATH}/${template.id}`));
   };
 
-  const exportLeads = () => {
+  const exportLeads = (format = exportFormat, scope = exportScope) => {
+    const exportRows = scope === 'all'
+      ? leads
+      : scope === 'selected'
+        ? leads.filter(lead => selectedLeadIds.has(lead.id))
+        : filteredLeads;
+    if (!exportRows.length) return;
     const columns = [
+      ['Lead ID', lead => lead.id],
       ['Company', lead => lead.companyName],
       ['Contact', lead => lead.contactName],
       ['Phone', lead => lead.phone],
@@ -1014,20 +1032,54 @@ const LeadManagement = () => {
       ['Source', lead => lead.source],
       ['Owner', lead => lead.assignedTo],
       ['Follow-up', lead => lead.followUpDate],
+      ['Expected Close', lead => lead.expectedCloseDate],
+      ['Probability', lead => lead.probability],
+      ['Preferred Channel', lead => lead.communicationPreference],
+      ['Requirements', lead => lead.requirements],
+      ['Notes', lead => lead.notes],
       ['Created', lead => lead.createdAt]
     ];
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    const scopeLabel = scope === 'selected' ? 'selected' : scope === 'all' ? 'all' : 'filtered';
+    const download = (content, mimeType, extension) => {
+      const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `our-vadodara-leads-${scopeLabel}-${dateStamp}.${extension}`;
+      link.click();
+      URL.revokeObjectURL(url);
+    };
+
+    if (format === 'json') {
+      download(JSON.stringify(exportRows, null, 2), 'application/json;charset=utf-8', 'json');
+      return;
+    }
+
     const escapeCsv = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const csv = [
       columns.map(([label]) => escapeCsv(label)).join(','),
-      ...filteredLeads.map(lead => columns.map(([, getter]) => escapeCsv(getter(lead))).join(','))
+      ...exportRows.map(lead => columns.map(([, getter]) => escapeCsv(getter(lead))).join(','))
     ].join('\n');
-    const blob = new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `our-vadodara-leads-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    download(`\ufeff${csv}`, 'text/csv;charset=utf-8', 'csv');
+  };
+
+  const toggleLeadSelection = (leadId) => {
+    setSelectedLeadIds(previous => {
+      const next = new Set(previous);
+      if (next.has(leadId)) next.delete(leadId);
+      else next.add(leadId);
+      return next;
+    });
+  };
+
+  const toggleCurrentPageSelection = () => {
+    const pageIds = paginatedLeads.map(lead => lead.id);
+    const allSelected = pageIds.length > 0 && pageIds.every(id => selectedLeadIds.has(id));
+    setSelectedLeadIds(previous => {
+      const next = new Set(previous);
+      pageIds.forEach(id => allSelected ? next.delete(id) : next.add(id));
+      return next;
+    });
   };
 
   return (
@@ -1042,7 +1094,7 @@ const LeadManagement = () => {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={exportLeads}
+            onClick={() => exportLeads('csv', 'filtered')}
             disabled={!filteredLeads.length}
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
           >
@@ -1051,7 +1103,10 @@ const LeadManagement = () => {
           </button>
           <button
             type="button"
-            onClick={() => openTemplateForm()}
+            onClick={() => {
+              setWorkspaceTab('automation');
+              openTemplateForm();
+            }}
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-50 dark:border-blue-900 dark:bg-gray-900 dark:text-blue-300"
           >
             <MessageSquare className="h-4 w-4" />
@@ -1059,13 +1114,21 @@ const LeadManagement = () => {
           </button>
           <button
             type="button"
-            onClick={openCreateForm}
+            onClick={() => {
+              setWorkspaceTab('leads');
+              openCreateForm();
+            }}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
           >
             <Plus className="h-4 w-4" />
             Add Lead
           </button>
         </div>
+      </div>
+
+      <div className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800 lg:w-auto">
+        <button type="button" onClick={() => setWorkspaceTab('leads')} className={`flex-1 rounded-xl px-5 py-2.5 text-sm font-bold transition lg:flex-none ${workspaceTab === 'leads' ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'}`}>Sales pipeline</button>
+        <button type="button" onClick={() => setWorkspaceTab('automation')} className={`flex-1 rounded-xl px-5 py-2.5 text-sm font-bold transition lg:flex-none ${workspaceTab === 'automation' ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'}`}>Automation & messaging</button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
@@ -1094,6 +1157,7 @@ const LeadManagement = () => {
         })}
       </div>
 
+      {workspaceTab === 'automation' && (
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
         <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-700 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -1336,8 +1400,9 @@ const LeadManagement = () => {
           </div>
         </form>
       </div>
+      )}
 
-      {showForm && (
+      {showForm && workspaceTab === 'leads' && (
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
           <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
             <div>
@@ -1641,6 +1706,7 @@ const LeadManagement = () => {
         </div>
       )}
 
+      {workspaceTab === 'automation' && (
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
         <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-700 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -1974,9 +2040,24 @@ const LeadManagement = () => {
           ))}
         </div>
       </div>
+      )}
 
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-        <div className="grid gap-3 xl:grid-cols-[1fr_160px_200px_150px_180px]">
+      {workspaceTab === 'leads' && (
+      <>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 dark:border-slate-700 xl:flex-row xl:items-center xl:justify-between">
+          <div><h2 className="text-lg font-black text-slate-950 dark:text-white">Lead database</h2><p className="text-sm text-slate-500">Search, segment and export your sales pipeline.</p></div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={exportScope} onChange={(e) => setExportScope(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200" aria-label="Export scope">
+              <option value="filtered">Filtered ({filteredLeads.length})</option>
+              <option value="all">All leads ({leads.length})</option>
+              <option value="selected" disabled={!selectedLeadIds.size}>Selected ({selectedLeadIds.size})</option>
+            </select>
+            <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200" aria-label="Export format"><option value="csv">CSV</option><option value="json">JSON</option></select>
+            <button type="button" onClick={() => exportLeads()} disabled={(exportScope === 'selected' && !selectedLeadIds.size) || (exportScope === 'filtered' && !filteredLeads.length) || (exportScope === 'all' && !leads.length)} className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-950 px-4 text-xs font-black text-white transition hover:bg-blue-700 disabled:opacity-40 dark:bg-blue-600 dark:hover:bg-blue-500"><Download className="h-4 w-4" />Export</button>
+          </div>
+        </div>
+        <div className="grid gap-3 p-4 xl:grid-cols-[1fr_160px_200px_150px_180px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -2022,6 +2103,7 @@ const LeadManagement = () => {
             <option value="followup_asc">Next follow-up</option>
           </select>
         </div>
+        {(query || stageFilter !== 'all' || serviceFilter !== 'all' || priorityFilter !== 'all') && <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs dark:border-slate-800"><span className="font-semibold text-slate-500">{filteredLeads.length} matching leads</span><button type="button" onClick={() => { setQuery(''); setStageFilter('all'); setServiceFilter('all'); setPriorityFilter('all'); }} className="font-black text-blue-600 hover:text-blue-700">Clear filters</button></div>}
       </div>
 
       {whatsAppLead && (
@@ -2151,188 +2233,83 @@ const LeadManagement = () => {
         </div>
       )}
 
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        {selectedLeadIds.size > 0 && <div className="flex items-center justify-between gap-3 border-b border-blue-100 bg-blue-50 px-4 py-3 dark:border-blue-900 dark:bg-blue-950/30"><p className="text-sm font-bold text-blue-900 dark:text-blue-200">{selectedLeadIds.size} lead{selectedLeadIds.size === 1 ? '' : 's'} selected</p><div className="flex gap-2"><button type="button" onClick={() => { setExportScope('selected'); exportLeads(exportFormat, 'selected'); }} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white"><Download className="h-3.5 w-3.5" />Export selected</button><button type="button" onClick={() => setSelectedLeadIds(new Set())} className="rounded-lg px-3 py-2 text-xs font-bold text-blue-700 dark:text-blue-300">Clear</button></div></div>}
         {loading ? (
-          <div className="flex items-center justify-center p-10">
-            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
-          </div>
+          <div className="flex items-center justify-center p-16"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" /></div>
         ) : filteredLeads.length === 0 ? (
-          <div className="p-12 text-center">
-            <Briefcase className="mx-auto h-12 w-12 text-gray-300" />
-            <h3 className="mt-3 text-lg font-semibold">No leads found</h3>
-            <p className="mt-1 text-sm text-gray-500">Create a lead or adjust your filters.</p>
-          </div>
+          <div className="p-16 text-center"><Briefcase className="mx-auto h-12 w-12 text-slate-300" /><h3 className="mt-3 text-lg font-bold">No leads found</h3><p className="mt-1 text-sm text-slate-500">Create a lead or adjust your filters.</p></div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {paginatedLeads.map((lead) => {
-              const stage = getStageConfig(getStage(lead));
-              const priority = getPriorityConfig(lead.priority);
-              const service = SERVICE_TYPES.find(type => type.id === lead.serviceType);
-              const ServiceIcon = service?.icon || Briefcase;
-              const due = isFollowUpDue(lead);
-
-              return (
-                <div key={lead.id} className="p-5 hover:bg-gray-50 dark:hover:bg-gray-800/60">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="truncate text-lg font-semibold text-gray-950 dark:text-white">{lead.companyName}</h3>
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${stage.tone}`}>
-                          {stage.label}
-                        </span>
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${priority.tone}`}>
-                          {priority.label}
-                        </span>
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-600 dark:text-gray-300">
-                        <span className="inline-flex items-center gap-1.5"><UserRound className="h-4 w-4" />{lead.contactName || 'No contact name'}</span>
-                        <span className="inline-flex items-center gap-1.5"><Phone className="h-4 w-4" />{lead.phone || 'No phone'}</span>
-                        {lead.email && <span className="inline-flex items-center gap-1.5"><Mail className="h-4 w-4" />{lead.email}</span>}
-                        <span className="inline-flex items-center gap-1.5"><ServiceIcon className="h-4 w-4" />{service?.label || lead.serviceType || 'Service not set'}</span>
-                        <span className="inline-flex items-center gap-1.5"><IndianRupee className="h-4 w-4" />{formatCurrency(lead.expectedValue || lead.budget)}</span>
-                      </div>
-
-                      <div className="mt-3 grid gap-3 lg:grid-cols-4">
-                        <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Package</p>
-                          <p className="mt-1 font-medium">{lead.packageInterest || 'Not set'}</p>
+          <div className="overflow-x-auto">
+            <table className="min-w-[1180px] w-full border-collapse text-left">
+              <thead className="sticky top-0 z-10 bg-slate-50/95 text-[11px] font-black uppercase tracking-wider text-slate-500 backdrop-blur dark:bg-slate-800/95 dark:text-slate-300">
+                <tr><th className="w-12 px-4 py-3"><input type="checkbox" checked={paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedLeadIds.has(lead.id))} onChange={toggleCurrentPageSelection} className="h-4 w-4 rounded border-slate-300 text-blue-600" aria-label="Select current page" /></th><th className="px-3 py-3">Company & contact</th><th className="px-3 py-3">Stage</th><th className="px-3 py-3">Priority</th><th className="px-3 py-3">Service / package</th><th className="px-3 py-3 text-right">Deal value</th><th className="px-3 py-3">Follow-up</th><th className="px-3 py-3">Owner</th><th className="px-3 py-3 text-right">Actions</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {paginatedLeads.map(lead => {
+                  const stage = getStageConfig(getStage(lead));
+                  const priority = getPriorityConfig(lead.priority);
+                  const service = SERVICE_TYPES.find(type => type.id === lead.serviceType);
+                  const due = isFollowUpDue(lead);
+                  const expanded = expandedLeadId === lead.id;
+                  return <React.Fragment key={lead.id}>
+                    <tr className={`transition hover:bg-blue-50/35 dark:hover:bg-blue-950/20 ${selectedLeadIds.has(lead.id) ? 'bg-blue-50/60 dark:bg-blue-950/25' : ''}`}>
+                      <td className="px-4 py-3"><input type="checkbox" checked={selectedLeadIds.has(lead.id)} onChange={() => toggleLeadSelection(lead.id)} className="h-4 w-4 rounded border-slate-300 text-blue-600" aria-label={`Select ${lead.companyName}`} /></td>
+                      <td className="max-w-[260px] px-3 py-3"><div className="flex items-center gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-100 to-violet-100 text-sm font-black text-blue-700 dark:from-blue-950 dark:to-violet-950 dark:text-blue-300">{String(lead.companyName || 'L').charAt(0).toUpperCase()}</span><div className="min-w-0"><p className="truncate text-sm font-black text-slate-950 dark:text-white">{lead.companyName || 'Unnamed lead'}</p><p className="truncate text-xs text-slate-500">{lead.contactName || 'No contact'}{lead.phone ? ` · ${lead.phone}` : ''}</p></div></div></td>
+                      <td className="px-3 py-3"><select value={getStage(lead)} onChange={(e) => handleQuickStage(lead, e.target.value)} className={`max-w-[140px] rounded-full border px-2.5 py-1.5 text-xs font-bold outline-none ${stage.tone}`}>{LEAD_STAGES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></td>
+                      <td className="px-3 py-3"><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${priority.tone}`}>{priority.label}</span></td>
+                      <td className="max-w-[220px] px-3 py-3"><p className="truncate text-sm font-bold text-slate-800 dark:text-slate-200">{service?.label || lead.serviceType || 'Not set'}</p><p className="mt-0.5 truncate text-xs text-slate-500">{lead.packageInterest || 'No package selected'}</p></td>
+                      <td className="px-3 py-3 text-right"><p className="text-sm font-black text-slate-950 dark:text-white">{formatCurrency(lead.expectedValue || lead.budget)}</p><div className="ml-auto mt-1 h-1.5 w-16 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, Math.max(0, Number(lead.probability) || 0))}%` }} /></div><p className="mt-0.5 text-[10px] text-slate-400">{lead.probability || 0}% probability</p></td>
+                      <td className="px-3 py-3"><p className={`inline-flex items-center gap-1.5 text-sm font-bold ${due ? 'text-rose-600' : 'text-slate-700 dark:text-slate-300'}`}><Clock className="h-3.5 w-3.5" />{formatDate(lead.followUpDate, 'Not scheduled')}</p>{due && <p className="mt-0.5 text-[10px] font-black uppercase text-rose-500">Due now</p>}</td>
+                      <td className="max-w-[145px] px-3 py-3"><p className="truncate text-sm font-bold text-slate-700 dark:text-slate-300">{lead.assignedTo || 'Unassigned'}</p><p className="mt-0.5 truncate text-xs text-slate-400">{lead.source || 'Unknown source'}</p></td>
+                      <td className="px-3 py-3">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickActivity(lead, 'Lead contacted', {
+                              stage: getStage(lead) === 'new' ? 'contacted' : getStage(lead),
+                              status: getStage(lead) === 'new' ? 'contacted' : getStage(lead),
+                              lastContactedAt: new Date().toISOString().slice(0, 10)
+                            })}
+                            className="grid h-8 w-8 place-items-center rounded-lg text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-950/40"
+                            aria-label={`Mark ${lead.companyName} as contacted`}
+                            title="Mark contacted"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const tomorrow = new Date();
+                              tomorrow.setDate(tomorrow.getDate() + 1);
+                              handleQuickActivity(lead, 'Follow-up scheduled for tomorrow', {
+                                followUpDate: tomorrow.toISOString().slice(0, 10)
+                              });
+                            }}
+                            className="grid h-8 w-8 place-items-center rounded-lg text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                            aria-label={`Schedule follow-up for ${lead.companyName}`}
+                            title="Follow up tomorrow"
+                          >
+                            <CalendarClock className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => openWhatsAppForm(lead)} disabled={!lead.phone} className="grid h-8 w-8 place-items-center rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:opacity-30 dark:hover:bg-emerald-950/40" aria-label={`WhatsApp ${lead.companyName}`} title="Send WhatsApp message"><Smartphone className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => openEditForm(lead)} className="grid h-8 w-8 place-items-center rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40" aria-label={`Edit ${lead.companyName}`} title="Edit lead"><Edit3 className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => handleDelete(lead)} className="grid h-8 w-8 place-items-center rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40" aria-label={`Delete ${lead.companyName}`} title="Delete lead"><Trash2 className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => setExpandedLeadId(expanded ? null : lead.id)} className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${lead.companyName}`} title={expanded ? 'Hide details' : 'View details'}>{expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
                         </div>
-                        <div className={`rounded-lg p-3 text-sm ${due ? 'bg-rose-50 text-rose-800' : 'bg-gray-50 dark:bg-gray-800'}`}>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Follow-up</p>
-                          <p className="mt-1 inline-flex items-center gap-1 font-medium"><Clock className="h-4 w-4" />{formatDate(lead.followUpDate, 'No follow-up')}</p>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Close Target</p>
-                          <p className="mt-1 font-medium">{formatDate(lead.expectedCloseDate, 'Not set')}</p>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Source / Owner</p>
-                          <p className="mt-1 font-medium">{lead.source || 'Unknown'} / {lead.assignedTo || 'Unassigned'}</p>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid gap-3 lg:grid-cols-3">
-                        <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Probability</p>
-                          <p className="mt-1 font-medium">{lead.probability ?? 0}%</p>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Preferred Channel</p>
-                          <p className="mt-1 font-medium">{lead.communicationPreference || 'Not set'}</p>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Last Contacted</p>
-                          <p className="mt-1 font-medium">{formatDate(lead.lastContactedAt, 'Not contacted')}</p>
-                        </div>
-                      </div>
-
-                      {lead.requirements && <p className="mt-3 line-clamp-2 text-sm text-gray-700 dark:text-gray-300">{lead.requirements}</p>}
-                      {lead.notes && <p className="mt-2 line-clamp-2 text-sm text-gray-600 dark:text-gray-400">{lead.notes}</p>}
-                      {Array.isArray(lead.activityLog) && lead.activityLog.length > 0 && (
-                        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900">
-                          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            <FileText className="h-3.5 w-3.5" />
-                            Recent Activity
-                          </p>
-                          <div className="space-y-2">
-                            {lead.activityLog.slice(-3).reverse().map((activity, index) => (
-                              <div key={`${activity.at || 'activity'}-${index}`} className="text-gray-600 dark:text-gray-300">
-                                <span className="font-medium text-gray-900 dark:text-white">{activity.message}</span>
-                                {activity.note && <span className="text-gray-500"> - {activity.note}</span>}
-                                <span className="ml-2 text-xs text-gray-400">{formatDate(activity.at, '')}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-                      <button
-                        type="button"
-                        onClick={() => openWhatsAppForm(lead)}
-                        disabled={!lead.phone}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Smartphone className="h-4 w-4" />
-                        WhatsApp
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickActivity(lead, 'Lead contacted', {
-                          stage: getStage(lead) === 'new' ? 'contacted' : getStage(lead),
-                          status: getStage(lead) === 'new' ? 'contacted' : getStage(lead),
-                          lastContactedAt: new Date().toISOString().slice(0, 10)
-                        })}
-                        className="rounded-lg border border-emerald-200 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
-                      >
-                        Contacted
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const tomorrow = new Date();
-                          tomorrow.setDate(tomorrow.getDate() + 1);
-                          handleQuickActivity(lead, 'Follow-up scheduled for tomorrow', {
-                            followUpDate: tomorrow.toISOString().slice(0, 10)
-                          });
-                        }}
-                        className="rounded-lg border border-amber-200 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50"
-                      >
-                        Follow-up
-                      </button>
-                      <select
-                        value={getStage(lead)}
-                        onChange={(e) => handleQuickStage(lead, e.target.value)}
-                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
-                      >
-                        {LEAD_STAGES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => openEditForm(lead)}
-                        className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-                        aria-label={`Edit lead for ${lead.companyName}`}
-                      >
-                        <Edit3 className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(lead)}
-                        className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
-                        aria-label={`Delete lead for ${lead.companyName}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                      </td>
+                    </tr>
+                    {expanded && <tr><td colSpan="9" className="bg-slate-50/80 px-6 py-5 dark:bg-slate-950/40"><div className="grid gap-5 lg:grid-cols-[1fr_1fr_300px]"><div><p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Requirements</p><p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-300">{lead.requirements || 'No requirements recorded.'}</p><p className="mt-4 text-[11px] font-black uppercase tracking-wider text-slate-400">Notes</p><p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{lead.notes || 'No notes recorded.'}</p></div><div className="grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs text-slate-400">Email</p><p className="mt-1 truncate font-bold">{lead.email || 'Not provided'}</p></div><div><p className="text-xs text-slate-400">City</p><p className="mt-1 font-bold">{lead.city || 'Not set'}</p></div><div><p className="text-xs text-slate-400">Close target</p><p className="mt-1 font-bold">{formatDate(lead.expectedCloseDate, 'Not set')}</p></div><div><p className="text-xs text-slate-400">Last contacted</p><p className="mt-1 font-bold">{formatDate(lead.lastContactedAt, 'Never')}</p></div><div><p className="text-xs text-slate-400">Preferred channel</p><p className="mt-1 font-bold">{lead.communicationPreference || 'Not set'}</p></div><div><p className="text-xs text-slate-400">Created</p><p className="mt-1 font-bold">{formatDate(lead.createdAt, 'Unknown')}</p></div></div><div><p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-slate-400"><FileText className="h-3.5 w-3.5" />Recent activity</p><div className="mt-2 space-y-2">{Array.isArray(lead.activityLog) && lead.activityLog.length ? lead.activityLog.slice(-4).reverse().map((activity, index) => <div key={`${activity.at || 'activity'}-${index}`} className="rounded-xl bg-white p-3 text-xs ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800"><p className="font-bold text-slate-800 dark:text-slate-200">{activity.message}</p>{activity.note && <p className="mt-1 text-slate-500">{activity.note}</p>}<p className="mt-1 text-[10px] text-slate-400">{formatDate(activity.at, '')}</p></div>) : <p className="text-sm text-slate-500">No activity recorded.</p>}</div></div></div></td></tr>}
+                  </React.Fragment>;
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-        {!loading && filteredLeads.length > 0 && (
-          <div className="flex flex-col gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-gray-500">
-              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredLeads.length)} of {filteredLeads.length}
-            </p>
-            <div className="flex items-center gap-2">
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800"
-                aria-label="Leads per page"
-              >
-                {[10, 25, 50].map(size => <option key={size} value={size}>{size} / page</option>)}
-              </select>
-              <button type="button" onClick={() => setPage(value => Math.max(1, value - 1))} disabled={page === 1} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 dark:border-gray-700">Previous</button>
-              <span className="text-sm font-medium">{page} / {totalPages}</span>
-              <button type="button" onClick={() => setPage(value => Math.min(totalPages, value + 1))} disabled={page === totalPages} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40 dark:border-gray-700">Next</button>
-            </div>
-          </div>
-        )}
+        {!loading && filteredLeads.length > 0 && <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-slate-500">Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredLeads.length)} of {filteredLeads.length}</p><div className="flex items-center gap-2"><select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="h-9 rounded-lg border border-slate-200 px-2 text-xs font-bold dark:border-slate-700 dark:bg-slate-800" aria-label="Leads per page">{[10, 25, 50].map(size => <option key={size} value={size}>{size} / page</option>)}</select><button type="button" onClick={() => setPage(value => Math.max(1, value - 1))} disabled={page === 1} className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-bold disabled:opacity-40 dark:border-slate-700">Previous</button><span className="min-w-16 text-center text-xs font-black">{page} / {totalPages}</span><button type="button" onClick={() => setPage(value => Math.min(totalPages, value + 1))} disabled={page === totalPages} className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-bold disabled:opacity-40 dark:border-slate-700">Next</button></div></div>}
       </div>
+      </>
+      )}
     </div>
   );
 };

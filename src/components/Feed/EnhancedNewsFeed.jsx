@@ -290,7 +290,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
         [`likes/${postId}/${currentUser.uid}`]: wasLiked ? null : true,
         [`${sourcePath}/${postId}/analytics/likes`]: increment(wasLiked ? -1 : 1),
         // Per-user activity tracking for the profile stats
-        [`users/${currentUser.uid}/likes/${postId}`]: wasLiked ? null : true,
+        [`users/${currentUser.uid}/likes/${postId}`]: wasLiked ? null : Date.now(),
         [`users/${currentUser.uid}/totalLikes`]: increment(wasLiked ? -1 : 1)
       };
       await update(ref(db), updates);

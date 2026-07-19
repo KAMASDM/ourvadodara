@@ -191,12 +191,12 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
 
           {/* ── Sticky control bar ── */}
           <div
-            className={`sticky z-[55] -mt-12 px-2 pt-0 transition-all duration-300 ease-out ${
+            className={`sticky z-40 px-2 pt-0 transition-all duration-300 ease-out ${
               areTopControlsHidden
                 ? '-translate-y-[calc(100%+env(safe-area-inset-top))] opacity-0 pointer-events-none'
                 : 'translate-y-0 opacity-100'
             }`}
-            style={{ top: 'env(safe-area-inset-top)' }}
+            style={{ top: 'calc(59px + env(safe-area-inset-top))' }}
           >
             <div className="liquid-panel rounded-[1.35rem] px-3 py-2.5 space-y-2.5 border border-white/60 dark:border-white/10">
 

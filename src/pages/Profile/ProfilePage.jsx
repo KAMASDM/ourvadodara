@@ -13,6 +13,7 @@ import { updateProfile as updateAuthProfile } from 'firebase/auth';
 import ContactVerificationModal from '../../components/Profile/ContactVerificationModal';
 import CouponMarketplace from '../../components/Coupons/CouponMarketplace';
 import notificationManager, { initializeNotifications, getNotificationPermission } from '../../utils/notificationManager';
+import useActivityHistory, { formatActivityTime } from '../../hooks/useActivityHistory';
 import {
   User,
   Settings,
@@ -32,6 +33,7 @@ import {
   Mail,
   MapPin,
   CalendarDays,
+  CalendarCheck,
   Droplet,
   Check,
   X,
@@ -39,7 +41,8 @@ import {
   Shield,
   ChevronDown,
   ChevronUp,
-  Info
+  Info,
+  Eye
 } from 'lucide-react';
 
 const cloneProfile = (data) => JSON.parse(JSON.stringify(data));
@@ -182,7 +185,8 @@ const ProfilePage = () => {
   });
   const [loadingStats, setLoadingStats] = useState(true);
 
-  const [recentActivity, setRecentActivity] = useState([]);
+  const { activities: activityHistory, isLoading: loadingActivity } = useActivityHistory(user?.uid, currentLanguage);
+  const recentActivity = activityHistory.slice(0, 6);
 
   // Handle mobile detection
   useEffect(() => {
@@ -205,15 +209,17 @@ const ProfilePage = () => {
     setLoadingStats(true);
     const userProfileRef = ref(db, `users/${user.uid}`);
     const bookmarksRef = ref(db, `bookmarks/${user.uid}`);
+    const eventBookmarksRef = ref(db, `eventBookmarks/${user.uid}`);
 
     let userData = {};
-    let savedCount = 0;
+    let savedPostCount = 0;
+    let savedEventCount = 0;
 
     const applyStats = () => {
       const likedFromIndex = userData.likes ? Object.keys(userData.likes).length : 0;
       setUserStats({
         postsLiked: Math.max(likedFromIndex, userData.totalLikes || 0),
-        postsSaved: savedCount,
+        postsSaved: savedPostCount + savedEventCount,
         commentsPosted: Math.max(0, userData.totalComments || 0),
         articlesShared: Math.max(0, userData.totalShares || 0)
       });
@@ -226,67 +232,21 @@ const ProfilePage = () => {
     }, () => setLoadingStats(false));
 
     const unsubscribeBookmarks = onValue(bookmarksRef, (snapshot) => {
-      savedCount = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+      savedPostCount = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+      applyStats();
+    }, () => setLoadingStats(false));
+
+    const unsubscribeEventBookmarks = onValue(eventBookmarksRef, (snapshot) => {
+      savedEventCount = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
       applyStats();
     }, () => setLoadingStats(false));
 
     return () => {
       unsubscribeUser();
       unsubscribeBookmarks();
+      unsubscribeEventBookmarks();
     };
   }, [user?.uid]);
-
-  // Build the activity feed from the user's real interaction indexes instead
-  // of showing the same sample rows to every account.
-  useEffect(() => {
-    if (!user?.uid) {
-      setRecentActivity([]);
-      return undefined;
-    }
-
-    let userActivity = {};
-    let bookmarks = {};
-    let posts = {};
-    const relativeTime = (timestamp) => {
-      const time = new Date(timestamp || 0).getTime();
-      if (!time) return 'Recently';
-      const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
-      if (minutes < 1) return 'Just now';
-      if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
-      const hours = Math.floor(minutes / 60);
-      if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-      const days = Math.floor(hours / 24);
-      return `${days} day${days === 1 ? '' : 's'} ago`;
-    };
-    const titleFor = (postId) => {
-      const title = posts[postId]?.title;
-      return typeof title === 'string'
-        ? title
-        : title?.[currentLanguage] || title?.en || title?.gu || title?.hi || 'News article';
-    };
-    const rebuild = () => {
-      const likes = Object.entries(userActivity.likes || {}).map(([postId, value]) => ({
-        type: 'like', postId, timestamp: typeof value === 'number' ? value : posts[postId]?.lastInteraction
-      }));
-      const shares = Object.entries(userActivity.shares || {}).map(([postId, value]) => ({
-        type: 'share', postId, timestamp: typeof value === 'number' ? value : posts[postId]?.lastInteraction
-      }));
-      const saves = Object.entries(bookmarks).map(([postId, value]) => ({
-        type: 'save', postId, timestamp: value?.timestamp || value?.savedAt
-      }));
-      setRecentActivity([...likes, ...shares, ...saves]
-        .filter(item => item.timestamp)
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 8)
-        .map(item => ({ ...item, article: titleFor(item.postId), time: relativeTime(item.timestamp) })));
-    };
-    const unsubscribers = [
-      onValue(ref(db, `users/${user.uid}`), snapshot => { userActivity = snapshot.val() || {}; rebuild(); }),
-      onValue(ref(db, `bookmarks/${user.uid}`), snapshot => { bookmarks = snapshot.val() || {}; rebuild(); }),
-      onValue(ref(db, 'posts'), snapshot => { posts = snapshot.val() || {}; rebuild(); })
-    ];
-    return () => unsubscribers.forEach(unsubscribe => unsubscribe());
-  }, [user?.uid, currentLanguage]);
 
   useEffect(() => {
     let isMounted = true;
@@ -723,9 +683,23 @@ const ProfilePage = () => {
         return <Bookmark className="w-4 h-4 text-yellow-500" />;
       case 'share':
         return <Share className="w-4 h-4 text-green-500" />;
+      case 'read':
+        return <Eye className="w-4 h-4 text-violet-500" />;
+      case 'registration':
+        return <CalendarCheck className="w-4 h-4 text-teal-600" />;
+      case 'event-save':
+        return <CalendarDays className="w-4 h-4 text-amber-500" />;
       default:
-        return null;
+        return <Heart className="w-4 h-4 text-amber-500" />;
     }
+  };
+
+  const openActivity = (activity) => {
+    const path = activity.targetType === 'event'
+      ? `/events/${encodeURIComponent(activity.targetId)}`
+      : `/post/${encodeURIComponent(activity.targetId)}`;
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
   const handleLogout = async () => {
@@ -889,14 +863,22 @@ const ProfilePage = () => {
               </p>
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Liked</p>
             </div>
-            <div className="rounded-2xl border border-gray-200/60 dark:border-gray-800/60 bg-gray-50/60 dark:bg-gray-900/60 p-4">
+            <button
+              type="button"
+              onClick={() => {
+                window.history.pushState({ view: 'saved' }, '', '/saved');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="rounded-2xl border border-gray-200/60 bg-gray-50/60 p-4 transition hover:border-primary-300 hover:bg-primary-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-800/60 dark:bg-gray-900/60 dark:hover:border-primary-700 dark:hover:bg-primary-950/20"
+              aria-label="Open saved news and events"
+            >
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {loadingStats ? (
                   <span className="inline-block w-12 h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></span>
                 ) : userStats.postsSaved}
               </p>
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Saved</p>
-            </div>
+            </button>
             <div className="rounded-2xl border border-gray-200/60 dark:border-gray-800/60 bg-gray-50/60 dark:bg-gray-900/60 p-4">
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {loadingStats ? (
@@ -1068,8 +1050,8 @@ const ProfilePage = () => {
             <button
               type="button"
               onClick={() => {
-                handleStartEditing();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                window.history.pushState({ view: 'settings' }, '', '/settings');
+                window.dispatchEvent(new PopStateEvent('popstate'));
               }}
               className="w-full flex items-center justify-between rounded-xl border border-transparent bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:bg-gray-800/60 dark:hover:bg-gray-800"
             >
@@ -1090,22 +1072,23 @@ const ProfilePage = () => {
       {/* Recent Activity */}
       <div className="mt-6 px-4">
         <div className="rounded-3xl border border-gray-200/70 dark:border-gray-800/70 bg-white/95 dark:bg-gray-900/95 p-6 shadow-sm shadow-gray-200/40 dark:shadow-black/30">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h2>
+          <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">Activity History</h2><p className="text-xs text-gray-500 dark:text-gray-400">Your latest activity across news and events</p></div><button type="button" onClick={() => { window.history.pushState({}, '', '/activity'); window.dispatchEvent(new PopStateEvent('popstate')); }} className="shrink-0 text-sm font-bold text-teal-700 hover:text-teal-800 dark:text-teal-300">View all</button></div>
 
           <div className="space-y-3">
-            {recentActivity.length === 0 && (
-              <p className="rounded-2xl bg-gray-50/70 px-4 py-5 text-center text-sm text-gray-500 dark:bg-gray-800/60 dark:text-gray-400">Your likes, saves, and shares will appear here.</p>
+            {!loadingActivity && recentActivity.length === 0 && (
+              <p className="rounded-2xl bg-gray-50/70 px-4 py-5 text-center text-sm text-gray-500 dark:bg-gray-800/60 dark:text-gray-400">Your likes, saves, comments, reading and event activity will appear here.</p>
             )}
-            {recentActivity.map((activity, index) => (
-              <div key={index} className="flex items-center gap-3 rounded-2xl bg-gray-50/70 px-3 py-2 hover:bg-gray-100 dark:bg-gray-800/60 dark:hover:bg-gray-800">
+            {loadingActivity && [0, 1, 2].map(item => <div key={item} className="h-14 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800" />)}
+            {recentActivity.map((activity) => (
+              <button type="button" onClick={() => openActivity(activity)} key={activity.id} className="flex w-full items-center gap-3 rounded-2xl bg-gray-50/70 px-3 py-2 text-left hover:bg-gray-100 dark:bg-gray-800/60 dark:hover:bg-gray-800">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-gray-900 shadow-sm">
                   {getActivityIcon(activity.type)}
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm text-gray-900 dark:text-white">{activity.article}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{activity.time}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{activity.title}</p>
+                  <p className="text-xs capitalize text-gray-500 dark:text-gray-400">{activity.type.replace('-', ' ')} · {formatActivityTime(activity.timestamp)}</p>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>

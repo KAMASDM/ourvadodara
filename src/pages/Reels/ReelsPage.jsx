@@ -351,6 +351,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       const updates = {};
       updates[`likes/${reelId}/${user.uid}`] = isLiked ? null : true;
       updates[`reels/${reelId}/analytics/likes`] = increment(isLiked ? -1 : 1);
+      updates[`users/${user.uid}/likes/${reelId}`] = isLiked ? null : Date.now();
+      updates[`users/${user.uid}/totalLikes`] = increment(isLiked ? -1 : 1);
       
       await update(ref(db), updates);
     } catch (error) {
@@ -431,7 +433,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         // Track user's total shares
         if (user?.uid) {
           await update(ref(db, `users/${user.uid}`), {
-            totalShares: increment(1)
+            totalShares: increment(1),
+            [`shares/${reel.id}`]: Date.now()
           });
         }
       } else {
@@ -447,7 +450,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         // Track user's total shares
         if (user?.uid) {
           await update(ref(db, `users/${user.uid}`), {
-            totalShares: increment(1)
+            totalShares: increment(1),
+            [`shares/${reel.id}`]: Date.now()
           });
         }
       }
