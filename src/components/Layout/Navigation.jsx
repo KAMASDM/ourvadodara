@@ -89,11 +89,11 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
       onFocusCapture={() => setIsHidden(false)}
     >
       <div className="max-w-app mx-auto mb-2 px-2">
-        <div className="liquid-glass relative flex h-[64px] rounded-3xl border border-white/60 dark:border-white/10">
+        <div className="liquid-glass relative flex h-[64px] rounded-3xl !border-teal-700/35 shadow-[0_12px_38px_rgba(15,118,110,0.16)] dark:!border-teal-400/30 dark:shadow-[0_12px_38px_rgba(20,184,166,0.10)]">
         {navItems.map(({ id, Icon, label, alert, badge }) => {
           const active = activeTab === id;
           const color = active
-            ? 'text-primary-600 dark:text-primary-400'
+            ? 'text-teal-700 dark:text-teal-300'
             : alert
               ? 'text-accent-500'
               : 'text-neutral-500 dark:text-neutral-400';
@@ -110,10 +110,10 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
               {active && (
                 <span
                   aria-hidden
-                  className="absolute inset-x-1 top-1 bottom-1 rounded-[1.35rem] bg-white/75 dark:bg-white/10 shadow-inner ring-1 ring-white/60"
+                  className="absolute inset-x-1 top-1 bottom-1 rounded-[1.35rem] border border-teal-600/55 bg-gradient-to-b from-teal-50/95 to-white/80 shadow-[0_3px_12px_rgba(15,118,110,0.14)] ring-1 ring-teal-600/10 dark:border-teal-400/50 dark:from-teal-950/70 dark:to-slate-900/70 dark:ring-teal-300/10"
                 />
               )}
-              <Icon className="relative z-10 w-[22px] h-[22px]" strokeWidth={active ? 2.5 : 2} />
+              {React.createElement(Icon, { className: 'relative z-10 h-[22px] w-[22px]', strokeWidth: active ? 2.5 : 2 })}
               <span className="relative z-10 text-[10px] font-semibold tracking-[0.02em]">{label}</span>
 
               {/* Notification badge */}
