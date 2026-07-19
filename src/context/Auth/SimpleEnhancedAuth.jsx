@@ -4,7 +4,7 @@
 // =============================================
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { enforceRegistrationRateLimit, validateRegistrationEmail } from '../../utils/registrationSecurity';
+import { runAnonymousRegistrationSecurityCheck, runRegistrationSecurityCheck } from '../../utils/registrationSecurity';
 
 const SimpleEnhancedAuthContext = createContext();
 
@@ -63,6 +63,7 @@ export const EnhancedAuthProvider = ({ children }) => {
     setLoading(true);
     setAuthError(null);
     try {
+      await runAnonymousRegistrationSecurityCheck();
       const { signInAnonymously } = await import('firebase/auth');
       const { firebaseAuth } = await import('../../firebase-config');
       
@@ -103,12 +104,11 @@ export const EnhancedAuthProvider = ({ children }) => {
     setLoading(true);
     setAuthError(null);
     try {
-      validateRegistrationEmail(email);
-      enforceRegistrationRateLimit();
+      const safeEmail = await runRegistrationSecurityCheck(email);
       const { linkWithCredential, EmailAuthProvider, updateProfile } = await import('firebase/auth');
       const { firebaseAuth } = await import('../../firebase-config');
       
-      const credential = EmailAuthProvider.credential(email, password);
+      const credential = EmailAuthProvider.credential(safeEmail, password);
       const result = await linkWithCredential(firebaseAuth.currentUser, credential);
       
       // Update display name if provided
@@ -348,14 +348,7 @@ export const EnhancedAuthProvider = ({ children }) => {
     setLoading(true);
     setAuthError(null);
     try {
-      const safeEmail = validateRegistrationEmail(email);
-      enforceRegistrationRateLimit();
-      if (!window.grecaptcha?.enterprise) throw new Error('Security verification is still loading. Please try again.');
-      const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeXXPsrAAAAAJEpQ2J-1TPTTmNvE5G8U1GSWsVQ';
-      const captchaToken = await new Promise((resolve, reject) => window.grecaptcha.enterprise.ready(() => window.grecaptcha.enterprise.execute(siteKey, { action: 'REGISTER' }).then(resolve).catch(reject)));
-      const { functions, httpsCallable } = await import('../../firebase-config');
-      const captchaResult = await httpsCallable(functions, 'verifyRegistrationChallenge')({ token: captchaToken });
-      if (!captchaResult.data?.valid) throw new Error('Security verification failed. Please try again.');
+      const safeEmail = await runRegistrationSecurityCheck(email);
       const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
       const { firebaseAuth } = await import('../../firebase-config');
       

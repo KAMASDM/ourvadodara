@@ -14,6 +14,7 @@ import { updateProfile, signInWithPopup, GoogleAuthProvider } from 'firebase/aut
 import { getUserProfile, createAdminUser, createUserProfile } from '../../utils/adminSetup';
 import { checkProfileCompletion, getAuthMethod, getAuthContactInfo } from '../../utils/profileHelpers';
 import { requiresEmailVerification } from '../../utils/authVerification';
+import { runRegistrationSecurityCheck } from '../../utils/registrationSecurity';
 
 const AuthContext = createContext();
 
@@ -137,7 +138,8 @@ export const AuthProvider = ({ children }) => {
   const signUp = async (email, password, displayName) => {
     setLoading(true);
     try {
-      const result = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+      const safeEmail = await runRegistrationSecurityCheck(email);
+      const result = await createUserWithEmailAndPassword(firebaseAuth, safeEmail, password);
       
       // Update the user's display name if provided
       if (displayName && result.user) {

@@ -4,6 +4,13 @@
 const functions = require('firebase-functions/v1');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const {
+  consumeRateLimit,
+  getEmailDomain,
+  hashValue,
+  isDisposableDomain,
+  writeSecurityEvent
+} = require('./registration-security');
 
 admin.initializeApp();
 
@@ -1505,9 +1512,36 @@ exports.verifyBrandCoupon = functions.https.onCall(async (data, context) => {
   return { ...coupon, valid: coupon.status === 'issued' && (!coupon.expiresAt || new Date(coupon.expiresAt) >= new Date()) };
 });
 
-exports.verifyRegistrationChallenge = functions.https.onCall(async (data) => {
+exports.verifyRegistrationChallenge = functions.https.onCall(async (data, context) => {
   const token = String(data?.token || '');
+  const email = String(data?.email || '').trim().toLowerCase();
+  const registrationType = data?.registrationType === 'anonymous' ? 'anonymous' : 'email';
+  const domain = registrationType === 'anonymous' ? 'anonymous' : getEmailDomain(email);
   if (!token) throw new functions.https.HttpsError('invalid-argument', 'Security challenge is required');
+  if (registrationType === 'email' && (!email || !domain || !email.includes('@'))) throw new functions.https.HttpsError('invalid-argument', 'A valid email address is required');
+
+  const forwardedFor = context.rawRequest?.headers?.['x-forwarded-for'];
+  const ipAddress = String(context.rawRequest?.ip || (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor) || 'unknown').split(',')[0].trim();
+  const ipHash = hashValue(ipAddress);
+  const userAgent = String(context.rawRequest?.headers?.['user-agent'] || '').slice(0, 240);
+  const database = admin.database();
+
+  if (registrationType === 'email' && await isDisposableDomain(database, domain)) {
+    await writeSecurityEvent(database, { type: 'registration_rejected', reason: 'disposable_email', domain, ipHash, userAgent, suspicious: true });
+    throw new functions.https.HttpsError('permission-denied', 'Temporary or disposable email addresses are not allowed.');
+  }
+
+  const [ipLimited, domainLimited] = await Promise.all([
+    consumeRateLimit(database, 'ip', ipAddress, 5),
+    registrationType === 'email' ? consumeRateLimit(database, 'domain', domain, 25) : Promise.resolve(false)
+  ]);
+  const expiredHour = Math.floor(Date.now() / 3600000) - 49;
+  database.ref(`registrationSecurity/rateLimits/${expiredHour}`).remove().catch(() => {});
+  if (ipLimited || domainLimited) {
+    await writeSecurityEvent(database, { type: 'registration_rejected', reason: ipLimited ? 'ip_rate_limit' : 'domain_velocity', domain, ipHash, userAgent, suspicious: true });
+    throw new functions.https.HttpsError('resource-exhausted', 'Too many registration attempts. Please try again later.');
+  }
+
   const projectId = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
   const siteKey = process.env.RECAPTCHA_SITE_KEY || '6LeXXPsrAAAAAJEpQ2J-1TPTTmNvE5G8U1GSWsVQ';
   const accessToken = await admin.app().options.credential.getAccessToken();
@@ -1518,6 +1552,56 @@ exports.verifyRegistrationChallenge = functions.https.onCall(async (data) => {
   });
   const assessment = await response.json();
   if (!response.ok) throw new functions.https.HttpsError('internal', 'Security verification is unavailable');
-  const valid = assessment.tokenProperties?.valid === true && assessment.tokenProperties?.action === 'REGISTER' && Number(assessment.riskAnalysis?.score || 0) >= 0.5;
-  return { valid };
+  const score = Number(assessment.riskAnalysis?.score || 0);
+  const valid = assessment.tokenProperties?.valid === true && assessment.tokenProperties?.action === 'REGISTER' && score >= 0.5;
+  await writeSecurityEvent(database, {
+    type: valid ? 'registration_challenge_passed' : 'registration_rejected',
+    reason: valid ? (score < 0.7 ? 'low_confidence_allowed' : 'challenge_passed') : 'captcha_failed',
+    domain,
+    registrationType,
+    ipHash,
+    userAgent,
+    captchaScore: score,
+    suspicious: !valid || score < 0.7
+  });
+  return { valid, suspicious: score < 0.7 };
+});
+
+// Compatibility-safe backstop. Direct Firebase Auth calls cannot bypass the
+// disposable-domain policy: accounts that evade the registration preflight are
+// disabled immediately and recorded for admin review. A true before-create
+// rejection can replace this after the project enables Identity Platform.
+exports.auditNewRegistration = functions.auth.user().onCreate(async user => {
+  const database = admin.database();
+  const domain = user.email ? getEmailDomain(user.email) : user.phoneNumber ? 'phone' : user.isAnonymous ? 'anonymous' : 'provider';
+  const disposable = user.email ? await isDisposableDomain(database, domain) : false;
+  const providerIds = (user.providerData || []).map(provider => provider.providerId);
+  const domainVelocityExceeded = ['anonymous', 'phone', 'provider'].includes(domain) ? false : await consumeRateLimit(database, 'createdDomain', domain, 40);
+  const suspicious = disposable || domainVelocityExceeded;
+
+  if (disposable) {
+    await admin.auth().updateUser(user.uid, { disabled: true });
+    await admin.auth().revokeRefreshTokens(user.uid);
+  }
+  if (suspicious) {
+    await database.ref(`registrationSecurity/flaggedUsers/${user.uid}`).set({
+      uid: user.uid,
+      email: user.email || null,
+      domain,
+      providerIds,
+      reason: disposable ? 'disposable_email' : 'unusual_domain_velocity',
+      disabled: disposable,
+      status: 'open',
+      createdAt: Date.now()
+    });
+  }
+  await writeSecurityEvent(database, {
+    type: 'account_created',
+    uid: user.uid,
+    domain,
+    providerIds,
+    reason: suspicious ? (disposable ? 'disposable_email' : 'unusual_domain_velocity') : 'normal',
+    suspicious
+  });
+  return null;
 });

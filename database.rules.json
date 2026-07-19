@@ -277,6 +277,20 @@
       ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
       ".write": false
     },
+
+    "registrationSecurity": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      "disposableDomains": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+      },
+      "flaggedUsers": {
+        "$uid": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+        }
+      },
+      "audit": { ".write": false },
+      "rateLimits": { ".write": false }
+    },
     
     // Likes - users can like content
     "likes": {

@@ -36,6 +36,7 @@ import {
   Key
 } from 'lucide-react';
 import LoadingSpinner from '../Common/LoadingSpinner';
+import RegistrationSecurityPanel from './RegistrationSecurityPanel';
 
 const AuthenticationManager = () => {
   const { t } = useTranslation();
@@ -289,6 +290,8 @@ const AuthenticationManager = () => {
           Manage users, authentication methods, and access controls
         </p>
       </div>
+
+      <RegistrationSecurityPanel />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

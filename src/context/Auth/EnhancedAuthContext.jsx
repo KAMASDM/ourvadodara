@@ -22,6 +22,7 @@ import {
 } from '../../firebase-config';
 import { getUserProfile, createAdminUser, createUserProfile, updateUserProfile } from '../../utils/adminSetup';
 import { sendOurVadodaraVerificationEmail } from '../../utils/authVerification';
+import { runRegistrationSecurityCheck } from '../../utils/registrationSecurity';
 
 const EnhancedAuthContext = createContext();
 
@@ -143,7 +144,8 @@ export const EnhancedAuthProvider = ({ children }) => {
     setLoading(true);
     setAuthError(null);
     try {
-      const result = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+      const safeEmail = await runRegistrationSecurityCheck(email);
+      const result = await createUserWithEmailAndPassword(firebaseAuth, safeEmail, password);
       
       // Update the user's display name if provided
       if (displayName && result.user) {
