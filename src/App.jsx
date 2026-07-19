@@ -334,6 +334,7 @@ function AppContent() {
     'admin-upgrade',
     'qr-scanner',
     'advertise',
+    'event-detail',
     'reels' // immersive full-screen; ReelsPage has its own back control
   ].includes(currentView.type);
   const hasMobileHeader = !isDesktop && currentView.type !== 'news-detail' && !isFullWidthView;
@@ -479,6 +480,7 @@ function AppContent() {
           <NewsDetailPage 
             newsId={currentView.data.newsId}
             onBack={handleBackToHome}
+            onPostClick={handlePostClick}
           />
         );
       case 'qr-scanner':

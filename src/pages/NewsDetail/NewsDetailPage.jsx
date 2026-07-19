@@ -34,8 +34,50 @@ import useReadTime from '../../hooks/useReadTime';
 import useViewTracking from '../../hooks/useViewTracking';
 import LoadingSpinner from '../../components/Common/LoadingSpinner';
 import { getRecommendedArticles, buildUserInteractionProfile } from '../../utils/recommendationEngine';
+import { getLocalizedText } from '../../utils/textUtils';
+import { POST_TYPES } from '../../utils/mediaSchema';
 
-const NewsDetailPage = ({ newsId, onBack }) => {
+const LEGACY_CITY_ID = 'vadodara';
+
+const getArticleCities = article => (
+  Array.isArray(article?.cities) && article.cities.length ? article.cities : [LEGACY_CITY_ID]
+);
+
+const isPublishedStandardArticle = article => {
+  const status = article.status || 'published';
+  const types = [article.type, article.postType, article.mediaType, article.mediaContent?.type];
+  const mediaItems = Array.isArray(article.mediaContent?.items)
+    ? article.mediaContent.items
+    : Object.values(article.mediaContent?.items || {});
+  const legacyMediaItems = Array.isArray(article.media)
+    ? article.media
+    : Object.values(article.media || {});
+  const legacyImages = Array.isArray(article.images)
+    ? article.images
+    : Object.values(article.images || {});
+  const publishTime = new Date(article.publishedAt || article.createdAt || article.timestamp || 0).getTime();
+  return status === 'published'
+    && article.isPublished !== false
+    && !types.includes(POST_TYPES.CAROUSEL)
+    && !types.includes(POST_TYPES.REEL)
+    && article.source !== 'carousels'
+    && mediaItems.length <= 1
+    && legacyMediaItems.length <= 1
+    && legacyImages.length <= 1
+    && (!publishTime || publishTime <= Date.now());
+};
+
+const getArticleImage = article => {
+  if (article.image) return article.image;
+  const media = Array.isArray(article.media) ? article.media : Object.values(article.media || {});
+  if (media[0]?.url) return media[0].url;
+  const items = Array.isArray(article.mediaContent?.items)
+    ? article.mediaContent.items
+    : Object.values(article.mediaContent?.items || {});
+  return items[0]?.url || article.thumbnail || '';
+};
+
+const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
   const { user } = useAuth();
@@ -95,13 +137,19 @@ const NewsDetailPage = ({ newsId, onBack }) => {
         
         // Build user interaction profile
         const userInteractions = user?.uid 
-          ? buildUserInteractionProfile(user.uid, userLikesData, userReadsData, userSharesData)
+          ? buildUserInteractionProfile(user.uid, userLikesData, userReadsData, userSharesData, postsArray)
           : [];
+
+        const currentCities = getArticleCities(newsItem);
+        const eligibleArticles = postsArray.filter(article => (
+          isPublishedStandardArticle(article)
+          && getArticleCities(article).some(city => currentCities.includes(city))
+        ));
         
         // Get smart recommendations using the recommendation engine
         const recommended = getRecommendedArticles(
           newsItem,
-          postsArray,
+          eligibleArticles,
           userInteractions,
           {
             maxResults: 6,
@@ -124,6 +172,25 @@ const NewsDetailPage = ({ newsId, onBack }) => {
       }
     }
   }, [postsObject, newsId, userLikesData, userReadsData, userSharesData, user]);
+
+  // Store a user-scoped read record after a meaningful view so future
+  // recommendations can learn from reading history, not only likes/shares.
+  useEffect(() => {
+    const articleForRead = postsObject?.[newsId];
+    if (!user?.uid || !newsId || !articleForRead) return undefined;
+    const timer = window.setTimeout(() => {
+      set(ref(db, `users/${user.uid}/reads/${newsId}`), {
+        userId: user.uid,
+        timestamp: Date.now(),
+        postData: {
+          category: articleForRead.category || null,
+          tags: articleForRead.tags || [],
+          cities: getArticleCities(articleForRead)
+        }
+      }).catch(readError => console.error('Error recording article read:', readError));
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [user?.uid, newsId, postsObject]);
 
   const loadComments = () => {
     // Mock comments data
@@ -729,19 +796,43 @@ const NewsDetailPage = ({ newsId, onBack }) => {
                     <div
                       key={article.id}
                       className="flex space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
-                      onClick={() => window.location.reload()} // In real app, navigate to article
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => {
+                        onPostClick?.(article.id);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          onPostClick?.(article.id);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }}
                     >
-                      <img
-                        src={article.image}
-                        alt={article.title[currentLanguage]}
-                        className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
-                      />
+                      {getArticleImage(article) ? (
+                        <img
+                          src={getArticleImage(article)}
+                          alt=""
+                          loading="lazy"
+                          className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400 dark:bg-gray-800">
+                          <span className="text-xs font-medium">News</span>
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2 mb-1">
-                          {article.title[currentLanguage]}
+                          {getLocalizedText(article.title, currentLanguage) || 'Untitled article'}
                         </h4>
                         <p className="text-xs text-gray-600 dark:text-gray-400">
-                          {formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })}
+                          {(() => {
+                            const date = new Date(article.publishedAt || article.createdAt || article.timestamp || 0);
+                            return Number.isNaN(date.getTime()) || date.getTime() === 0
+                              ? 'Recently'
+                              : formatDistanceToNow(date, { addSuffix: true });
+                          })()}
                         </p>
                       </div>
                     </div>

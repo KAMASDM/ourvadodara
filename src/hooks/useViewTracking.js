@@ -8,8 +8,13 @@ import { db } from '../firebase-config';
 
 const useViewTracking = (postId, postType = 'posts') => {
   const hasTrackedView = useRef(false);
+  const trackedPostId = useRef(null);
 
   useEffect(() => {
+    if (trackedPostId.current !== postId) {
+      hasTrackedView.current = false;
+      trackedPostId.current = postId;
+    }
     // Only track view once per page visit
     if (!postId || hasTrackedView.current) return;
 

@@ -358,6 +358,12 @@ export const getRecommendedArticles = (
   if (diverseRecommendations.length < maxResults) {
     const remaining = scoredArticles
       .filter(scored => !diverseRecommendations.find(rec => rec.id === scored.article.id))
+      .sort((a, b) => {
+        const timeFor = scored => new Date(
+          scored.article.publishedAt || scored.article.createdAt || scored.article.timestamp || 0
+        ).getTime() || 0;
+        return timeFor(b) - timeFor(a);
+      })
       .slice(0, maxResults - diverseRecommendations.length)
       .map(scored => scored.article);
     
@@ -371,51 +377,34 @@ export const getRecommendedArticles = (
  * Get user interaction history from Firebase
  * This should be called to build user profile
  */
-export const buildUserInteractionProfile = (userId, likesData, readsData, sharesData) => {
+export const buildUserInteractionProfile = (userId, likesData, readsData, sharesData, articles = []) => {
   const interactions = [];
-  
-  // Process likes
-  if (likesData) {
-    Object.entries(likesData).forEach(([postId, likeData]) => {
-      if (likeData.userId === userId) {
-        interactions.push({
-          type: 'like',
-          postId,
-          timestamp: likeData.timestamp,
-          ...likeData.postData
-        });
-      }
+  const articlesById = new Map(articles.map(article => [article.id, article]));
+
+  const addInteractions = (data, type) => {
+    if (!data) return;
+    Object.entries(data).forEach(([postId, rawValue]) => {
+      if (rawValue === false || rawValue == null) return;
+      const value = typeof rawValue === 'object' ? rawValue : {};
+      if (value.userId && value.userId !== userId) return;
+
+      const article = value.postData || articlesById.get(postId) || {};
+      interactions.push({
+        ...article,
+        ...value.postData,
+        type,
+        postId,
+        timestamp: value.timestamp || (typeof rawValue === 'number' ? rawValue : 0),
+        duration: value.duration
+      });
     });
-  }
+  };
   
-  // Process reads (can be tracked from analytics)
-  if (readsData) {
-    Object.entries(readsData).forEach(([postId, readData]) => {
-      if (readData.userId === userId) {
-        interactions.push({
-          type: 'read',
-          postId,
-          timestamp: readData.timestamp,
-          duration: readData.duration,
-          ...readData.postData
-        });
-      }
-    });
-  }
-  
-  // Process shares
-  if (sharesData) {
-    Object.entries(sharesData).forEach(([postId, shareData]) => {
-      if (shareData.userId === userId) {
-        interactions.push({
-          type: 'share',
-          postId,
-          timestamp: shareData.timestamp,
-          ...shareData.postData
-        });
-      }
-    });
-  }
+  // User-scoped paths currently contain a mixture of booleans, timestamps,
+  // and older detailed objects. Normalize every supported shape.
+  addInteractions(likesData, 'like');
+  addInteractions(readsData, 'read');
+  addInteractions(sharesData, 'share');
   
   // Sort by timestamp (most recent first)
   interactions.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));

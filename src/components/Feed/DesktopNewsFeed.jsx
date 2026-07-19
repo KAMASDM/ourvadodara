@@ -23,7 +23,23 @@ import { POST_TYPES } from '../../utils/mediaSchema';
 import { formatTimeAgo } from '../../utils/helpers';
 import ShareSheet from '../Common/ShareSheet';
 import { getLocalizedText } from '../../utils/textUtils';
-import InstagramCarousel from '../Media/InstagramCarousel';
+
+const getPostMediaItems = (post) => {
+  const items = post.mediaContent?.items || post.media || post.images || [];
+  return Array.isArray(items) ? items : Object.values(items || {});
+};
+
+// Carousel records have existed in a few shapes over the lifetime of the app.
+// Keep all of them out of desktop, including older multi-image posts that do
+// not carry the newer explicit `type: carousel` field.
+const isCarouselContent = (post) => (
+  post.type === POST_TYPES.CAROUSEL
+  || post.postType === POST_TYPES.CAROUSEL
+  || post.mediaType === POST_TYPES.CAROUSEL
+  || post.mediaContent?.type === POST_TYPES.CAROUSEL
+  || post.source === 'carousels'
+  || getPostMediaItems(post).length > 1
+);
 
 // Media component with error handling for both images and videos
 const PostMedia = ({ src, alt, className, fallback = true, post }) => {
@@ -159,9 +175,13 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
       posts = Object.entries(postsData).map(([id, post]) => ({
         id,
         ...post,
-        type: POST_TYPES.STANDARD,
+        type: post.type || POST_TYPES.STANDARD,
         source: 'posts'
-      })).filter(post => post.status !== 'draft' && post.status !== 'scheduled');
+      })).filter(post => (
+        post.status !== 'draft'
+        && post.status !== 'scheduled'
+        && !isCarouselContent(post)
+      ));
     }
 
     if (reelsData && feedType === 'all') {
@@ -214,23 +234,6 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
       onPostClick(post.id);
     }
   };
-
-  const getCarouselItems = (post) => {
-    let items = [];
-    if (post.mediaContent?.items) {
-      items = Array.isArray(post.mediaContent.items)
-        ? post.mediaContent.items
-        : Object.values(post.mediaContent.items || {});
-    } else if (post.media) {
-      items = Array.isArray(post.media) ? post.media : Object.values(post.media || {});
-    } else if (post.images) {
-      items = Array.isArray(post.images) ? post.images : Object.values(post.images || {});
-    }
-    return items;
-  };
-
-  const isCarouselPost = (post) =>
-    post.source === 'carousels' || getCarouselItems(post).length > 1;
 
   const handleAdvertiseClick = () => {
     window.history.pushState({ view: 'advertise' }, '', '/advertise');
@@ -343,8 +346,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
     );
   }
 
-  // Split posts for layout — hero slots need a cover image + detail page,
-  // so they only take standard posts; carousels render inline in the grid.
+  // Split standard news posts into the desktop hero and grid layouts.
   const standardItems = displayedItems.filter(post => post.source === 'posts');
   const featuredPost = standardItems[0];
   const sidePosts = standardItems.slice(1, 3);
@@ -511,26 +513,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
                 post.source === 'posts' ? 'cursor-pointer' : 'cursor-default'
               }`}
             >
-              {isCarouselPost(post) ? (
-                <div
-                  className="relative overflow-hidden rounded-t-3xl"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <InstagramCarousel
-                    images={getCarouselItems(post)}
-                    className="w-full"
-                    aspectRatio="1/1"
-                    showDots={true}
-                    enableSwipe={true}
-                    enableKeyboard={false}
-                  />
-                  {post.category && (
-                    <div className="absolute top-3 left-3 z-10 liquid-chip !bg-blue-600/80 text-white text-xs font-bold">
-                      {post.category}
-                    </div>
-                  )}
-                </div>
-              ) : getPostImage(post) && (
+              {getPostImage(post) && (
                 <div className="relative overflow-hidden rounded-t-3xl h-[200px]">
                   <PostMedia
                     src={getPostImage(post)}
