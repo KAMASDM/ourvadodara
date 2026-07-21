@@ -856,6 +856,7 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
         onClose={() => setShowReportModal(false)}
         contentType="post"
         contentId={news.id}
+        contentTitle={getLocalizedText(news.title, currentLanguage)}
       />
 
       <ImageViewer

@@ -289,7 +289,8 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
     e.stopPropagation();
     setShareData({
       title: getLocalizedText(post.title, currentLanguage),
-      url: `${window.location.origin}/post/${post.id}`
+      text: getLocalizedText(post.description || post.content, currentLanguage).slice(0, 160),
+      url: `${window.location.origin}/post/${encodeURIComponent(post.id)}`
     });
     setShareSheetOpen(true);
   };
@@ -572,8 +573,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
           <ShareSheet
             isOpen={shareSheetOpen}
             onClose={() => setShareSheetOpen(false)}
-            title={shareData.title}
-            url={shareData.url}
+            shareData={shareData}
           />
         )}
       </div>

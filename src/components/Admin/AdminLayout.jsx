@@ -25,7 +25,8 @@ import {
   Film,
   Newspaper,
   Handshake,
-  TicketPercent
+  TicketPercent,
+  ShieldAlert
 } from 'lucide-react';
 import EnhancedDashboard from './EnhancedDashboard';
 import UserManager from './UserManager';
@@ -46,6 +47,7 @@ import LeadManagement from './LeadManagement';
 import ErrorBoundary from '../Common/ErrorBoundary';
 import CouponManagement from './CouponManagement';
 import PaymentManagement from './PaymentManagement';
+import PostReportManagement from './PostReportManagement';
 
 const AdminLayout = () => {
   const { user } = useAuth();
@@ -92,6 +94,7 @@ const AdminLayout = () => {
     { id: 'auth-management', label: 'Authentication & Security', icon: Globe },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     { id: 'comment-moderation', label: 'Moderation', icon: CheckSquare },
+    { id: 'post-reports', label: 'Post Reports', icon: ShieldAlert },
     { id: 'events', label: 'Events', icon: Calendar },
     { id: 'polls', label: 'Polls', icon: BarChart3 },
     { id: 'realtime-content', label: 'Breaking News & Live', icon: Zap },
@@ -139,6 +142,8 @@ const AdminLayout = () => {
         return <Analytics />;
       case 'comment-moderation':
         return isMobile ? <MobileContentWarning /> : <CommentModeration />;
+      case 'post-reports':
+        return isMobile ? <MobileContentWarning /> : <PostReportManagement />;
       case 'events':
         return isMobile ? <MobileContentWarning /> : <EventManagement />;
       case 'polls':
@@ -311,6 +316,7 @@ const getPageDescription = (section) => {
     'auth-management': 'Manage authentication and security settings',
     'analytics': 'Detailed analytics and performance metrics',
     'comment-moderation': 'Moderate and manage user comments',
+    'post-reports': 'Review reported posts and record moderation actions',
     'events': 'Create and manage events and announcements',
     'polls': 'Create and manage interactive polls',
     'realtime-content': 'Manage breaking news and live updates',

@@ -25,7 +25,8 @@ export const DATABASE_PATHS = {
   LIVE_UPDATES: 'liveUpdates',
   POST_ANALYTICS: 'postAnalytics',
   USER_INTERACTIONS: 'userInteractions',
-  ADMIN_MODERATION: 'adminModeration'
+  ADMIN_MODERATION: 'adminModeration',
+  CONTENT_REPORTS: 'contentReports'
 };
 
 // =============================================

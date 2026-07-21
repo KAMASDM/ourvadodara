@@ -488,8 +488,8 @@ const CampaignAssistantChat = ({
   );
 
   const chatWindow = open && (
-    <section className={`fixed bottom-4 right-3 z-[70] flex h-[min(680px,calc(100vh-2rem))] w-[calc(100vw-1.5rem)] max-w-[430px] flex-col overflow-hidden rounded-[1.7rem] border border-white/75 bg-white shadow-2xl shadow-slate-950/20 lg:right-6 ${className}`}>
-      <div className="flex items-center justify-between bg-slate-950 px-4 py-3 text-white">
+    <section className={`fixed bottom-4 right-3 z-[70] flex h-[min(680px,calc(100vh-2rem))] w-[calc(100vw-1.5rem)] max-w-[430px] flex-col overflow-hidden rounded-[1.7rem] border border-white/75 bg-white shadow-2xl shadow-slate-950/20 lg:bottom-6 lg:right-6 lg:h-[min(760px,calc(100vh-3rem))] lg:w-[min(820px,calc(100vw-3rem))] lg:max-w-none lg:rounded-[2rem] ${className}`}>
+      <div className="flex items-center justify-between bg-slate-950 px-4 py-3 text-white lg:px-6 lg:py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-500 shadow-lg shadow-blue-500/30">
             <Bot className="h-6 w-6" />
@@ -507,7 +507,41 @@ const CampaignAssistantChat = ({
         </div>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-3">
+      <div className="flex min-h-0 flex-1">
+        <aside className="hidden w-56 shrink-0 flex-col justify-between border-r border-slate-200 bg-[linear-gradient(160deg,#eff6ff_0%,#f8fafc_55%,#fff7ed_100%)] p-5 lg:flex">
+          <div>
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
+              <Target className="h-5 w-5" />
+            </span>
+            <p className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-blue-700">Campaign workspace</p>
+            <h2 className="mt-2 text-xl font-black leading-tight text-slate-950">Let&rsquo;s build the right brand plan.</h2>
+            <p className="mt-2 text-xs leading-5 text-slate-600">Share a few details and get matched with the right service, package, and team.</p>
+
+            <ol className="mt-6 space-y-4">
+              {[
+                ['01', 'Tell us about your brand'],
+                ['02', 'Choose campaign services'],
+                ['03', 'Get a tailored response']
+              ].map(([step, label]) => (
+                <li key={step} className="flex items-center gap-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-white text-[10px] font-black text-blue-700">{step}</span>
+                  <span className="text-xs font-bold leading-4 text-slate-700">{label}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <div className="rounded-2xl border border-white bg-white/80 p-3 shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-black text-slate-900">
+              <Phone className="h-3.5 w-3.5 text-emerald-600" />
+              Human support included
+            </div>
+            <p className="mt-1.5 text-[11px] leading-4 text-slate-500">Sales team available Mon-Sat, 10 AM-7 PM.</p>
+          </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-3 lg:p-5">
         {messages.map((message, index) => (
           <div key={`${message.sender}-${index}`} className={`flex items-start gap-2 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             {message.sender === 'bot' && (
@@ -515,7 +549,7 @@ const CampaignAssistantChat = ({
                 <Bot className="h-4 w-4" />
               </div>
             )}
-            <div className={`min-w-0 max-w-[84%] break-words rounded-3xl px-4 py-3 shadow-sm ${message.sender === 'user' ? 'rounded-br-md bg-blue-600 text-white' : 'rounded-bl-md bg-white text-slate-800'}`}>
+            <div className={`min-w-0 break-words rounded-3xl px-4 py-3 shadow-sm ${message.serviceMenu || message.rateCardMenu ? 'max-w-[calc(100%-2.5rem)] lg:max-w-[92%]' : 'max-w-[84%] lg:max-w-[78%]'} ${message.sender === 'user' ? 'rounded-br-md bg-blue-600 text-white' : 'rounded-bl-md bg-white text-slate-800'}`}>
               {message.title && <p className={`font-bold ${message.sender === 'user' ? 'text-white' : 'text-slate-950'}`}>{message.title}</p>}
               <p className={`mt-1 whitespace-pre-line text-sm leading-6 ${message.sender === 'user' ? 'text-white' : 'text-slate-600'}`}>{message.text}</p>
 
@@ -564,10 +598,10 @@ const CampaignAssistantChat = ({
         )}
 
         {!leadCaptured && (
-          <form onSubmit={submitLeadCapture} className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
+          <form onSubmit={submitLeadCapture} className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm lg:ml-10 lg:p-5">
             <p className="text-sm font-black text-slate-950">Your details</p>
             <p className="mt-1 text-xs text-slate-500">This creates a lead in admin before the assistant starts.</p>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
               <div>
                 <input value={leadForm.contactName} onChange={(e) => updateLeadField('contactName', e.target.value)} placeholder="Your name *" autoComplete="name" minLength={2} maxLength={80} required aria-invalid={Boolean(errors.contactName)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
                 {errors.contactName && <p className="mt-1 text-xs text-red-600">{errors.contactName}</p>}
@@ -576,7 +610,7 @@ const CampaignAssistantChat = ({
                 <input value={leadForm.brandName} onChange={(e) => updateLeadField('brandName', e.target.value)} placeholder="Brand name *" autoComplete="organization" minLength={2} maxLength={120} required aria-invalid={Boolean(errors.brandName)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
                 {errors.brandName && <p className="mt-1 text-xs text-red-600">{errors.brandName}</p>}
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2 sm:grid-cols-2 lg:col-span-2">
                 <div>
                   <input value={leadForm.phone} onChange={(e) => updateLeadField('phone', e.target.value)} placeholder="10-digit phone *" type="tel" inputMode="numeric" pattern="[6-9][0-9]{9}" minLength={10} maxLength={10} autoComplete="tel-national" required aria-invalid={Boolean(errors.phone)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
                   {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
@@ -586,7 +620,7 @@ const CampaignAssistantChat = ({
                   {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
                 </div>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2 sm:grid-cols-2 lg:col-span-2">
                 <div>
                   <input value={leadForm.city} onChange={(e) => updateLeadField('city', e.target.value)} placeholder="City *" autoComplete="address-level2" minLength={2} maxLength={80} required aria-invalid={Boolean(errors.city)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100" />
                   {errors.city && <p className="mt-1 text-xs text-red-600">{errors.city}</p>}
@@ -606,7 +640,7 @@ const CampaignAssistantChat = ({
         )}
 
         {formMode && leadCaptured && (
-          <form onSubmit={submitRequirement} className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
+          <form onSubmit={submitRequirement} className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm lg:ml-10 lg:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-black text-slate-950">
@@ -649,7 +683,7 @@ const CampaignAssistantChat = ({
       {leadCaptured && (
         <form
           onSubmit={handleSendFreeText}
-          className="flex items-center gap-2 border-t border-slate-100 bg-white p-3"
+          className="flex items-center gap-2 border-t border-slate-100 bg-white p-3 lg:px-5 lg:py-4"
         >
           <input
             value={freeText}
@@ -667,6 +701,8 @@ const CampaignAssistantChat = ({
           </button>
         </form>
       )}
+        </div>
+      </div>
     </section>
   );
 

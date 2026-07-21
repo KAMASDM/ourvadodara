@@ -5,18 +5,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
-import { getCommentsForModeration, moderateComment, DATABASE_PATHS } from '../../utils/databaseSchema';
+import { DATABASE_PATHS } from '../../utils/databaseSchema';
 import { ref, onValue, get, update } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { 
   MessageSquare, 
   CheckCircle, 
   XCircle, 
-  Eye, 
   User, 
   Calendar, 
   ExternalLink,
-  Filter,
   Search,
   AlertTriangle
 } from 'lucide-react';
@@ -43,15 +41,17 @@ const CommentModeration = () => {
 
   // Load comments and posts
   useEffect(() => {
+    let unsubscribeComments = () => {};
+    let cancelled = false;
+
     const loadData = async () => {
       try {
-        let postsDataMap = {};
         let postsListCache = [];
         // Load posts for filter dropdown
         const postsRef = ref(db, DATABASE_PATHS.POSTS);
         const postsSnapshot = await get(postsRef);
         if (postsSnapshot.exists()) {
-          postsDataMap = postsSnapshot.val();
+          const postsDataMap = postsSnapshot.val();
           postsListCache = Object.keys(postsDataMap).map(key => ({
             id: key,
             ...postsDataMap[key],
@@ -66,92 +66,88 @@ const CommentModeration = () => {
 
         // Load comments with real-time updates
         const commentsRef = ref(db, 'comments');
-        const unsubscribe = onValue(commentsRef, async (snapshot) => {
+        if (cancelled) return;
+
+        unsubscribeComments = onValue(commentsRef, (snapshot) => {
           if (snapshot.exists()) {
             const commentsData = snapshot.val();
             const commentsList = [];
-            
-            // Comments are stored as comments/{postId}/{commentId}
-            // We need to iterate through each post's comments
-            Object.entries(commentsData).forEach(([postId, postComments]) => {
-              if (postComments && typeof postComments === 'object') {
-                Object.entries(postComments).forEach(([commentId, comment]) => {
-                  if (typeof comment !== 'object' || comment === null) return;
-                  // Comments store `text` and a string `author`; normalize so
-                  // the moderation UI (which reads content/author.name) works.
+
+            // Walk top-level comments and every nested replies collection.
+            // Each item keeps its exact database path so moderation writes do
+            // not accidentally update a top-level node when acting on a reply.
+            const collectComments = (commentNodes, postId, parentPath, depth = 0) => {
+              if (!commentNodes || typeof commentNodes !== 'object') return;
+
+              Object.entries(commentNodes).forEach(([commentId, comment]) => {
+                if (!comment || typeof comment !== 'object') return;
+                const path = `${parentPath}/${commentId}`;
+                const content = comment.text || comment.content || '';
+
+                if (content) {
                   commentsList.push({
-                    id: commentId,
-                    postId: postId,
                     ...comment,
-                    content: comment.text || comment.content || '',
+                    id: commentId,
+                    path,
+                    postId,
+                    content,
+                    isReply: depth > 0,
+                    replyDepth: depth,
                     author: typeof comment.author === 'object'
                       ? comment.author
-                      : { name: comment.author || comment.userName || 'Anonymous', uid: comment.authorId }
+                      : {
+                          name: comment.author || comment.userName || 'Anonymous',
+                          uid: comment.authorId || comment.userId,
+                          email: comment.authorEmail || comment.userEmail || ''
+                        }
                   });
-                });
-              }
+                }
+
+                if (comment.replies && typeof comment.replies === 'object') {
+                  collectComments(comment.replies, postId, `${path}/replies`, depth + 1);
+                }
+              });
+            };
+
+            Object.entries(commentsData).forEach(([postId, postComments]) => {
+              collectComments(postComments, postId, `comments/${postId}`);
             });
 
-            console.log('Comments loaded:', commentsList.length);
-            console.log('Sample comment:', commentsList[0]);
-
             // Enhance comments with post information
-            const enhancedComments = await Promise.all(
-              commentsList.map(async (comment) => {
-                let postTitle = 'Unknown Post';
-                let postCategory = 'uncategorized';
-                
-                // Try to find post in cache first
+            const enhancedComments = commentsList.map(comment => {
                 const cachedPost = postsListCache.find(p => p.id === comment.postId);
-                if (cachedPost) {
-                  postTitle = cachedPost.title?.en || cachedPost.title?.gu || cachedPost.title?.hi || 
-                              (typeof cachedPost.title === 'string' ? cachedPost.title : 'Unknown Post');
-                  postCategory = cachedPost.category || 'uncategorized';
-                } else if (comment.postId) {
-                  // If not in cache, fetch directly from Firebase
-                  try {
-                    const postRef = ref(db, `${DATABASE_PATHS.POSTS}/${comment.postId}`);
-                    const postSnapshot = await get(postRef);
-                    if (postSnapshot.exists()) {
-                      const post = postSnapshot.val();
-                      postTitle = post.title?.en || post.title?.gu || post.title?.hi || 
-                                 (typeof post.title === 'string' ? post.title : 'Unknown Post');
-                      postCategory = post.category || 'uncategorized';
-                    }
-                  } catch (error) {
-                    console.error('Error fetching post for comment:', error);
-                  }
-                }
-                
                 return {
                   ...comment,
-                  postTitle,
-                  postCategory,
-                  // Ensure createdAt exists
+                  postTitle: cachedPost?.displayTitle || 'Unknown or removed post',
+                  postCategory: cachedPost?.category || 'uncategorized',
                   createdAt: comment.createdAt || comment.timestamp || new Date().toISOString()
                 };
-              })
-            );
+              });
 
-            setComments(enhancedComments.sort((a, b) => {
+            if (!cancelled) setComments(enhancedComments.sort((a, b) => {
               const dateA = new Date(a.createdAt).getTime();
               const dateB = new Date(b.createdAt).getTime();
               return dateB - dateA;
             }));
-          } else {
+          } else if (!cancelled) {
             setComments([]);
           }
-          setLoading(false);
+          if (!cancelled) setLoading(false);
+        }, error => {
+          console.error('Error listening for moderation data:', error);
+          if (!cancelled) setLoading(false);
         });
-
-        return () => unsubscribe();
       } catch (error) {
         console.error('Error loading moderation data:', error);
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadData();
+    return () => {
+      cancelled = true;
+      unsubscribeComments();
+    };
   }, []);
 
   // Filter comments based on status, search, and post selection
@@ -186,27 +182,27 @@ const CommentModeration = () => {
     setFilteredComments(filtered);
   }, [comments, filter, searchTerm, selectedPost]);
 
-  const handleModeration = async (commentId, postId, action) => {
+  const handleModeration = async (targetComment, action) => {
     try {
-      // Update comment in Firebase at correct path: comments/{postId}/{commentId}
-      const commentRef = ref(db, `comments/${postId}/${commentId}`);
+      const moderatedAt = new Date().toISOString();
+      const commentRef = ref(db, targetComment.path);
       await update(commentRef, {
         approved: action === 'approve',
         rejected: action === 'reject',
         moderatedBy: user.uid,
-        moderatedAt: new Date().toISOString()
+        moderatedAt
       });
       
       // Update local state immediately for better UX
       setComments(prev => 
         prev.map(comment => 
-          comment.id === commentId 
+          comment.path === targetComment.path
             ? { 
                 ...comment, 
                 approved: action === 'approve',
                 rejected: action === 'reject',
                 moderatedBy: user.uid,
-                moderatedAt: new Date().toISOString()
+                moderatedAt
               }
             : comment
         )
@@ -401,8 +397,8 @@ const CommentModeration = () => {
         ) : (
           <div className="divide-y divide-gray-200">
             {filteredComments.map((comment) => (
-              <div key={comment.id} className="p-6">
-                <div className="flex items-start justify-between">
+              <div key={comment.path} className="p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="flex-1">
                     {/* Comment Header */}
                     <div className="flex items-center justify-between mb-3">
@@ -422,6 +418,11 @@ const CommentModeration = () => {
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(comment)}`}>
                           {getStatusText(comment)}
                         </span>
+                        {comment.isReply && (
+                          <span className="inline-flex rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-950/50 dark:text-violet-200">
+                            Reply{comment.replyDepth > 1 ? ` · level ${comment.replyDepth}` : ''}
+                          </span>
+                        )}
                       </div>
                       
                       {/* Post Link */}
@@ -470,16 +471,16 @@ const CommentModeration = () => {
 
                   {/* Action Buttons */}
                   {!comment.approved && !comment.rejected && (
-                    <div className="ml-4 flex space-x-2">
+                    <div className="flex shrink-0 gap-2 lg:ml-4">
                       <button
-                        onClick={() => handleModeration(comment.id, comment.postId, 'approve')}
+                        onClick={() => handleModeration(comment, 'approve')}
                         className={adminStyles.successButton}
                       >
                         <CheckCircle className="h-4 w-4 mr-1 inline" />
                         Approve
                       </button>
                       <button
-                        onClick={() => handleModeration(comment.id, comment.postId, 'reject')}
+                        onClick={() => handleModeration(comment, 'reject')}
                         className={adminStyles.dangerButton}
                       >
                         <XCircle className="h-4 w-4 mr-1 inline" />

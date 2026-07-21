@@ -5,9 +5,13 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { X, Flag, AlertTriangle } from 'lucide-react';
+import { ref, set } from 'firebase/database';
+import { db } from '../../firebase-config';
+import { useAuth } from '../../context/Auth/AuthContext';
 
-const ReportModal = ({ isOpen, onClose, contentId, contentType = 'post' }) => {
+const ReportModal = ({ isOpen, onClose, contentId, contentTitle = '', contentType = 'post' }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [reportReason, setReportReason] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,25 +34,44 @@ const ReportModal = ({ isOpen, onClose, contentId, contentType = 'post' }) => {
     setIsSubmitting(true);
     
     try {
-      // Here you would normally send the report to your backend
-      console.log('Report submitted:', {
+      if (!user?.uid) {
+        document.dispatchEvent(new CustomEvent('showGuestPrompt'));
+        throw new Error('AUTH_REQUIRED');
+      }
+
+      // Nesting by post and account lets Firebase rules enforce one immutable
+      // report per user for each post.
+      const now = new Date().toISOString();
+
+      await set(ref(db, `contentReports/${contentId}/${user.uid}`), {
         contentId,
         contentType,
+        contentTitle: String(contentTitle || '').slice(0, 240),
+        contentUrl: window.location.href,
         reason: reportReason,
-        description
+        description: description.trim(),
+        status: 'pending',
+        reporterId: user.uid,
+        reporterName: user.displayName || 'Anonymous user',
+        reporterEmail: user.email || '',
+        reporterIsAnonymous: Boolean(user.isAnonymous),
+        createdAt: now,
+        updatedAt: now
       });
-
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Show success message
       alert(t('report.success_message'));
       onClose();
       setReportReason('');
       setDescription('');
     } catch (error) {
       console.error('Error submitting report:', error);
-      alert(t('report.error_message'));
+      if (error.message === 'AUTH_REQUIRED') {
+        alert('Please sign in before reporting a post.');
+      } else if (error.code === 'PERMISSION_DENIED' || error.code === 'permission-denied') {
+        alert('You have already reported this post.');
+      } else {
+        alert(t('report.error_message'));
+      }
     } finally {
       setIsSubmitting(false);
     }

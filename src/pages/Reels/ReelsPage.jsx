@@ -10,6 +10,7 @@ import { ref, update, increment, get } from 'firebase/database';
 import { db } from '../../firebase-config';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import ThreadedCommentSection from '../../components/Comments/ThreadedCommentSection';
+import SuggestedReelsPanel from '../../components/Reels/SuggestedReelsPanel';
 import { useProfileCompletionGuard, ProfileCompletionModal } from '../../components/Common/ProfileCompletionGuard';
 import { 
   ArrowLeft, 
@@ -109,7 +110,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const { data: reelsData, isLoading } = useRealtimeData('reels', { scope: 'global' });
   const { checkProfileComplete, showModal, closeModal, profileCompletion } = useProfileCompletionGuard();
   
-  const [currentReelIndex, setCurrentReelIndex] = useState(0);
+  const [currentFeedIndex, setCurrentFeedIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const [showComments, setShowComments] = useState(false);
@@ -149,7 +150,52 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       .sort((a, b) => new Date(b.publishedAt || b.createdAt || 0) - new Date(a.publishedAt || a.createdAt || 0));
   }, [reelsData]);
 
-  const currentReel = reels[currentReelIndex];
+  // Instagram-style discovery panels are inserted after alternating groups of
+  // four and three reels. Suggestions favor similar categories and engagement.
+  const feedItems = useMemo(() => {
+    if (reels.length < 5) return reels.map(reel => ({ type: 'reel', reel }));
+
+    const items = [];
+    const groupSizes = [4, 3];
+    let cursor = 0;
+    let groupIndex = 0;
+
+    while (cursor < reels.length) {
+      const groupSize = groupSizes[groupIndex % groupSizes.length];
+      const group = reels.slice(cursor, cursor + groupSize);
+      group.forEach(reel => items.push({ type: 'reel', reel }));
+      cursor += group.length;
+
+      if (cursor < reels.length) {
+        const groupCategories = new Set(group.map(reel => reel.category).filter(Boolean));
+        const suggestions = reels
+          .slice(cursor)
+          .map(reel => ({
+            reel,
+            score:
+              (groupCategories.has(reel.category) ? 1_000_000 : 0) +
+              Number(reel.analytics?.views || 0) * 3 +
+              Number(reel.analytics?.likes || 0) * 10
+          }))
+          .sort((a, b) => b.score - a.score)
+          .map(item => item.reel)
+          .slice(0, 8);
+
+        items.push({
+          type: 'suggestions',
+          id: `suggestions-${groupIndex}`,
+          reels: suggestions
+        });
+      }
+
+      groupIndex += 1;
+    }
+
+    return items;
+  }, [reels]);
+
+  const currentFeedItem = feedItems[currentFeedIndex];
+  const currentReel = currentFeedItem?.type === 'reel' ? currentFeedItem.reel : null;
 
   // Track view for current reel
   useViewTracking(currentReel?.id, 'reels');
@@ -194,13 +240,16 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   // Keep exactly one reel playing. A canplay listener retries automatically
   // when a newly visible video is still arriving over a mobile connection.
   useEffect(() => {
-    const video = videoRefs.current[currentReel?.id];
-    if (!video) return;
-    let cancelled = false;
-
     Object.entries(videoRefs.current).forEach(([reelId, reelVideo]) => {
       if (reelId !== currentReel?.id && reelVideo) reelVideo.pause();
     });
+
+    const video = videoRefs.current[currentReel?.id];
+    if (!video) {
+      setIsBuffering(false);
+      return;
+    }
+    let cancelled = false;
 
     const playVideo = async () => {
       if (cancelled || !isPlaying) return;
@@ -224,12 +273,16 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       cancelled = true;
       video.removeEventListener('canplay', playVideo);
     };
-  }, [isPlaying, isMuted, currentReelIndex, currentReel]);
+  }, [isPlaying, isMuted, currentFeedIndex, currentReel]);
 
   // Track video progress - optimized with RAF
   useEffect(() => {
     const video = videoRefs.current[currentReel?.id];
-    if (!video) return;
+    if (!video) {
+      setProgress(0);
+      setBuffered(0);
+      return;
+    }
 
     let rafId;
     
@@ -252,7 +305,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [currentReelIndex, reels.length, currentReel]);
+  }, [currentFeedIndex, reels.length, currentReel]);
 
   // Control video mute
   useEffect(() => {
@@ -267,15 +320,15 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       return;
     }
 
-    const initialIndex = reels.findIndex(reel => reel.id === initialReelId);
+    const initialIndex = feedItems.findIndex(item => item.type === 'reel' && item.reel.id === initialReelId);
     if (initialIndex >= 0) {
-      setCurrentReelIndex(initialIndex);
+      setCurrentFeedIndex(initialIndex);
       requestAnimationFrame(() => {
         const container = containerRef.current;
         if (container) container.scrollTop = initialIndex * container.clientHeight;
       });
     }
-  }, [initialReelId, reels]);
+  }, [initialReelId, feedItems, reels.length]);
 
   // Hide hints after 3 seconds
   useEffect(() => {
@@ -285,8 +338,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     return () => clearTimeout(timer);
   }, []);
 
-  const scrollToReel = useCallback((index, behavior = 'smooth') => {
-    const targetIndex = Math.max(0, Math.min(index, reels.length - 1));
+  const scrollToFeedItem = useCallback((index, behavior = 'smooth') => {
+    const targetIndex = Math.max(0, Math.min(index, feedItems.length - 1));
     const container = containerRef.current;
     const currentVideo = videoRefs.current[currentReel?.id];
     if (currentVideo) currentVideo.pause();
@@ -294,17 +347,22 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     if (container) {
       container.scrollTo({ top: targetIndex * container.clientHeight, behavior });
     } else {
-      setCurrentReelIndex(targetIndex);
+      setCurrentFeedIndex(targetIndex);
     }
-  }, [currentReel?.id, reels.length]);
+  }, [currentReel?.id, feedItems.length]);
+
+  const openSuggestedReel = useCallback((reelId) => {
+    const targetIndex = feedItems.findIndex(item => item.type === 'reel' && item.reel.id === reelId);
+    if (targetIndex >= 0) scrollToFeedItem(targetIndex);
+  }, [feedItems, scrollToFeedItem]);
 
   const goToNext = useCallback(() => {
-    if (currentReelIndex < reels.length - 1) scrollToReel(currentReelIndex + 1);
-  }, [currentReelIndex, reels.length, scrollToReel]);
+    if (currentFeedIndex < feedItems.length - 1) scrollToFeedItem(currentFeedIndex + 1);
+  }, [currentFeedIndex, feedItems.length, scrollToFeedItem]);
 
   const goToPrevious = useCallback(() => {
-    if (currentReelIndex > 0) scrollToReel(currentReelIndex - 1);
-  }, [currentReelIndex, scrollToReel]);
+    if (currentFeedIndex > 0) scrollToFeedItem(currentFeedIndex - 1);
+  }, [currentFeedIndex, scrollToFeedItem]);
 
   const handleReelScroll = useCallback(() => {
     if (scrollFrameRef.current) return;
@@ -312,8 +370,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       scrollFrameRef.current = null;
       const container = containerRef.current;
       if (!container?.clientHeight) return;
-      const nextIndex = Math.max(0, Math.min(reels.length - 1, Math.round(container.scrollTop / container.clientHeight)));
-      setCurrentReelIndex(previousIndex => {
+      const nextIndex = Math.max(0, Math.min(feedItems.length - 1, Math.round(container.scrollTop / container.clientHeight)));
+      setCurrentFeedIndex(previousIndex => {
         if (previousIndex === nextIndex) return previousIndex;
         setIsPlaying(true);
         setShowActionsMenu(false);
@@ -321,7 +379,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         return nextIndex;
       });
     });
-  }, [reels.length]);
+  }, [feedItems.length]);
 
   useEffect(() => () => {
     if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
@@ -345,9 +403,10 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const activateVisibleReelFromGesture = useCallback(() => {
     const container = containerRef.current;
     const visibleIndex = container?.clientHeight
-      ? Math.max(0, Math.min(reels.length - 1, Math.round(container.scrollTop / container.clientHeight)))
-      : currentReelIndex;
-    const visibleReel = reels[visibleIndex];
+      ? Math.max(0, Math.min(feedItems.length - 1, Math.round(container.scrollTop / container.clientHeight)))
+      : currentFeedIndex;
+    const visibleItem = feedItems[visibleIndex];
+    const visibleReel = visibleItem?.type === 'reel' ? visibleItem.reel : null;
     const video = videoRefs.current[visibleReel?.id];
 
     const shouldEnableSound = !soundPreferenceSetRef.current;
@@ -360,7 +419,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         if (error?.name !== 'AbortError') console.log('Gesture playback failed:', error);
       });
     }
-  }, [currentReelIndex, isMuted, reels]);
+  }, [currentFeedIndex, feedItems, isMuted]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -585,7 +644,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       className={`reel-container ${isDesktop ? 'relative w-full h-screen' : 'fixed inset-0'} bg-black overflow-hidden select-none`}
     >
       {/* Progress Bar - Subtle Modern Design with Buffer Indicator */}
-      <div className="absolute top-0 left-0 right-0 z-[60] h-1 bg-white/10">
+      {currentReel && <div className="absolute top-0 left-0 right-0 z-[60] h-1 bg-white/10">
         {/* Buffered progress */}
         <div 
           className="absolute h-full bg-white/30 reel-progress"
@@ -596,7 +655,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           className="absolute h-full bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 reel-progress shadow-lg"
           style={{ width: `${progress}%` }}
         />
-      </div>
+      </div>}
 
       {/* Native scrolling reel track. Keeping every video in a full-height
           snap panel creates the physical slide transition users expect from
@@ -609,38 +668,45 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         className="absolute inset-0 overflow-y-auto overscroll-y-contain snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
       >
-        {reels.map((reel, index) => (
+        {feedItems.map((item, index) => item.type === 'suggestions' ? (
+          <SuggestedReelsPanel
+            key={item.id}
+            reels={item.reels}
+            onSelect={openSuggestedReel}
+            onContinue={() => scrollToFeedItem(index + 1)}
+          />
+        ) : (
           <section
-            key={reel.id}
+            key={item.reel.id}
             className="relative flex h-full min-h-full snap-start snap-always items-center justify-center bg-black"
-            aria-label={`Reel ${index + 1} of ${reels.length}`}
+            aria-label={`Reel ${reels.findIndex(reel => reel.id === item.reel.id) + 1} of ${reels.length}`}
           >
             <div className={`relative h-full w-full ${isDesktop ? 'max-w-md' : ''}`}>
               <video
                 ref={element => {
-                  if (element) videoRefs.current[reel.id] = element;
-                  else delete videoRefs.current[reel.id];
+                  if (element) videoRefs.current[item.reel.id] = element;
+                  else delete videoRefs.current[item.reel.id];
                 }}
                 data-reel="true"
-                src={reel.mediaContent?.items?.[0]?.url || reel.videoUrl}
-                poster={reel.mediaContent?.items?.[0]?.thumbnailUrl || reel.thumbnail}
+                src={item.reel.mediaContent?.items?.[0]?.url || item.reel.videoUrl}
+                poster={item.reel.mediaContent?.items?.[0]?.thumbnailUrl || item.reel.thumbnail}
                 className={`h-full w-full ${isDesktop ? 'object-contain' : 'object-cover'}`}
                 loop
                 playsInline
-                preload={index === currentReelIndex || index === currentReelIndex + 1 ? 'auto' : 'none'}
-                fetchPriority={index === currentReelIndex ? 'high' : 'auto'}
+                preload={index === currentFeedIndex || index === currentFeedIndex + 1 ? 'auto' : 'none'}
+                fetchPriority={index === currentFeedIndex ? 'high' : 'auto'}
                 muted={isMuted}
-                onLoadStart={() => index === currentReelIndex && setIsBuffering(true)}
-                onWaiting={() => index === currentReelIndex && setIsBuffering(true)}
-                onCanPlay={() => index === currentReelIndex && setIsBuffering(false)}
-                onPlaying={() => index === currentReelIndex && setIsBuffering(false)}
+                onLoadStart={() => index === currentFeedIndex && setIsBuffering(true)}
+                onWaiting={() => index === currentFeedIndex && setIsBuffering(true)}
+                onCanPlay={() => index === currentFeedIndex && setIsBuffering(false)}
+                onPlaying={() => index === currentFeedIndex && setIsBuffering(false)}
               />
               <button
                 type="button"
                 className="absolute inset-0 z-10 cursor-pointer bg-transparent"
                 style={{ touchAction: 'pan-y' }}
                 onClick={togglePlay}
-                aria-label={isPlaying && index === currentReelIndex ? 'Pause reel' : 'Play reel'}
+                aria-label={isPlaying && index === currentFeedIndex ? 'Pause reel' : 'Play reel'}
               />
             </div>
           </section>

@@ -258,10 +258,10 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
                     <button
                       key={tab.id}
                       onClick={() => setFeedTab(tab.id)}
-                      className={`px-3.5 py-1 text-xs font-semibold rounded-full transition ${
+                      className={`rounded-full border px-3.5 py-1 text-xs font-semibold transition ${
                         feedTab === tab.id
-                          ? 'bg-white/80 dark:bg-white/10 text-blue-700 dark:text-sky-300 shadow-sm'
-                          : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+                          ? 'border-blue-400 bg-white/80 text-blue-700 shadow-sm dark:border-sky-600 dark:bg-white/10 dark:text-sky-300'
+                          : 'border-slate-300 bg-white/40 text-neutral-500 hover:border-slate-400 hover:text-neutral-700 dark:border-slate-600 dark:bg-slate-900/30 dark:text-neutral-400 dark:hover:border-slate-500 dark:hover:text-neutral-200'
                       }`}
                     >
                       {tab.label}

@@ -5,6 +5,7 @@ import { db } from '../../firebase-config';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { getLocalizedText } from '../../utils/textUtils';
 import ShareSheet from '../Common/ShareSheet';
+import BreakingNewsGallery from './BreakingNewsGallery';
 
 const BreakingNewsDetail = ({ newsId, onBack, onNavigate }) => {
   const { currentLanguage } = useLanguage();
@@ -60,13 +61,7 @@ const BreakingNewsDetail = ({ newsId, onBack, onNavigate }) => {
           {item.location && <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4" />{item.location}</span>}
         </div>
           </div>
-        {media.length > 0 && <div className="grid gap-1 sm:grid-cols-2">{media.map((entry, mediaIndex) => {
-          const url = typeof entry === 'string' ? entry : entry.url;
-          const isVideo = entry?.type === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(url || '');
-          return isVideo
-            ? <video key={mediaIndex} src={url} controls className="max-h-[70vh] w-full bg-black object-contain sm:col-span-2" />
-            : <img key={mediaIndex} src={url} alt={`${title} ${mediaIndex + 1}`} className="max-h-[70vh] w-full bg-slate-100 object-contain dark:bg-slate-900" />;
-        })}</div>}
+        <BreakingNewsGallery key={item.id} media={media} title={title} />
         <div className="p-4 sm:p-7">
         <div className="prose prose-lg max-w-none whitespace-pre-line text-slate-700 dark:prose-invert dark:text-slate-200" dangerouslySetInnerHTML={{ __html: content }} />
         {item.externalLink && <a href={item.externalLink} target="_blank" rel="noreferrer" className="mt-7 inline-flex rounded-2xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800">Open source</a>}

@@ -44,7 +44,9 @@ const SwipeableCategoryFilter = memo(function SwipeableCategoryFilter({
             role="option"
             aria-selected={isActive}
             onClick={() => handleClick(cat.id)}
-            className={isActive ? 'chip chip-active' : 'chip'}
+            className={isActive
+              ? 'chip chip-active !border-teal-500 dark:!border-teal-400'
+              : 'chip !border-slate-300 dark:!border-slate-600'}
           >
             <span aria-hidden>{cat.icon}</span>
             <span className="whitespace-nowrap">{label}</span>

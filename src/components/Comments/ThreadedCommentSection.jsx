@@ -24,7 +24,7 @@ const Comment = ({
   const [showReplies, setShowReplies] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(comment.text || '');
-  const { data: repliesObject } = useRealtimeData(`comments/${postId}/${comment.id}/replies`);
+  const { data: repliesObject } = useRealtimeData(`${commentPath}/replies`);
 
   const isOwnComment = user?.uid && user.uid === comment.authorId;
 
@@ -131,7 +131,7 @@ const Comment = ({
             </span>
             
             <button 
-              onClick={() => onLike(comment.id)}
+              onClick={() => onLike(commentPath)}
               className={`flex items-center space-x-1 text-xs hover:text-red-500 transition-colors ${
                 comment.likes > 0 ? 'text-red-500 font-medium' : 'text-gray-500'
               }`}
@@ -142,7 +142,7 @@ const Comment = ({
 
             {canReply && (
               <button 
-                onClick={() => onReply(comment)}
+                onClick={() => onReply({ ...comment, commentPath })}
                 className="flex items-center space-x-1 text-xs text-gray-500 hover:text-blue-500 transition-colors"
               >
                 <MessageCircle className="w-3 h-3" />
@@ -199,7 +199,7 @@ const Comment = ({
               commentPath={`${commentPath}/replies/${reply.id}`}
               level={level + 1}
               onReply={onReply}
-              onLike={(replyId) => onLike(replyId, comment.id)}
+              onLike={onLike}
             />
           ))}
         </div>
@@ -219,6 +219,7 @@ const ThreadedCommentSection = ({ postId }) => {
   const comments = commentsObject
     ? Object.entries(commentsObject)
         .map(([key, value]) => ({ ...value, id: key }))
+        .filter(comment => Boolean(comment.text || comment.content))
         .filter(comment => !comment.parentId) // Only top-level comments
         .filter(comment => comment.rejected !== true) // hide comments rejected by moderators
         .sort((a, b) => {
@@ -235,7 +236,8 @@ const ThreadedCommentSection = ({ postId }) => {
 
     if (replyingTo) {
       // Submit as a reply
-      const repliesRef = ref(db, `comments/${postId}/${replyingTo.id}/replies`);
+      const parentCommentPath = replyingTo.commentPath || `comments/${postId}/${replyingTo.id}`;
+      const repliesRef = ref(db, `${parentCommentPath}/replies`);
       push(repliesRef, {
         text: newComment,
         author: user.displayName || 'Anonymous',
@@ -246,7 +248,7 @@ const ThreadedCommentSection = ({ postId }) => {
       });
 
       // Increment reply count
-      const commentRef = ref(db, `comments/${postId}/${replyingTo.id}`);
+      const commentRef = ref(db, parentCommentPath);
       update(commentRef, {
         replyCount: increment(1)
       });
@@ -276,13 +278,9 @@ const ThreadedCommentSection = ({ postId }) => {
     setReplyingTo(null);
   };
 
-  const handleLikeComment = (commentId, parentId = null) => {
+  const handleLikeComment = (commentPath) => {
     if (!user) return;
-    
-    const commentPath = parentId 
-      ? `comments/${postId}/${parentId}/replies/${commentId}`
-      : `comments/${postId}/${commentId}`;
-    
+
     const commentRef = ref(db, commentPath);
     update(commentRef, {
       likes: increment(1)
