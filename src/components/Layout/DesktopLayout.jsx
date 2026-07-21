@@ -2,7 +2,7 @@
 // src/components/Layout/DesktopLayout.jsx
 // Desktop Layout with Top Navigation
 // =============================================
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useCity } from '../../context/CityContext';
@@ -42,6 +42,35 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
   const [showCityMenu, setShowCityMenu] = useState(false);
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
+  const [headerBottom, setHeaderBottom] = useState(80);
+  const headerRef = useRef(null);
+
+  // The desktop header is content-sized, so a hard-coded popup offset can put
+  // menus on top of it at shorter desktop resolutions, non-default zoom
+  // levels, or with wider translated labels. Keep every detached popup below
+  // the header's actual rendered edge instead.
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return undefined;
+
+    const updateHeaderBottom = () => {
+      setHeaderBottom(Math.ceil(header.getBoundingClientRect().bottom));
+    };
+
+    updateHeaderBottom();
+    const observer = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateHeaderBottom)
+      : null;
+    observer?.observe(header);
+    window.addEventListener('resize', updateHeaderBottom);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', updateHeaderBottom);
+    };
+  }, []);
+
+  const popupTop = headerBottom + 8;
 
   const languages = [
     { code: 'en', nativeName: 'English' },
@@ -109,7 +138,7 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
   return (
     <div className="h-screen overflow-clip liquid-app-bg">
       <div className="flex h-screen min-w-0 flex-col">
-        <header className="sticky top-0 z-50 px-4 pt-3">
+        <header ref={headerRef} className="sticky top-0 z-50 px-4 pt-3">
           <div className="liquid-panel relative z-50 rounded-3xl px-4 py-3" style={{ overflow: 'visible' }}>
             <div className="flex min-w-0 items-center justify-between gap-4">
               <button
@@ -187,7 +216,7 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
                       {/* liquid-panel is intentionally NOT used here: its
                           position/overflow rules override .absolute and made
                           this dropdown expand the header in normal flow. */}
-                      <div className="absolute right-0 top-full z-50 mt-2 max-h-64 w-48 overflow-y-auto rounded-2xl border border-white/70 bg-white/90 py-1 shadow-2xl shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/90">
+                      <div className="absolute right-0 top-full z-50 mt-6 max-h-64 w-48 overflow-y-auto rounded-2xl border border-white/70 bg-white/90 py-1 shadow-2xl shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/90">
                         {cities.map((city) => (
                           <button
                             key={city.id}
@@ -235,7 +264,7 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
 
                   {showLanguageMenu && (
                     <>
-                      <div className="absolute right-0 top-full z-50 mt-2 w-40 rounded-2xl border border-white/70 bg-white/90 py-1 shadow-2xl shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/90">
+                      <div className="absolute right-0 top-full z-50 mt-6 w-40 rounded-2xl border border-white/70 bg-white/90 py-1 shadow-2xl shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/90">
                         {languages.map((lang) => (
                           <button
                             key={lang.code}
@@ -307,7 +336,10 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
           {showCategoryMenu && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowCategoryMenu(false)} />
-              <div className="fixed left-1/2 top-[74px] z-[60] grid w-72 -translate-x-1/2 grid-cols-2 gap-1 rounded-2xl border border-white/70 bg-white/85 p-2 shadow-2xl shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/85">
+              <div
+                className="fixed left-1/2 z-[60] grid w-72 -translate-x-1/2 grid-cols-2 gap-1 rounded-2xl border border-white/70 bg-white/85 p-2 shadow-2xl shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/85"
+                style={{ top: popupTop }}
+              >
                 {categoryItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = isActiveNav(item);
@@ -335,7 +367,10 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
           {showUserMenu && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-              <div className="fixed right-4 top-[74px] z-[60] w-60 rounded-2xl border border-white/70 bg-white/85 py-2 shadow-2xl shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/85">
+              <div
+                className="fixed right-4 z-[60] w-60 rounded-2xl border border-white/70 bg-white/85 py-2 shadow-2xl shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/85"
+                style={{ top: popupTop }}
+              >
                 <button
                   type="button"
                   onClick={() => handleNavigation('profile')}
@@ -381,12 +416,18 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
 
       {/* Search overlay — floats above the current page instead of replacing it */}
       {showSearchOverlay && (
-        <div className="fixed inset-0 z-[80] flex items-start justify-center">
+        <div
+          className="fixed inset-0 z-[80] flex items-start justify-center px-4 pb-4"
+          style={{ paddingTop: popupTop }}
+        >
           <div
             className="absolute inset-0 bg-slate-950/45 backdrop-blur-sm"
             onClick={() => setShowSearchOverlay(false)}
           />
-          <div className="relative z-10 mt-16 flex max-h-[80vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-2xl shadow-slate-900/20 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/95">
+          <div
+            className="relative z-10 flex w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-2xl shadow-slate-900/20 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/95"
+            style={{ maxHeight: `calc(100vh - ${popupTop + 16}px)` }}
+          >
             <div className="flex items-center justify-between border-b border-slate-200/70 px-5 py-3 dark:border-white/10">
               <h2 className="text-base font-semibold text-slate-900 dark:text-white">Search news</h2>
               <button

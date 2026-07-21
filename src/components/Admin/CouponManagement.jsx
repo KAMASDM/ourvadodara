@@ -1,53 +1,192 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download, Plus, Search, ShieldCheck, Trash2 } from 'lucide-react';
-import { onValue, push, ref, remove, set, update } from 'firebase/database';
+import { Building2, Copy, ExternalLink, ImagePlus, KeyRound, Plus, Store, Tags } from 'lucide-react';
+import { onValue, ref } from 'firebase/database';
 import { db, functions, httpsCallable } from '../../firebase-config';
-import { useAuth } from '../../context/Auth/AuthContext';
 
-const EMPTY = { name: '', category: '', logoUrl: '', description: '', offerType: 'percentage', offerValue: 10, terms: '', startsAt: '', endsAt: '', redemptionLimit: 0, active: true };
+const DEFAULT_CATEGORIES = ['Food & Dining', 'Fashion', 'Beauty & Wellness', 'Entertainment', 'Shopping', 'Travel', 'Health', 'Education', 'Automotive', 'Home Services', 'Technology'];
+
+const EMPTY_BRAND = {
+  name: '', slug: '', address: '', phone: '', email: '', logoUrl: '',
+  loginEmail: '', password: '', category: DEFAULT_CATEGORIES[0], customCategory: ''
+};
+
+const slugify = value => String(value || '').toLowerCase().trim()
+  .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
 
 const CouponManagement = () => {
-  const { user } = useAuth();
   const [brands, setBrands] = useState([]);
-  const [redemptions, setRedemptions] = useState([]);
-  const [form, setForm] = useState(EMPTY);
-  const [editingId, setEditingId] = useState('');
+  const [accounts, setAccounts] = useState({});
+  const [savedCategories, setSavedCategories] = useState([]);
+  const [form, setForm] = useState(EMPTY_BRAND);
   const [showForm, setShowForm] = useState(false);
-  const [code, setCode] = useState('');
-  const [verification, setVerification] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(null);
 
-  useEffect(() => onValue(ref(db, 'couponBrands'), snapshot => setBrands(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value })))), []);
-  useEffect(() => onValue(ref(db, 'couponRedemptions'), snapshot => setRedemptions(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value })))), []);
-  const stats = useMemo(() => ({ issued: redemptions.length, used: redemptions.filter(item => item.status === 'redeemed').length, active: brands.filter(item => item.active !== false).length }), [brands, redemptions]);
+  useEffect(() => onValue(ref(db, 'brandsPublic'), snapshot => {
+    setBrands(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value })));
+  }), []);
+  useEffect(() => onValue(ref(db, 'brandAccounts'), snapshot => setAccounts(snapshot.val() || {})), []);
+  useEffect(() => onValue(ref(db, 'couponCategories'), snapshot => {
+    setSavedCategories(Object.values(snapshot.val() || {}).map(category => category.name).filter(Boolean));
+  }), []);
 
-  const saveBrand = async event => {
+  const categories = useMemo(
+    () => [...new Set([...DEFAULT_CATEGORIES, ...savedCategories])].sort((a, b) => a.localeCompare(b)),
+    [savedCategories]
+  );
+
+  const handleLogoUpload = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+      setError('Please choose an image smaller than 5 MB.');
+      return;
+    }
+    setUploading(true);
+    setError('');
+    try {
+      const logoDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Unable to read the selected image.'));
+        reader.readAsDataURL(file);
+      });
+      setForm(current => ({ ...current, logoUrl: logoDataUrl }));
+    } catch (uploadError) {
+      setError(uploadError?.message || 'Unable to upload the brand logo.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const submitBrand = async event => {
     event.preventDefault();
-    const data = { ...form, offerValue: Number(form.offerValue), redemptionLimit: Number(form.redemptionLimit), updatedAt: Date.now(), updatedBy: user?.uid || '' };
-    if (editingId) await update(ref(db, `couponBrands/${editingId}`), data);
-    else await set(push(ref(db, 'couponBrands')), { ...data, redeemedCount: 0, createdAt: Date.now() });
-    setForm(EMPTY); setEditingId(''); setShowForm(false);
+    const category = form.category === '__custom__' ? form.customCategory.trim() : form.category;
+    if (!category) {
+      setError('Enter the new category name.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setSuccess(null);
+    try {
+      const createBrand = httpsCallable(functions, 'adminCreateBrand');
+      const result = await createBrand({ ...form, category, slug: form.slug || slugify(form.name) });
+      setSuccess({ ...result.data, name: form.name, loginEmail: form.loginEmail, password: form.password });
+      setForm(EMPTY_BRAND);
+      setShowForm(false);
+    } catch (createError) {
+      const isAccountConflict = createError?.code === 'functions/already-exists';
+      setError(isAccountConflict
+        ? 'This portal URL or brand login email is already in use. Choose a different portal URL/login email and try again.'
+        : createError?.message?.replace('Firebase: ', '') || 'Unable to create brand.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const verify = async consume => {
-    setError(''); setVerification(null);
-    try { const call = httpsCallable(functions, 'verifyBrandCoupon'); const result = await call({ code, consume }); setVerification(result.data); }
-    catch (verifyError) { setError(verifyError?.message || 'Unable to verify coupon'); }
-  };
+  const copyPortal = async slug => navigator.clipboard.writeText(`${window.location.origin}/${slug}`);
 
-  const exportCsv = () => {
-    const esc = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    const csv = [['Code', 'Brand', 'Customer', 'Status', 'Issued', 'Redeemed'], ...redemptions.map(item => [item.code, item.brandName, item.userEmail, item.status, item.issuedAt, item.redeemedAt])].map(row => row.map(esc).join(',')).join('\n');
-    const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' })); const link = document.createElement('a'); link.href = url; link.download = 'coupon-redemptions.csv'; link.click(); URL.revokeObjectURL(url);
-  };
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold"><Building2 className="h-7 w-7 text-blue-600" /> Brands & Coupons</h1>
+          <p className="mt-1 text-sm text-gray-500">Create secure brand portals. Brands manage their own offers, scanning, and anonymous analytics.</p>
+        </div>
+        <button type="button" onClick={() => { setShowForm(current => !current); setError(''); }} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 font-semibold text-white hover:bg-blue-700">
+          <Plus className="h-4 w-4" /> Create brand
+        </button>
+      </div>
 
-  return <div className="space-y-6">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">Coupons & Brand Discounts</h1><p className="text-gray-500">Manage offers, verify customer codes, and review redemptions.</p></div><div className="flex gap-2"><button onClick={exportCsv} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2"><Download className="h-4 w-4" /> Export CSV</button><button onClick={() => { setForm(EMPTY); setEditingId(''); setShowForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white"><Plus className="h-4 w-4" /> Add brand</button></div></div>
-    <div className="grid gap-4 sm:grid-cols-3">{[['Active brands', stats.active], ['Coupons issued', stats.issued], ['Redeemed', stats.used]].map(([label, value]) => <div key={label} className="rounded-xl border bg-white p-5"><p className="text-sm text-gray-500">{label}</p><p className="mt-2 text-3xl font-bold">{value}</p></div>)}</div>
-    <section className="rounded-xl border bg-white p-5"><h2 className="mb-4 flex items-center gap-2 font-semibold"><ShieldCheck className="h-5 w-5 text-emerald-600" /> Coupon verification portal</h2><div className="flex flex-wrap gap-2"><div className="relative min-w-64 flex-1"><Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" /><input value={code} onChange={event => setCode(event.target.value.toUpperCase())} placeholder="OV-XXXXXXXXXX" className="w-full rounded-lg border py-2 pl-10 pr-3 font-mono" /></div><button onClick={() => verify(false)} disabled={!code} className="rounded-lg border px-4 py-2">Verify</button><button onClick={() => verify(true)} disabled={!code} className="rounded-lg bg-emerald-600 px-4 py-2 text-white">Verify & redeem</button></div>{error && <p className="mt-3 text-sm text-red-600">{error}</p>}{verification && <p className={`mt-3 rounded-lg p-3 text-sm ${verification.valid ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>{verification.valid ? 'Valid' : 'Not valid'} — {verification.brandName} — {verification.code} — {verification.status}</p>}</section>
-    {showForm && <form onSubmit={saveBrand} className="grid gap-3 rounded-xl border bg-white p-5 md:grid-cols-2"><h2 className="md:col-span-2 text-lg font-semibold">{editingId ? 'Edit' : 'Add'} brand offer</h2>{[['name', 'Brand name'], ['category', 'Category'], ['logoUrl', 'Logo URL'], ['description', 'Offer description'], ['offerValue', 'Offer value'], ['redemptionLimit', 'Redemption limit (0 = unlimited)'], ['startsAt', 'Starts at'], ['endsAt', 'Ends at'], ['terms', 'Terms']].map(([field, label]) => <label key={field} className={field === 'description' || field === 'terms' ? 'md:col-span-2' : ''}><span className="mb-1 block text-sm font-medium">{label}</span><input required={field === 'name' || field === 'description'} type={field.includes('At') ? 'datetime-local' : ['offerValue', 'redemptionLimit'].includes(field) ? 'number' : 'text'} value={form[field]} onChange={event => setForm(current => ({ ...current, [field]: event.target.value }))} className="w-full rounded-lg border px-3 py-2" /></label>)}<label><span className="mb-1 block text-sm font-medium">Offer type</span><select value={form.offerType} onChange={event => setForm(current => ({ ...current, offerType: event.target.value }))} className="w-full rounded-lg border px-3 py-2"><option value="percentage">Percentage</option><option value="fixed">Fixed amount</option></select></label><label className="flex items-center gap-2"><input type="checkbox" checked={form.active} onChange={event => setForm(current => ({ ...current, active: event.target.checked }))} /> Active</label><div className="flex justify-end gap-2 md:col-span-2"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2">Cancel</button><button className="rounded-lg bg-blue-600 px-4 py-2 text-white">Save offer</button></div></form>}
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{brands.map(brand => <article key={brand.id} className="rounded-xl border bg-white p-5"><div className="flex justify-between"><div><h3 className="font-bold">{brand.name}</h3><p className="text-sm text-gray-500">{brand.category}</p></div><span className={`h-fit rounded-full px-2 py-1 text-xs ${brand.active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100'}`}>{brand.active !== false ? 'Active' : 'Inactive'}</span></div><p className="mt-3 text-sm">{brand.description}</p><p className="mt-3 font-semibold text-emerald-700">{brand.offerType === 'fixed' ? `₹${brand.offerValue}` : `${brand.offerValue}%`} off · {brand.redeemedCount || 0}/{brand.redemptionLimit || '∞'} claimed</p><div className="mt-4 flex gap-2"><button onClick={() => { setForm({ ...EMPTY, ...brand }); setEditingId(brand.id); setShowForm(true); }} className="rounded-lg border px-3 py-1.5 text-sm">Edit</button><button onClick={() => window.confirm(`Delete ${brand.name}?`) && remove(ref(db, `couponBrands/${brand.id}`))} className="rounded-lg border border-red-200 px-3 py-1.5 text-red-600"><Trash2 className="h-4 w-4" /></button></div></article>)}</section>
-  </div>;
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {success && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+          <p className="font-semibold">{success.name} was created successfully.</p>
+          <p className="mt-1">Login: {success.loginEmail}</p>
+          <p className="mt-1">Temporary password: <span className="font-mono font-semibold">{success.password}</span></p>
+          <p className="mt-1 text-xs">Copy these credentials now; the password cannot be viewed again.</p>
+          <a className="mt-2 inline-flex items-center gap-1 font-semibold underline" href={success.portalUrl} target="_blank" rel="noreferrer">Open {success.portalUrl} <ExternalLink className="h-3.5 w-3.5" /></a>
+        </div>
+      )}
+
+      {showForm && (
+        <form onSubmit={submitBrand} className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm md:grid-cols-2 dark:border-gray-800 dark:bg-gray-900">
+          <div className="md:col-span-2">
+            <h2 className="text-lg font-bold">New brand account</h2>
+            <p className="text-sm text-gray-500">The password is sent directly to Firebase Authentication and is never stored in the database.</p>
+          </div>
+
+          <label className="text-sm font-medium">Brand name
+            <input required value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value, slug: !current.slug || current.slug === slugify(current.name) ? slugify(event.target.value) : current.slug }))} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-gray-950" />
+          </label>
+          <label className="text-sm font-medium">Portal URL
+            <div className="mt-1 flex overflow-hidden rounded-xl border"><span className="bg-gray-50 px-3 py-2.5 text-gray-500 dark:bg-gray-800">/</span><input required value={form.slug} onChange={event => setForm(current => ({ ...current, slug: slugify(event.target.value) }))} className="min-w-0 flex-1 px-3 py-2.5 dark:bg-gray-950" /></div>
+          </label>
+          <label className="text-sm font-medium md:col-span-2">Brand address
+            <textarea required rows="2" value={form.address} onChange={event => setForm(current => ({ ...current, address: event.target.value }))} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-gray-950" />
+          </label>
+          <label className="text-sm font-medium">Brand phone
+            <input required type="tel" value={form.phone} onChange={event => setForm(current => ({ ...current, phone: event.target.value }))} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-gray-950" />
+          </label>
+          <label className="text-sm font-medium">Public brand email
+            <input required type="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-gray-950" />
+          </label>
+          <label className="text-sm font-medium">Category
+            <select value={form.category} onChange={event => setForm(current => ({ ...current, category: event.target.value }))} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-gray-950">
+              {categories.map(category => <option key={category} value={category}>{category}</option>)}
+              <option value="__custom__">+ Add a new category</option>
+            </select>
+          </label>
+          {form.category === '__custom__' && <label className="text-sm font-medium">New category
+            <input required value={form.customCategory} onChange={event => setForm(current => ({ ...current, customCategory: event.target.value }))} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-gray-950" placeholder="e.g. Pet Care" />
+          </label>}
+          <label className="text-sm font-medium">Brand login ID (email)
+            <input required type="email" autoComplete="off" value={form.loginEmail} onChange={event => setForm(current => ({ ...current, loginEmail: event.target.value }))} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-gray-950" />
+          </label>
+          <label className="text-sm font-medium">Temporary password
+            <input required minLength="8" type="password" autoComplete="new-password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-gray-950" />
+          </label>
+          <label className="md:col-span-2 text-sm font-medium">Brand logo
+            <div className="mt-1 flex items-center gap-4 rounded-xl border border-dashed p-4">
+              {form.logoUrl ? <img src={form.logoUrl} alt="Brand logo preview" className="h-16 w-16 rounded-xl object-contain" /> : <div className="grid h-16 w-16 place-items-center rounded-xl bg-gray-100"><ImagePlus className="h-6 w-6 text-gray-400" /></div>}
+              <input required={!form.logoUrl} type="file" accept="image/*" onChange={handleLogoUpload} disabled={uploading} className="text-sm" />
+              {uploading && <span className="text-sm text-blue-600">Uploading…</span>}
+            </div>
+          </label>
+          {error && <div className="md:col-span-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+          <div className="flex justify-end gap-2 md:col-span-2">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-xl border px-4 py-2.5">Cancel</button>
+            <button disabled={saving || uploading} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50"><KeyRound className="h-4 w-4" /> {saving ? 'Creating…' : 'Create brand & login'}</button>
+          </div>
+        </form>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border bg-white p-5 dark:bg-gray-900"><Store className="h-5 w-5 text-blue-600" /><p className="mt-3 text-3xl font-bold">{brands.length}</p><p className="text-sm text-gray-500">Brands</p></div>
+        <div className="rounded-2xl border bg-white p-5 dark:bg-gray-900"><Tags className="h-5 w-5 text-purple-600" /><p className="mt-3 text-3xl font-bold">{categories.length}</p><p className="text-sm text-gray-500">Categories</p></div>
+        <div className="rounded-2xl border bg-white p-5 dark:bg-gray-900"><KeyRound className="h-5 w-5 text-emerald-600" /><p className="mt-3 text-3xl font-bold">{brands.filter(brand => accounts[brand.id]?.active !== false).length}</p><p className="text-sm text-gray-500">Active portals</p></div>
+      </div>
+
+      <section className="overflow-hidden rounded-2xl border bg-white dark:bg-gray-900">
+        <div className="border-b px-5 py-4"><h2 className="font-bold">Brand portals</h2></div>
+        <div className="divide-y">
+          {brands.map(brand => (
+            <div key={brand.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
+              <img src={brand.logoUrl || '/logo.png'} alt="" className="h-12 w-12 rounded-xl border object-contain" />
+              <div className="min-w-48 flex-1"><p className="font-semibold">{brand.name}</p><p className="text-sm text-gray-500">{brand.category} · {brand.phone}</p></div>
+              <div className="text-sm"><p className="font-medium">{accounts[brand.id]?.loginEmail || 'Account pending'}</p><p className="text-gray-500">/{brand.slug}</p></div>
+              <button type="button" onClick={() => copyPortal(brand.slug)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><Copy className="h-4 w-4" /> Copy portal</button>
+              <a href={`/${brand.slug}`} target="_blank" rel="noreferrer" className="rounded-lg border p-2" aria-label={`Open ${brand.name} portal`}><ExternalLink className="h-4 w-4" /></a>
+            </div>
+          ))}
+          {!brands.length && <p className="px-5 py-12 text-center text-gray-500">No brands created yet.</p>}
+        </div>
+      </section>
+    </div>
+  );
 };
 
 export default CouponManagement;

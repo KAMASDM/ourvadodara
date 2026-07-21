@@ -44,6 +44,7 @@ const BreakingNewsView = React.lazy(() => import('./components/Breaking/Breaking
 const BreakingNewsDetail = React.lazy(() => import('./components/Breaking/BreakingNewsDetail.jsx'));
 const LegalPage = React.lazy(() => import('./pages/Legal/LegalPage.jsx'));
 const CouponMarketplace = React.lazy(() => import('./components/Coupons/CouponMarketplace.jsx'));
+const BrandPortal = React.lazy(() => import('./pages/Brand/BrandPortal.jsx'));
 import { BloodSOSProvider } from './context/SOS/BloodSOSContext.jsx';
 import { TopicFollowingProvider } from './context/Topics/TopicFollowingContext.jsx';
 import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
@@ -67,7 +68,7 @@ function AppContent() {
   
   // Check profile completion after login
   useEffect(() => {
-    if (user && !user.isAnonymous && !user.profileComplete && profileCompletion && !profileCompletion.isComplete) {
+    if (user && user.role !== 'brand' && !user.isAnonymous && !user.profileComplete && profileCompletion && !profileCompletion.isComplete) {
       // Redirect to profile page if incomplete
       if (currentView.type !== 'profile') {
         setCurrentView({ type: 'profile', data: null });
@@ -215,6 +216,15 @@ function AppContent() {
       return;
     }
 
+    // Brand partner portals intentionally use a short root URL such as
+    // domain.com/brand-name. All first-party routes above take precedence.
+    const brandPortalMatch = path.match(/^\/([a-z0-9][a-z0-9-]*)\/?$/i);
+    if (brandPortalMatch) {
+      setCurrentView({ type: 'brand-portal', data: { slug: brandPortalMatch[1].toLowerCase() } });
+      setActiveTab('brand-portal');
+      return;
+    }
+
     setCurrentView((previous) => (previous.type === 'home' ? previous : { type: 'home', data: null }));
     setActiveTab((previous) => (previous === 'home' ? previous : 'home'));
   }, []);
@@ -341,6 +351,7 @@ function AppContent() {
     'firebase-setup',
     'admin-upgrade',
     'qr-scanner',
+    'brand-portal',
     'advertise',
     'event-detail',
     'reels' // immersive full-screen; ReelsPage has its own back control
@@ -521,6 +532,8 @@ function AppContent() {
         return <EventsCalendar />;
       case 'offers':
         return <CouponMarketplace />;
+      case 'brand-portal':
+        return <BrandPortal slug={currentView.data?.slug} />;
       case 'event-detail':
         return (
           <EventDetail

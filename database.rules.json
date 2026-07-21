@@ -67,6 +67,9 @@
         ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
         "role": {
           ".validate": "root.child('users').child(auth.uid).child('role').val() === 'admin' || (data.exists() && newData.val() === data.val()) || (!data.exists() && newData.val() === 'user')"
+        },
+        "brandId": {
+          ".validate": "root.child('users').child(auth.uid).child('role').val() === 'admin' || (data.exists() && newData.val() === data.val())"
         }
       }
     },
@@ -160,6 +163,18 @@
       ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
       ".write": "auth != null"
     },
+
+    // Content reports - authenticated users can create one immutable report
+    // per post; only admins can read reports or take moderation actions.
+    "contentReports": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      "$contentId": {
+        "$reporterId": {
+          ".write": "auth != null && ((!data.exists() && auth.uid === $reporterId && newData.child('reporterId').val() === auth.uid && newData.child('contentId').val() === $contentId && newData.child('status').val() === 'pending') || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+          ".validate": "!newData.exists() || (newData.hasChildren(['contentId', 'contentType', 'reason', 'status', 'reporterId', 'createdAt', 'updatedAt']) && newData.child('contentId').val() === $contentId && newData.child('contentType').val() === 'post' && newData.child('reason').isString() && newData.child('reporterId').val() === $reporterId && newData.child('status').isString() && newData.child('createdAt').isString() && newData.child('updatedAt').isString())"
+        }
+      }
+    },
     
     // News Roundups - public read, admin write
     "news-roundups": {
@@ -246,6 +261,49 @@
     "couponBrands": {
       ".read": true,
       ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+
+    "brandsPublic": {
+      ".read": true,
+      ".write": false
+    },
+
+    "brandSlugs": {
+      ".read": true,
+      ".write": false
+    },
+
+    "couponCategories": {
+      ".read": true,
+      ".write": false
+    },
+
+    "brandAccounts": {
+      "$brandId": {
+        ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'brand' && root.child('users').child(auth.uid).child('brandId').val() === $brandId && data.child('authUid').val() === auth.uid))",
+        ".write": false
+      }
+    },
+
+    "offers": {
+      ".read": true,
+      ".write": false,
+      ".indexOn": ["brandId", "categoryId", "status", "endsAt"]
+    },
+
+    "brandRedemptionFeed": {
+      "$brandId": {
+        ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'brand' && root.child('users').child(auth.uid).child('brandId').val() === $brandId && root.child('brandAccounts').child($brandId).child('authUid').val() === auth.uid))",
+        ".write": false,
+        ".indexOn": ["offerId", "redeemedAt"]
+      }
+    },
+
+    "offerClaimCountsByUser": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
     },
 
     "couponRedemptions": {

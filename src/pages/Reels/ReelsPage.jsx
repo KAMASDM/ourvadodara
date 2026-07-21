@@ -28,6 +28,82 @@ import {
 import { POST_TYPES } from '../../utils/mediaSchema';
 import { getLocalizedText } from '../../utils/textUtils';
 
+const ExpandableReelDescription = ({ text, reelId }) => {
+  const paragraphRef = useRef(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isTruncated, setIsTruncated] = useState(false);
+  const descriptionId = `reel-description-${String(reelId).replace(/[^a-zA-Z0-9_-]/g, '')}`;
+
+  useEffect(() => {
+    setIsExpanded(false);
+  }, [reelId, text]);
+
+  useEffect(() => {
+    const paragraph = paragraphRef.current;
+    if (!paragraph) return undefined;
+
+    const measureOverflow = () => {
+      if (!isExpanded) {
+        setIsTruncated(paragraph.scrollHeight > paragraph.clientHeight + 1);
+      }
+    };
+
+    const frame = requestAnimationFrame(measureOverflow);
+    const observer = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(measureOverflow)
+      : null;
+    observer?.observe(paragraph);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
+  }, [isExpanded, text]);
+
+  const stopReelGesture = event => event.stopPropagation();
+
+  return (
+    <div
+      className="pointer-events-auto mb-2"
+      onClick={stopReelGesture}
+      onDoubleClick={stopReelGesture}
+      onTouchStart={stopReelGesture}
+      onTouchMove={stopReelGesture}
+      onTouchEnd={stopReelGesture}
+    >
+      <p
+        ref={paragraphRef}
+        id={descriptionId}
+        className={`whitespace-pre-line break-words text-sm leading-relaxed opacity-95 drop-shadow-lg ${
+          isExpanded
+            ? 'max-h-[min(38vh,18rem)] overflow-y-auto overscroll-contain pr-1'
+            : 'line-clamp-2'
+        }`}
+        style={isExpanded ? { touchAction: 'pan-y' } : undefined}
+        onWheel={stopReelGesture}
+      >
+        {text}
+      </p>
+
+      {(isTruncated || isExpanded) && (
+        <button
+          type="button"
+          className="mt-1 rounded-md px-1 py-0.5 text-sm font-semibold text-white underline decoration-white/50 underline-offset-2 hover:decoration-white focus-visible:outline-white"
+          aria-expanded={isExpanded}
+          aria-controls={descriptionId}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setIsExpanded(previous => !previous);
+          }}
+        >
+          {isExpanded ? 'See less' : 'See more'}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const ReelsPage = ({ onBack, initialReelId = null }) => {
   const { user } = useAuth();
   const { data: reelsData, isLoading } = useRealtimeData('reels', { scope: 'global' });
@@ -649,9 +725,11 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
             )}
             
             {getLocalizedText(currentReel.description || currentReel.excerpt, 'en') && (
-              <p className="text-sm opacity-95 leading-relaxed mb-2 drop-shadow-lg line-clamp-2">
-                {getLocalizedText(currentReel.description || currentReel.excerpt, 'en')}
-              </p>
+              <ExpandableReelDescription
+                key={currentReel.id}
+                reelId={currentReel.id}
+                text={getLocalizedText(currentReel.description || currentReel.excerpt, 'en')}
+              />
             )}
             
             {/* Hashtags */}

@@ -69,7 +69,11 @@ export const AuthProvider = ({ children }) => {
           }
           
           // Check profile completion
-          const completionStatus = checkProfileCompletion(userProfile);
+          // Brand accounts are provisioned by an administrator and do not use
+          // the consumer profile-completion flow.
+          const completionStatus = userProfile?.role === 'brand'
+            ? { isComplete: true, missingFields: [] }
+            : checkProfileCompletion(userProfile);
           setProfileCompletion(completionStatus);
           
           setUser({
@@ -81,6 +85,7 @@ export const AuthProvider = ({ children }) => {
             emailVerified: firebaseUser.emailVerified,
             isAnonymous: firebaseUser.isAnonymous,
             role: userProfile?.role || 'user',
+            brandId: userProfile?.brandId || null,
             permissions: userProfile?.permissions || {},
             authMethod: userProfile?.authMethod || authMethod,
             authPhone: userProfile?.authPhone || authContactInfo.phone,

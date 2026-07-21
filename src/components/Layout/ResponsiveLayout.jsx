@@ -12,6 +12,7 @@ const MOBILE_ONLY = new Set([
   'admin', 'login', 'signup', 'admin-upgrade', 'firebase-setup', 'qr-scanner',
   'marketing',
   'advertise',
+  'brand-portal',
 ]);
 
 const ResponsiveLayout = ({ children, currentView = {}, onNavigate, isDesktop: isDesktopProp }) => {

@@ -20,6 +20,29 @@ const LEAD_NOTIFICATION_LOG_PATH = 'leadNotificationLogs';
 const LEAD_WHATSAPP_LOG_PATH = 'leadWhatsAppLogs';
 const BOTNEX_BASE_URL = 'https://app.botnex.io/api/v1';
 
+// datetime-local values created by the admin UI historically reached RTDB
+// without a timezone. Cloud Functions run in UTC, while the offer dates are
+// entered in India time, which made a newly-created offer appear active in the
+// browser but "not started" on the server for another 5.5 hours.
+const parseOfferDateTime = (value, fallback) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
+
+  const raw = String(value).trim();
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  const isLocalDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(raw);
+  const timestamp = Date.parse(isLocalDateTime && !hasTimezone ? `${raw}+05:30` : raw);
+  return Number.isFinite(timestamp) ? timestamp : NaN;
+};
+
+// Only a positive, finite value creates a stock limit. Zero, blank, missing,
+// negative, and legacy "unlimited" values all mean unlimited availability.
+const getCouponRedemptionLimit = offer => {
+  const rawLimit = offer?.redemptionLimit ?? offer?.maxUses ?? 0;
+  const limit = Number(rawLimit);
+  return Number.isFinite(limit) && limit > 0 ? limit : null;
+};
+
 const BOTNEX_OPERATIONS = {
   connectAccount: {
     endpoint: '/whatsapp/account/connect',
@@ -1449,6 +1472,385 @@ exports.verifyEventPayment = functions.runWith({ secrets: ['RAZORPAY_KEY_SECRET'
   return { verified: true, orderId, paymentId, amount: payment.amount };
 });
 
+const getAccountProfile = async uid => {
+  const snapshot = await admin.database().ref(`users/${uid}`).once('value');
+  return snapshot.val() || {};
+};
+
+const requireAdminAccount = async context => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Admin sign-in required');
+  const profile = await getAccountProfile(context.auth.uid);
+  const legacyAdmin = await admin.database().ref(`admins/${context.auth.uid}`).once('value');
+  if (context.auth.token.role !== 'admin' && profile.role !== 'admin' && !legacyAdmin.exists()) {
+    throw new functions.https.HttpsError('permission-denied', 'Admin access required');
+  }
+  return profile;
+};
+
+const requireBrandAccount = async context => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Brand sign-in required');
+  const profile = await getAccountProfile(context.auth.uid);
+  if (profile.role !== 'brand' || !profile.brandId) {
+    throw new functions.https.HttpsError('permission-denied', 'Brand access required');
+  }
+  const account = (await admin.database().ref(`brandAccounts/${profile.brandId}`).once('value')).val();
+  if (!account || account.authUid !== context.auth.uid || account.active === false) {
+    throw new functions.https.HttpsError('permission-denied', 'This brand account is inactive');
+  }
+  return { brandId: profile.brandId, profile, account };
+};
+
+const slugifyBrand = value => String(value || '')
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9\s-]/g, '')
+  .replace(/\s+/g, '-')
+  .replace(/-+/g, '-')
+  .replace(/^-|-$/g, '')
+  .slice(0, 60);
+
+const RESERVED_BRAND_SLUGS = new Set([
+  'admin', 'marketing', 'contact', 'terms', 'privacy', 'roundup', 'advertise',
+  'enquiry', 'brand-solutions', 'offers', 'coupons', 'search', 'breaking',
+  'reels', 'events', 'saved', 'profile', 'settings', 'notifications-settings',
+  'activity', 'login', 'signup'
+]);
+
+const normalizePositiveLimit = (value, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
+};
+
+const normalizeOfferInput = input => {
+  const discountTypes = new Set(['percentage', 'fixed', 'bogo', 'freebie', 'custom']);
+  const statusTypes = new Set(['draft', 'published', 'paused']);
+  const discountType = discountTypes.has(input?.discountType) ? input.discountType : 'percentage';
+  const rawDiscountValue = Math.max(0, Number(input?.discountValue) || 0);
+  const validDays = Array.isArray(input?.validDays)
+    ? input.validDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6)
+    : [];
+  const startAt = input?.startsAt ? new Date(input.startsAt).toISOString() : null;
+  const endAt = input?.endsAt ? new Date(input.endsAt).toISOString() : null;
+  if (startAt && endAt && Date.parse(endAt) <= Date.parse(startAt)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Offer end date must be after its start date');
+  }
+
+  return {
+    title: String(input?.title || '').trim().slice(0, 120),
+    description: String(input?.description || '').trim().slice(0, 2000),
+    terms: String(input?.terms || '').trim().slice(0, 3000),
+    discountType,
+    discountValue: discountType === 'percentage' ? Math.min(100, rawDiscountValue) : rawDiscountValue,
+    minimumPurchase: Math.max(0, Number(input?.minimumPurchase) || 0),
+    maximumDiscount: Math.max(0, Number(input?.maximumDiscount) || 0),
+    startsAt: startAt,
+    endsAt: endAt,
+    totalCouponLimit: normalizePositiveLimit(input?.totalCouponLimit),
+    perUserClaimLimit: normalizePositiveLimit(input?.perUserClaimLimit, 1),
+    maxUsesPerCoupon: normalizePositiveLimit(input?.maxUsesPerCoupon, 1),
+    couponValidityDays: normalizePositiveLimit(input?.couponValidityDays),
+    validDays,
+    dailyStartTime: /^\d{2}:\d{2}$/.test(input?.dailyStartTime || '') ? input.dailyStartTime : '',
+    dailyEndTime: /^\d{2}:\d{2}$/.test(input?.dailyEndTime || '') ? input.dailyEndTime : '',
+    status: statusTypes.has(input?.status) ? input.status : 'draft',
+    featured: input?.featured === true
+  };
+};
+
+const getIndiaDateParts = timestamp => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(new Date(timestamp));
+  const value = type => parts.find(part => part.type === type)?.value || '';
+  const dayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return { day: dayMap[value('weekday')], time: `${value('hour')}:${value('minute')}` };
+};
+
+const getOfferAvailabilityError = (offer, now = Date.now(), { claiming = false } = {}) => {
+  if (!offer || offer.active === false || offer.status === 'paused') return 'This offer is currently unavailable';
+  if (claiming && offer.status !== 'published') return 'This offer is not published';
+  const starts = parseOfferDateTime(offer.startsAt, 0);
+  const ends = parseOfferDateTime(offer.endsAt, Infinity);
+  if (!Number.isFinite(starts) || Number.isNaN(ends)) return 'This offer has invalid validity dates';
+  if (now < starts) return 'This offer has not started yet';
+  if (now > ends) return 'This offer has expired';
+
+  // Users may save an active offer at any time. Day/time windows describe when
+  // the coupon can be redeemed at the store and are enforced by the scanner.
+  if (!claiming) {
+    const india = getIndiaDateParts(now);
+    if (Array.isArray(offer.validDays) && offer.validDays.length && !offer.validDays.map(Number).includes(india.day)) {
+      return 'This coupon is not valid today';
+    }
+    if (offer.dailyStartTime && offer.dailyEndTime) {
+      const isOvernightWindow = offer.dailyStartTime > offer.dailyEndTime;
+      const inWindow = isOvernightWindow
+        ? india.time >= offer.dailyStartTime || india.time <= offer.dailyEndTime
+        : india.time >= offer.dailyStartTime && india.time <= offer.dailyEndTime;
+      if (!inWindow) return 'This coupon is not valid at this time';
+    } else if (offer.dailyStartTime && india.time < offer.dailyStartTime) {
+      return 'This coupon is not valid at this time';
+    } else if (offer.dailyEndTime && india.time > offer.dailyEndTime) {
+      return 'This coupon is not valid at this time';
+    }
+  }
+  return '';
+};
+
+const uploadBrandLogoDataUrl = async (value, uploaderUid) => {
+  const logoValue = String(value || '').trim();
+  if (!logoValue.startsWith('data:')) return { logoUrl: logoValue, storagePath: '' };
+
+  const match = logoValue.match(/^data:(image\/(?:png|jpe?g|webp|gif));base64,([A-Za-z0-9+/=]+)$/i);
+  if (!match) {
+    throw new functions.https.HttpsError('invalid-argument', 'Brand logo must be a PNG, JPEG, WebP, or GIF image');
+  }
+  const buffer = Buffer.from(match[2], 'base64');
+  if (!buffer.length || buffer.length > 5 * 1024 * 1024) {
+    throw new functions.https.HttpsError('invalid-argument', 'Brand logo must be smaller than 5 MB');
+  }
+
+  const extensionByType = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
+  const contentType = match[1].toLowerCase();
+  const storagePath = `brand-logos/${uploaderUid}/${Date.now()}-${crypto.randomUUID()}.${extensionByType[contentType]}`;
+  const downloadToken = crypto.randomUUID();
+  const bucket = admin.storage().bucket();
+  await bucket.file(storagePath).save(buffer, {
+    resumable: false,
+    metadata: { contentType, metadata: { firebaseStorageDownloadTokens: downloadToken } }
+  });
+  const logoUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media&token=${downloadToken}`;
+  return { logoUrl, storagePath };
+};
+
+exports.adminCreateBrand = functions.https.onCall(async (data, context) => {
+  await requireAdminAccount(context);
+  const name = String(data?.name || '').trim().slice(0, 120);
+  const slug = slugifyBrand(data?.slug || name);
+  const loginEmail = String(data?.loginEmail || '').trim().toLowerCase();
+  const password = String(data?.password || '');
+  const categoryName = String(data?.category || '').trim().slice(0, 80);
+  const categoryId = slugifyBrand(categoryName);
+  if (!name || !slug || !loginEmail.includes('@') || password.length < 8 || !categoryName) {
+    throw new functions.https.HttpsError('invalid-argument', 'Brand name, category, login email, and an 8-character password are required');
+  }
+  if (RESERVED_BRAND_SLUGS.has(slug)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Choose a different brand URL; this one is reserved');
+  }
+
+  const slugRef = admin.database().ref(`brandSlugs/${slug}`);
+  const reservation = await slugRef.transaction(current => {
+    const staleReservation = current?.reserved === true && Date.now() - Number(current.reservedAt || 0) > 10 * 60 * 1000;
+    return !current || staleReservation
+      ? { reserved: true, reservedAt: Date.now(), reservedBy: context.auth.uid }
+      : undefined;
+  });
+  if (!reservation.committed) {
+    throw new functions.https.HttpsError('already-exists', 'This brand URL is already in use');
+  }
+
+  let authUser;
+  let createdAuthUser = false;
+  let uploadedLogoPath = '';
+  try {
+    try {
+      authUser = await admin.auth().createUser({ email: loginEmail, password, displayName: name, emailVerified: true, disabled: false });
+      createdAuthUser = true;
+    } catch (createAuthError) {
+      if (createAuthError?.code !== 'auth/email-already-exists') throw createAuthError;
+
+      // A failed brand-creation attempt can leave a very recent Auth user even
+      // though no profile/brand was committed. Recover only that narrow case;
+      // established customer/admin accounts must never be converted to brands.
+      const existingAuthUser = await admin.auth().getUserByEmail(loginEmail);
+      const existingProfile = (await admin.database().ref(`users/${existingAuthUser.uid}`).once('value')).val();
+      const createdAt = Date.parse(existingAuthUser.metadata?.creationTime || '');
+      const isRecentOrphan = !existingProfile && Number.isFinite(createdAt) && Date.now() - createdAt < 60 * 60 * 1000;
+      if (!isRecentOrphan) {
+        throw new functions.https.HttpsError(
+          'already-exists',
+          'This brand login email already belongs to an existing account. Use a different login email.'
+        );
+      }
+      authUser = await admin.auth().updateUser(existingAuthUser.uid, {
+        password, displayName: name, emailVerified: true, disabled: false
+      });
+    }
+    const uploadedLogo = await uploadBrandLogoDataUrl(data?.logoUrl, context.auth.uid);
+    uploadedLogoPath = uploadedLogo.storagePath;
+    const brandRef = admin.database().ref('brandsPublic').push();
+    const brandId = brandRef.key;
+    const now = Date.now();
+    const publicBrand = {
+      id: brandId, name, slug, category: categoryName, categoryId,
+      address: String(data?.address || '').trim().slice(0, 500),
+      phone: String(data?.phone || '').trim().slice(0, 40),
+      email: String(data?.email || '').trim().toLowerCase().slice(0, 160),
+      logoUrl: uploadedLogo.logoUrl, active: true, createdAt: now, updatedAt: now
+    };
+    const updates = {};
+    updates[`brandsPublic/${brandId}`] = publicBrand;
+    updates[`brandSlugs/${slug}`] = { brandId, name, logoUrl: publicBrand.logoUrl, active: true };
+    updates[`brandAccounts/${brandId}`] = { authUid: authUser.uid, loginEmail, active: true, createdAt: now, createdBy: context.auth.uid };
+    updates[`users/${authUser.uid}`] = { email: loginEmail, displayName: name, role: 'brand', brandId, profileComplete: true, createdAt: new Date(now).toISOString(), permissions: { canManageOffers: true, canRedeemCoupons: true, canViewBrandAnalytics: true } };
+    updates[`couponCategories/${categoryId}`] = { id: categoryId, name: categoryName, createdAt: now, createdBy: context.auth.uid };
+    await admin.database().ref().update(updates);
+    return { brandId, slug, portalUrl: `/${slug}` };
+  } catch (error) {
+    if (createdAuthUser && authUser?.uid) await admin.auth().deleteUser(authUser.uid).catch(() => {});
+    if (uploadedLogoPath) await admin.storage().bucket().file(uploadedLogoPath).delete({ ignoreNotFound: true }).catch(() => {});
+    await slugRef.remove().catch(() => {});
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (error?.code === 'auth/email-already-exists') throw new functions.https.HttpsError('already-exists', 'That brand login email is already in use');
+    throw new functions.https.HttpsError('internal', error?.message || 'Unable to create brand');
+  }
+});
+
+exports.saveBrandOffer = functions.https.onCall(async (data, context) => {
+  const { brandId } = await requireBrandAccount(context);
+  const brand = (await admin.database().ref(`brandsPublic/${brandId}`).once('value')).val();
+  if (!brand?.active) throw new functions.https.HttpsError('failed-precondition', 'Brand is inactive');
+  const offer = normalizeOfferInput(data?.offer || {});
+  if (!offer.title || !offer.description) throw new functions.https.HttpsError('invalid-argument', 'Offer title and description are required');
+
+  const requestedId = String(data?.offerId || '');
+  const offerRef = requestedId ? admin.database().ref(`offers/${requestedId}`) : admin.database().ref('offers').push();
+  const existing = requestedId ? (await offerRef.once('value')).val() : null;
+  if (requestedId && (!existing || existing.brandId !== brandId)) throw new functions.https.HttpsError('permission-denied', 'Offer does not belong to this brand');
+  const now = Date.now();
+  const record = {
+    ...existing, ...offer, id: offerRef.key, brandId, brandName: brand.name, brandSlug: brand.slug,
+    brandLogoUrl: brand.logoUrl || '', category: brand.category, categoryId: brand.categoryId,
+    active: offer.status === 'published', issuedCount: Number(existing?.issuedCount || 0),
+    redeemedCount: Number(existing?.redeemedCount || 0), createdAt: existing?.createdAt || now, updatedAt: now
+  };
+  await offerRef.set(record);
+  return { offerId: offerRef.key };
+});
+
+exports.claimBrandOffer = functions.https.onCall(async (data, context) => {
+  if (!context.auth || context.auth.token.firebase?.sign_in_provider === 'anonymous') {
+    throw new functions.https.HttpsError('unauthenticated', 'Sign in with a verified account to claim offers');
+  }
+  const offerId = String(data?.offerId || '');
+  const offerRef = admin.database().ref(`offers/${offerId}`);
+  const initialOffer = (await offerRef.once('value')).val();
+  const availabilityError = getOfferAvailabilityError(initialOffer, Date.now(), { claiming: true });
+  if (availabilityError) throw new functions.https.HttpsError('failed-precondition', availabilityError);
+
+  const claimCountRef = admin.database().ref(`offerClaimCountsByUser/${context.auth.uid}/${offerId}`);
+  const perUserLimit = normalizePositiveLimit(initialOffer.perUserClaimLimit, 1);
+  const claimResult = await claimCountRef.transaction(count => {
+    const current = Math.max(0, Number(count) || 0);
+    return current >= perUserLimit ? undefined : current + 1;
+  });
+  if (!claimResult.committed) throw new functions.https.HttpsError('already-exists', 'You have reached the claim limit for this offer');
+
+  let claimedOffer;
+  const stockResult = await offerRef.transaction(current => {
+    const error = getOfferAvailabilityError(current, Date.now(), { claiming: true });
+    if (error) return;
+    const totalLimit = normalizePositiveLimit(current.totalCouponLimit);
+    const issuedCount = Math.max(0, Number(current.issuedCount) || 0);
+    if (totalLimit && issuedCount >= totalLimit) return;
+    claimedOffer = current;
+    return { ...current, issuedCount: issuedCount + 1, updatedAt: Date.now() };
+  });
+  if (!stockResult.committed || !claimedOffer) {
+    await claimCountRef.transaction(count => Math.max(0, (Number(count) || 1) - 1));
+    throw new functions.https.HttpsError('failed-precondition', 'This offer is unavailable or sold out');
+  }
+
+  const couponRef = admin.database().ref('couponRedemptions').push();
+  const code = `OV-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+  const now = Date.now();
+  const validityExpiry = claimedOffer.couponValidityDays ? now + Number(claimedOffer.couponValidityDays) * 86400000 : Infinity;
+  const offerExpiry = parseOfferDateTime(claimedOffer.endsAt, Infinity);
+  const expiresAtMs = Math.min(validityExpiry, offerExpiry);
+  const expiresAt = Number.isFinite(expiresAtMs) ? new Date(expiresAtMs).toISOString() : null;
+  const coupon = {
+    id: couponRef.key, offerId, brandId: claimedOffer.brandId, userId: context.auth.uid, code,
+    status: 'issued', issuedAt: now, expiresAt, useCount: 0,
+    maxUses: normalizePositiveLimit(claimedOffer.maxUsesPerCoupon, 1)
+  };
+  const userCoupon = {
+    ...coupon, userId: null, brandName: claimedOffer.brandName, brandLogoUrl: claimedOffer.brandLogoUrl || '',
+    offerTitle: claimedOffer.title, description: claimedOffer.description, discountType: claimedOffer.discountType,
+    discountValue: claimedOffer.discountValue, minimumPurchase: claimedOffer.minimumPurchase || 0,
+    maximumDiscount: claimedOffer.maximumDiscount || 0, terms: claimedOffer.terms || ''
+  };
+  const updates = {};
+  updates[`couponRedemptions/${couponRef.key}`] = coupon;
+  updates[`userCoupons/${context.auth.uid}/${couponRef.key}`] = userCoupon;
+  updates[`couponAudit/${couponRef.key}/issued`] = { action: 'issued', at: now, actor: context.auth.uid };
+  try {
+    await admin.database().ref().update(updates);
+  } catch (error) {
+    await Promise.all([
+      claimCountRef.transaction(count => Math.max(0, (Number(count) || 1) - 1)),
+      offerRef.child('issuedCount').transaction(count => Math.max(0, (Number(count) || 1) - 1))
+    ]).catch(() => {});
+    throw new functions.https.HttpsError('internal', 'Unable to issue the coupon. Please try again.');
+  }
+  return { couponId: couponRef.key, code, expiresAt, offerTitle: claimedOffer.title };
+});
+
+exports.redeemOfferCoupon = functions.https.onCall(async (data, context) => {
+  const { brandId } = await requireBrandAccount(context);
+  let code = String(data?.code || '').trim();
+  try {
+    const parsed = JSON.parse(code);
+    if (parsed?.type === 'ov-coupon') code = String(parsed.code || '');
+  } catch { /* Manual coupon codes are valid input too. */ }
+  code = code.trim().toUpperCase();
+  if (!code) throw new functions.https.HttpsError('invalid-argument', 'Coupon code is required');
+
+  const matches = (await admin.database().ref('couponRedemptions').orderByChild('code').equalTo(code).once('value')).val() || {};
+  const [couponId, initialCoupon] = Object.entries(matches)[0] || [];
+  if (!initialCoupon || initialCoupon.brandId !== brandId) throw new functions.https.HttpsError('not-found', 'Coupon is not valid for this brand');
+  const offer = (await admin.database().ref(`offers/${initialCoupon.offerId}`).once('value')).val();
+  if (!offer) throw new functions.https.HttpsError('not-found', 'Offer no longer exists');
+
+  let updatedCoupon;
+  let redemptionError = 'Coupon could not be redeemed';
+  const couponRef = admin.database().ref(`couponRedemptions/${couponId}`);
+  const result = await couponRef.transaction(current => {
+    if (!current || current.brandId !== brandId) return;
+    const now = Date.now();
+    const useCount = Math.max(0, Number(current.useCount) || 0);
+    const maxUses = normalizePositiveLimit(current.maxUses, 1);
+    if (current.status === 'cancelled') { redemptionError = 'Coupon is cancelled'; return; }
+    if (current.expiresAt && now > Date.parse(current.expiresAt)) { redemptionError = 'Coupon has expired'; return; }
+    if (useCount >= maxUses || current.status === 'redeemed') { redemptionError = 'Coupon usage limit has been reached'; return; }
+    const availabilityError = getOfferAvailabilityError(offer, now);
+    if (availabilityError) { redemptionError = availabilityError; return; }
+    const nextUseCount = useCount + 1;
+    updatedCoupon = { ...current, useCount: nextUseCount, status: nextUseCount >= maxUses ? 'redeemed' : 'issued', lastRedeemedAt: now };
+    return updatedCoupon;
+  });
+  if (!result.committed || !updatedCoupon) throw new functions.https.HttpsError('failed-precondition', redemptionError);
+
+  const redeemedAt = updatedCoupon.lastRedeemedAt;
+  const feedRef = admin.database().ref(`brandRedemptionFeed/${brandId}`).push();
+  const updates = {};
+  updates[`userCoupons/${updatedCoupon.userId}/${couponId}/useCount`] = updatedCoupon.useCount;
+  updates[`userCoupons/${updatedCoupon.userId}/${couponId}/status`] = updatedCoupon.status;
+  updates[`userCoupons/${updatedCoupon.userId}/${couponId}/lastRedeemedAt`] = redeemedAt;
+  updates[`brandRedemptionFeed/${brandId}/${feedRef.key}`] = {
+    id: feedRef.key, offerId: offer.id, offerTitle: offer.title, redeemedAt,
+    couponCodeSuffix: code.slice(-4), useNumber: updatedCoupon.useCount
+  };
+  updates[`couponAudit/${couponId}/${feedRef.key}`] = { action: 'redeemed', at: redeemedAt, actor: context.auth.uid };
+  updates[`offers/${offer.id}/redeemedCount`] = admin.database.ServerValue.increment(1);
+  await admin.database().ref().update(updates);
+  return {
+    success: true, offerTitle: offer.title, discountType: offer.discountType,
+    discountValue: offer.discountValue, minimumPurchase: offer.minimumPurchase || 0,
+    maximumDiscount: offer.maximumDiscount || 0, useCount: updatedCoupon.useCount,
+    maxUses: updatedCoupon.maxUses, status: updatedCoupon.status, redeemedAt
+  };
+});
+
 exports.redeemBrandCoupon = functions.https.onCall(async (data, context) => {
   if (!context.auth || context.auth.token.firebase?.sign_in_provider === 'anonymous') throw new functions.https.HttpsError('unauthenticated', 'Sign in with a verified account to claim offers');
   const brandId = String(data?.brandId || '');
@@ -1459,16 +1861,44 @@ exports.redeemBrandCoupon = functions.https.onCall(async (data, context) => {
   if (existing.exists()) throw new functions.https.HttpsError('already-exists', 'You have already claimed this brand offer');
 
   let brand;
+  let unavailableReason = 'This offer is unavailable';
   const result = await brandRef.transaction(current => {
-    if (!current) return;
+    if (!current) {
+      unavailableReason = 'This offer no longer exists';
+      return;
+    }
+
     const now = Date.now();
-    const starts = current.startsAt ? new Date(current.startsAt).getTime() : 0;
-    const ends = current.endsAt ? new Date(current.endsAt).getTime() : Infinity;
-    if (current.active === false || now < starts || now > ends || (Number(current.redemptionLimit) > 0 && Number(current.redeemedCount || 0) >= Number(current.redemptionLimit))) return;
+    const starts = parseOfferDateTime(current.startsAt, 0);
+    const ends = parseOfferDateTime(current.endsAt, Infinity);
+    const redemptionLimit = getCouponRedemptionLimit(current);
+    const redeemedCount = Math.max(0, Number(current.redeemedCount) || 0);
+
+    if (!Number.isFinite(starts) || Number.isNaN(ends)) {
+      unavailableReason = 'This offer has an invalid availability date';
+      return;
+    }
+    if (current.active === false) {
+      unavailableReason = 'This offer is currently inactive';
+      return;
+    }
+    if (now < starts) {
+      unavailableReason = 'This offer has not started yet';
+      return;
+    }
+    if (now > ends) {
+      unavailableReason = 'This offer has expired';
+      return;
+    }
+    if (redemptionLimit !== null && redeemedCount >= redemptionLimit) {
+      unavailableReason = 'This offer is sold out';
+      return;
+    }
+
     brand = current;
-    return { ...current, redeemedCount: Number(current.redeemedCount || 0) + 1, updatedAt: now };
+    return { ...current, redeemedCount: redeemedCount + 1, updatedAt: now };
   });
-  if (!result.committed || !brand) throw new functions.https.HttpsError('failed-precondition', 'This offer is unavailable or sold out');
+  if (!result.committed || !brand) throw new functions.https.HttpsError('failed-precondition', unavailableReason);
 
   // Recheck inside a claim transaction to close simultaneous duplicate requests.
   const claimLock = await userClaimRef.transaction(current => current ? undefined : { lockedAt: admin.database.ServerValue.TIMESTAMP });
