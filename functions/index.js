@@ -1567,7 +1567,7 @@ const getIndiaDateParts = timestamp => {
 };
 
 const getOfferAvailabilityError = (offer, now = Date.now(), { claiming = false } = {}) => {
-  if (!offer || offer.active === false || offer.status === 'paused') return 'This offer is currently unavailable';
+  if (!offer || offer.active === false || offer.brandActive === false || offer.status === 'paused') return 'This offer is currently unavailable';
   if (claiming && offer.status !== 'published') return 'This offer is not published';
   const starts = parseOfferDateTime(offer.startsAt, 0);
   const ends = parseOfferDateTime(offer.endsAt, Infinity);
@@ -1706,6 +1706,125 @@ exports.adminCreateBrand = functions.https.onCall(async (data, context) => {
   }
 });
 
+exports.adminUpdateBrand = functions.https.onCall(async (data, context) => {
+  await requireAdminAccount(context);
+  const brandId = String(data?.brandId || '').trim();
+  if (!brandId) throw new functions.https.HttpsError('invalid-argument', 'Brand is required');
+
+  const [brandSnapshot, accountSnapshot] = await Promise.all([
+    admin.database().ref(`brandsPublic/${brandId}`).once('value'),
+    admin.database().ref(`brandAccounts/${brandId}`).once('value')
+  ]);
+  const existingBrand = brandSnapshot.val();
+  const existingAccount = accountSnapshot.val();
+  if (!existingBrand || !existingAccount?.authUid) {
+    throw new functions.https.HttpsError('not-found', 'Brand account was not found');
+  }
+
+  const name = String(data?.name || '').trim().slice(0, 120);
+  const slug = slugifyBrand(data?.slug || name);
+  const categoryName = String(data?.category || '').trim().slice(0, 80);
+  const categoryId = slugifyBrand(categoryName);
+  const loginEmail = String(data?.loginEmail || existingAccount.loginEmail || '').trim().toLowerCase();
+  const password = String(data?.password || '');
+  const active = data?.active !== false;
+  if (!name || !slug || !categoryName || !loginEmail.includes('@')) {
+    throw new functions.https.HttpsError('invalid-argument', 'Brand name, category, portal URL, and login email are required');
+  }
+  if (password && password.length < 8) {
+    throw new functions.https.HttpsError('invalid-argument', 'A new password must contain at least 8 characters');
+  }
+  if (RESERVED_BRAND_SLUGS.has(slug)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Choose a different brand URL; this one is reserved');
+  }
+
+  const slugChanged = slug !== existingBrand.slug;
+  const newSlugRef = admin.database().ref(`brandSlugs/${slug}`);
+  let reservedNewSlug = false;
+  let uploadedLogoPath = '';
+  let authUpdated = false;
+  let previousAuthUser;
+
+  try {
+    if (slugChanged) {
+      const reservation = await newSlugRef.transaction(current => {
+        const staleReservation = current?.reserved === true && Date.now() - Number(current.reservedAt || 0) > 10 * 60 * 1000;
+        return !current || staleReservation || current?.brandId === brandId
+          ? { reserved: true, reservedAt: Date.now(), reservedBy: context.auth.uid, brandId }
+          : undefined;
+      });
+      if (!reservation.committed) {
+        throw new functions.https.HttpsError('already-exists', 'This brand URL is already in use');
+      }
+      reservedNewSlug = true;
+    }
+
+    const uploadedLogo = await uploadBrandLogoDataUrl(data?.logoUrl || existingBrand.logoUrl, context.auth.uid);
+    uploadedLogoPath = uploadedLogo.storagePath;
+    previousAuthUser = await admin.auth().getUser(existingAccount.authUid);
+    const authChanges = { email: loginEmail, displayName: name, disabled: !active };
+    if (password) authChanges.password = password;
+    await admin.auth().updateUser(existingAccount.authUid, authChanges);
+    authUpdated = true;
+
+    const now = Date.now();
+    const updatedBrand = {
+      ...existingBrand,
+      id: brandId,
+      name,
+      slug,
+      category: categoryName,
+      categoryId,
+      address: String(data?.address || '').trim().slice(0, 500),
+      phone: String(data?.phone || '').trim().slice(0, 40),
+      email: String(data?.email || '').trim().toLowerCase().slice(0, 160),
+      logoUrl: uploadedLogo.logoUrl,
+      active,
+      updatedAt: now
+    };
+    const offersSnapshot = await admin.database().ref('offers').orderByChild('brandId').equalTo(brandId).once('value');
+    const updates = {};
+    updates[`brandsPublic/${brandId}`] = updatedBrand;
+    updates[`brandSlugs/${slug}`] = { brandId, name, logoUrl: updatedBrand.logoUrl, active };
+    if (slugChanged) updates[`brandSlugs/${existingBrand.slug}`] = null;
+    updates[`brandAccounts/${brandId}/loginEmail`] = loginEmail;
+    updates[`brandAccounts/${brandId}/active`] = active;
+    updates[`brandAccounts/${brandId}/updatedAt`] = now;
+    updates[`users/${existingAccount.authUid}/email`] = loginEmail;
+    updates[`users/${existingAccount.authUid}/displayName`] = name;
+    updates[`couponCategories/${categoryId}`] = { id: categoryId, name: categoryName, createdAt: now, createdBy: context.auth.uid };
+    offersSnapshot.forEach(offerSnapshot => {
+      const offerPath = `offers/${offerSnapshot.key}`;
+      updates[`${offerPath}/brandName`] = name;
+      updates[`${offerPath}/brandSlug`] = slug;
+      updates[`${offerPath}/brandLogoUrl`] = updatedBrand.logoUrl;
+      updates[`${offerPath}/category`] = categoryName;
+      updates[`${offerPath}/categoryId`] = categoryId;
+      updates[`${offerPath}/brandActive`] = active;
+      updates[`${offerPath}/updatedAt`] = now;
+    });
+    await admin.database().ref().update(updates);
+    return { brandId, slug, portalUrl: `/${slug}`, loginEmail, active };
+  } catch (error) {
+    if (uploadedLogoPath) await admin.storage().bucket().file(uploadedLogoPath).delete({ ignoreNotFound: true }).catch(() => {});
+    if (reservedNewSlug) {
+      await newSlugRef.transaction(current => current?.reservedBy === context.auth.uid ? null : current).catch(() => {});
+    }
+    if (authUpdated && previousAuthUser) {
+      await admin.auth().updateUser(existingAccount.authUid, {
+        email: previousAuthUser.email,
+        displayName: previousAuthUser.displayName || existingBrand.name,
+        disabled: previousAuthUser.disabled
+      }).catch(() => {});
+    }
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (error?.code === 'auth/email-already-exists') {
+      throw new functions.https.HttpsError('already-exists', 'That brand login email is already in use');
+    }
+    throw new functions.https.HttpsError('internal', error?.message || 'Unable to update brand');
+  }
+});
+
 exports.saveBrandOffer = functions.https.onCall(async (data, context) => {
   const { brandId } = await requireBrandAccount(context);
   const brand = (await admin.database().ref(`brandsPublic/${brandId}`).once('value')).val();
@@ -1721,6 +1840,7 @@ exports.saveBrandOffer = functions.https.onCall(async (data, context) => {
   const record = {
     ...existing, ...offer, id: offerRef.key, brandId, brandName: brand.name, brandSlug: brand.slug,
     brandLogoUrl: brand.logoUrl || '', category: brand.category, categoryId: brand.categoryId,
+    brandActive: brand.active !== false,
     active: offer.status === 'published', issuedCount: Number(existing?.issuedCount || 0),
     redeemedCount: Number(existing?.redeemedCount || 0), createdAt: existing?.createdAt || now, updatedAt: now
   };

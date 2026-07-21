@@ -279,6 +279,7 @@
     },
 
     "brandAccounts": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
       "$brandId": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'brand' && root.child('users').child(auth.uid).child('brandId').val() === $brandId && data.child('authUid').val() === auth.uid))",
         ".write": false
