@@ -11,6 +11,7 @@ import { db } from '../../firebase-config';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import ThreadedCommentSection from '../../components/Comments/ThreadedCommentSection';
 import SuggestedReelsPanel from '../../components/Reels/SuggestedReelsPanel';
+import { ReelsOfferPanel, ReelsPollPanel, ReelsWeatherPanel } from '../../components/Reels/ReelsDiscoveryPanels';
 import { useProfileCompletionGuard, ProfileCompletionModal } from '../../components/Common/ProfileCompletionGuard';
 import { 
   ArrowLeft, 
@@ -150,13 +151,14 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       .sort((a, b) => new Date(b.publishedAt || b.createdAt || 0) - new Date(a.publishedAt || a.createdAt || 0));
   }, [reelsData]);
 
-  // Instagram-style discovery panels are inserted after alternating groups of
-  // four and three reels. Suggestions favor similar categories and engagement.
+  // Discovery breaks rotate between local offers, a community poll, tomorrow's
+  // weather, and suggested reels without interrupting consecutive videos too often.
   const feedItems = useMemo(() => {
     if (reels.length < 5) return reels.map(reel => ({ type: 'reel', reel }));
 
     const items = [];
-    const groupSizes = [4, 3];
+    const groupSizes = [3, 2, 3, 3];
+    const panelTypes = ['offers', 'poll', 'weather', 'suggestions'];
     let cursor = 0;
     let groupIndex = 0;
 
@@ -167,25 +169,14 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       cursor += group.length;
 
       if (cursor < reels.length) {
-        const groupCategories = new Set(group.map(reel => reel.category).filter(Boolean));
-        const suggestions = reels
-          .slice(cursor)
-          .map(reel => ({
-            reel,
-            score:
-              (groupCategories.has(reel.category) ? 1_000_000 : 0) +
-              Number(reel.analytics?.views || 0) * 3 +
-              Number(reel.analytics?.likes || 0) * 10
-          }))
-          .sort((a, b) => b.score - a.score)
-          .map(item => item.reel)
-          .slice(0, 8);
-
-        items.push({
-          type: 'suggestions',
-          id: `suggestions-${groupIndex}`,
-          reels: suggestions
-        });
+        const panelType = panelTypes[groupIndex % panelTypes.length];
+        if (panelType === 'suggestions') {
+          const groupCategories = new Set(group.map(reel => reel.category).filter(Boolean));
+          const suggestions = reels.slice(cursor).map(reel => ({ reel, score: (groupCategories.has(reel.category) ? 1_000_000 : 0) + Number(reel.analytics?.views || 0) * 3 + Number(reel.analytics?.likes || 0) * 10 })).sort((a, b) => b.score - a.score).map(item => item.reel).slice(0, 8);
+          items.push({ type: panelType, id: `${panelType}-${groupIndex}`, reels: suggestions });
+        } else {
+          items.push({ type: panelType, id: `${panelType}-${groupIndex}` });
+        }
       }
 
       groupIndex += 1;
@@ -668,14 +659,13 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         className="absolute inset-0 overflow-y-auto overscroll-y-contain snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
       >
-        {feedItems.map((item, index) => item.type === 'suggestions' ? (
-          <SuggestedReelsPanel
-            key={item.id}
-            reels={item.reels}
-            onSelect={openSuggestedReel}
-            onContinue={() => scrollToFeedItem(index + 1)}
-          />
-        ) : (
+        {feedItems.map((item, index) => {
+          const onContinue = () => scrollToFeedItem(index + 1);
+          if (item.type === 'suggestions') return <SuggestedReelsPanel key={item.id} reels={item.reels} onSelect={openSuggestedReel} onContinue={onContinue} />;
+          if (item.type === 'offers') return <ReelsOfferPanel key={item.id} onContinue={onContinue} />;
+          if (item.type === 'poll') return <ReelsPollPanel key={item.id} onContinue={onContinue} />;
+          if (item.type === 'weather') return <ReelsWeatherPanel key={item.id} onContinue={onContinue} />;
+          return (
           <section
             key={item.reel.id}
             className="relative flex h-full min-h-full snap-start snap-always items-center justify-center bg-black"
@@ -710,7 +700,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
               />
             </div>
           </section>
-        ))}
+          );
+        })}
       </div>
 
       {/* Header */}

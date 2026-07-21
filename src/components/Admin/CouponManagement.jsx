@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Building2, Copy, ExternalLink, ImagePlus, KeyRound, Pencil, Plus, Store, Tags } from 'lucide-react';
 import { onValue, ref } from 'firebase/database';
 import { db, functions, httpsCallable } from '../../firebase-config';
+import BrandAnalyticsDashboard from './BrandAnalyticsDashboard';
 
 const DEFAULT_CATEGORIES = ['Food & Dining', 'Fashion', 'Beauty & Wellness', 'Entertainment', 'Shopping', 'Travel', 'Health', 'Education', 'Automotive', 'Home Services', 'Technology'];
 
@@ -24,6 +25,7 @@ const CouponManagement = () => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
+  const [analyticsBrand, setAnalyticsBrand] = useState(null);
 
   useEffect(() => onValue(ref(db, 'brandsPublic'), snapshot => {
     setBrands(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value })));
@@ -139,6 +141,10 @@ const CouponManagement = () => {
 
   const copyPortal = async slug => navigator.clipboard.writeText(`${window.location.origin}/${slug}`);
 
+  if (analyticsBrand) {
+    return <BrandAnalyticsDashboard brand={analyticsBrand} onBack={() => setAnalyticsBrand(null)} />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -231,7 +237,7 @@ const CouponManagement = () => {
           {brands.map(brand => (
             <div key={brand.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
               <img src={brand.logoUrl || '/logo.png'} alt="" className="h-12 w-12 rounded-xl border object-contain" />
-              <div className="min-w-48 flex-1"><p className="font-semibold">{brand.name}</p><p className="text-sm text-gray-500">{brand.category} · {brand.phone}</p></div>
+              <div className="min-w-48 flex-1"><button type="button" onClick={() => setAnalyticsBrand(brand)} className="font-semibold text-blue-700 underline-offset-4 hover:underline dark:text-blue-300">{brand.name}</button><p className="text-sm text-gray-500">{brand.category} · {brand.phone}</p></div>
               <div className="text-sm"><p className="font-medium">{accounts[brand.id]?.loginEmail || 'Loading account…'}</p><p className="text-gray-500">/{brand.slug}</p><span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${accounts[brand.id]?.active === true ? 'bg-emerald-100 text-emerald-700' : accounts[brand.id]?.active === false ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{accounts[brand.id]?.active === true ? 'Active' : accounts[brand.id]?.active === false ? 'Inactive' : 'Checking status'}</span></div>
               <button type="button" onClick={() => openEditForm(brand)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"><Pencil className="h-4 w-4" /> Edit</button>
               <button type="button" onClick={() => copyPortal(brand.slug)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><Copy className="h-4 w-4" /> Copy portal</button>
