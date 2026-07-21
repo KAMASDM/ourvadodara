@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowDown, CalendarDays, CheckCircle2, CloudSun, Droplets, Gift, Sparkles,
+  ArrowDown, CalendarDays, CheckCircle2, CloudSun, Droplets, Gift, Moon, Sparkles,
   Store, TicketCheck, Users, Vote, Wind
 } from 'lucide-react';
 import { onValue, ref, runTransaction } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { getLocalizedText } from '../../utils/textUtils';
+import { describeWeather, getMoonPhase, useVadodaraWeather } from '../../utils/weather';
+import WeatherAtmosphere from '../Weather/WeatherAtmosphere';
 
 const navigateTo = path => {
   window.history.pushState({}, '', path);
@@ -150,41 +152,20 @@ export const ReelsPollPanel = ({ onContinue }) => {
   );
 };
 
-const FORECAST_CACHE_KEY = 'reels_tomorrow_weather_vadodara';
-
 export const ReelsWeatherPanel = ({ onContinue }) => {
-  const [forecast, setForecast] = useState(null);
-  const [unavailable, setUnavailable] = useState(false);
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const cached = JSON.parse(sessionStorage.getItem(FORECAST_CACHE_KEY) || 'null');
-        if (cached && Date.now() - cached.savedAt < 30 * 60 * 1000) { setForecast(cached.data); return; }
-        const key = import.meta.env.VITE_OPENWEATHER_API_KEY;
-        if (!key) throw new Error('Weather service is not configured');
-        const response = await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=Vadodara&appid=${encodeURIComponent(key)}&units=metric`);
-        if (!response.ok) throw new Error('Forecast unavailable');
-        const json = await response.json();
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const targetDate = tomorrow.toISOString().slice(0, 10);
-        const entries = (json.list || []).filter(item => String(item.dt_txt || '').startsWith(targetDate));
-        const selected = entries.sort((a, b) => Math.abs(new Date(a.dt_txt).getHours() - 12) - Math.abs(new Date(b.dt_txt).getHours() - 12))[0];
-        if (!selected) throw new Error('Forecast unavailable');
-        const data = { date: tomorrow, temp: Math.round(selected.main.temp), feels: Math.round(selected.main.feels_like), humidity: selected.main.humidity, wind: Math.round(selected.wind.speed), condition: selected.weather?.[0]?.description || 'Clear', icon: selected.weather?.[0]?.icon };
-        sessionStorage.setItem(FORECAST_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data }));
-        setForecast(data);
-      } catch { setUnavailable(true); }
-    };
-    load();
-  }, []);
+  const { weather, loading, error } = useVadodaraWeather();
+  const forecast = weather?.tomorrow;
+  const condition = describeWeather(forecast?.symbolCode);
+  const moon = getMoonPhase(forecast?.date);
 
   return (
     <PanelShell label="Plan ahead" title="Tomorrow in Vadodara" description="A quick look at tomorrow’s weather before you continue watching." icon={CloudSun} color="sky" onContinue={onContinue}>
-      {forecast ? <div className="mx-auto max-w-2xl overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.08] shadow-2xl backdrop-blur-sm">
-        <div className="flex flex-wrap items-center justify-between gap-5 p-6 sm:p-8"><div className="flex items-center gap-4">{forecast.icon ? <img src={`https://openweathermap.org/img/wn/${forecast.icon}@2x.png`} alt="" className="h-20 w-20" /> : <CloudSun className="h-16 w-16 text-sky-200" />}<div><p className="text-5xl font-black">{forecast.temp}°</p><p className="mt-1 capitalize text-sky-200">{forecast.condition}</p></div></div><div className="text-right"><p className="flex items-center justify-end gap-2 text-sm text-white/60"><CalendarDays className="h-4 w-4" />{new Date(forecast.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p><p className="mt-2 text-sm">Feels like {forecast.feels}°C</p></div></div>
-        <div className="grid grid-cols-2 border-t border-white/10 bg-black/15"><div className="flex items-center justify-center gap-3 border-r border-white/10 p-4"><Droplets className="h-5 w-5 text-sky-300" /><div><p className="font-black">{forecast.humidity}%</p><p className="text-xs text-white/50">Humidity</p></div></div><div className="flex items-center justify-center gap-3 p-4"><Wind className="h-5 w-5 text-sky-300" /><div><p className="font-black">{forecast.wind} m/s</p><p className="text-xs text-white/50">Wind</p></div></div></div>
-      </div> : <div className="mx-auto max-w-2xl rounded-3xl border border-dashed border-white/15 bg-white/5 p-10 text-center"><CloudSun className="mx-auto h-10 w-10 text-white/30" /><p className="mt-3 text-sm text-white/60">{unavailable ? 'Tomorrow’s forecast is temporarily unavailable.' : 'Loading tomorrow’s forecast…'}</p></div>}
+      {forecast ? <div className="relative isolate mx-auto max-w-2xl overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.08] shadow-2xl backdrop-blur-sm">
+        <WeatherAtmosphere symbolCode={forecast.symbolCode} />
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-5 p-6 sm:p-8"><div className="flex items-center gap-4"><CloudSun className="h-16 w-16 text-sky-200" /><div><p className="text-5xl font-black">{forecast.temperature}°</p><p className="mt-1 text-sky-200">{condition.label}</p><p className="mt-1 text-xs text-white/55">Low {forecast.temperatureMin}° · High {forecast.temperatureMax}°</p></div></div><div className="text-right"><p className="flex items-center justify-end gap-2 text-sm text-white/60"><CalendarDays className="h-4 w-4" />{new Date(`${forecast.date}T12:00:00+05:30`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p><p className="mt-2 text-sm">Expected rain {forecast.precipitationTotal} mm</p></div></div>
+        <div className="relative z-10 grid grid-cols-3 border-t border-white/10 bg-black/20"><div className="flex items-center justify-center gap-2 border-r border-white/10 p-4"><Droplets className="h-5 w-5 text-sky-300" /><div><p className="font-black">{forecast.humidity}%</p><p className="text-xs text-white/50">Humidity</p></div></div><div className="flex items-center justify-center gap-2 border-r border-white/10 p-4"><Wind className="h-5 w-5 text-sky-300" /><div><p className="font-black">{forecast.windSpeed} m/s</p><p className="text-xs text-white/50">Wind</p></div></div><div className="flex items-center justify-center gap-2 p-4"><Moon className="h-5 w-5 text-indigo-200" /><div><p className="font-black">{moon.emoji} {moon.illumination}%</p><p className="text-xs text-white/50">{moon.name}</p></div></div></div>
+        <a href={weather.providerUrl} target="_blank" rel="noreferrer" className="relative z-10 m-3 inline-block text-[10px] text-white/40 underline">Weather data: MET Norway</a>
+      </div> : <div className="mx-auto max-w-2xl rounded-3xl border border-dashed border-white/15 bg-white/5 p-10 text-center"><CloudSun className="mx-auto h-10 w-10 text-white/30" /><p className="mt-3 text-sm text-white/60">{error ? 'Tomorrow’s forecast is temporarily unavailable.' : loading ? 'Loading tomorrow’s forecast…' : 'Forecast unavailable.'}</p></div>}
     </PanelShell>
   );
 };

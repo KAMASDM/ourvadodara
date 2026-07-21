@@ -14,6 +14,91 @@ const {
 
 admin.initializeApp();
 
+const VADODARA_COORDINATES = { latitude: 22.3072, longitude: 73.1812 };
+let weatherRequestPromise = null;
+
+const indiaDateKey = value => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
+}).format(new Date(value));
+
+const indiaHour = value => Number(new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Kolkata', hour: '2-digit', hourCycle: 'h23'
+}).format(new Date(value)));
+
+const weatherPeriod = item => {
+  const instant = item?.data?.instant?.details || {};
+  const interval = item?.data?.next_1_hours || item?.data?.next_6_hours || item?.data?.next_12_hours || {};
+  return {
+    time: item?.time || '',
+    temperature: Math.round(Number(instant.air_temperature || 0)),
+    humidity: Math.round(Number(instant.relative_humidity || 0)),
+    windSpeed: Math.round(Number(instant.wind_speed || 0) * 10) / 10,
+    cloudCover: Math.round(Number(instant.cloud_area_fraction || 0)),
+    precipitation: Math.round(Number(interval.details?.precipitation_amount || 0) * 10) / 10,
+    symbolCode: interval.summary?.symbol_code || 'cloudy'
+  };
+};
+
+const buildVadodaraWeather = payload => {
+  const timeseries = payload?.properties?.timeseries || [];
+  if (!timeseries.length) throw new Error('Weather provider returned no forecast');
+  const now = Date.now();
+  const currentItem = timeseries.find(item => Date.parse(item.time) >= now - 60 * 60 * 1000) || timeseries[0];
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowKey = indiaDateKey(tomorrow);
+  const tomorrowItems = timeseries.filter(item => indiaDateKey(item.time) === tomorrowKey);
+  const noonItem = [...tomorrowItems].sort((left, right) => Math.abs(indiaHour(left.time) - 12) - Math.abs(indiaHour(right.time) - 12))[0] || timeseries[24] || currentItem;
+  const tomorrowTemperatures = tomorrowItems.map(item => Number(item.data?.instant?.details?.air_temperature)).filter(Number.isFinite);
+  const tomorrowPrecipitation = tomorrowItems.reduce((sum, item) => sum + Number((item.data?.next_1_hours || {}).details?.precipitation_amount || 0), 0);
+  return {
+    city: 'Vadodara',
+    provider: 'MET Norway',
+    providerUrl: 'https://api.met.no/',
+    updatedAt: payload?.properties?.meta?.updated_at || new Date().toISOString(),
+    current: weatherPeriod(currentItem),
+    tomorrow: {
+      ...weatherPeriod(noonItem),
+      date: tomorrowKey,
+      temperatureMin: tomorrowTemperatures.length ? Math.round(Math.min(...tomorrowTemperatures)) : null,
+      temperatureMax: tomorrowTemperatures.length ? Math.round(Math.max(...tomorrowTemperatures)) : null,
+      precipitationTotal: Math.round(tomorrowPrecipitation * 10) / 10
+    }
+  };
+};
+
+exports.getVadodaraWeather = functions.https.onCall(async () => {
+  const cacheRef = admin.database().ref('weatherForecastCache/vadodara');
+  const cached = (await cacheRef.once('value')).val();
+  if (cached?.data && Number(cached.expiresAt || 0) > Date.now()) return cached.data;
+
+  if (!weatherRequestPromise) {
+    weatherRequestPromise = (async () => {
+      const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${VADODARA_COORDINATES.latitude}&lon=${VADODARA_COORDINATES.longitude}`;
+      const response = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'OurVadodara/1.0 https://ourvadodara.netlify.app'
+        }
+      });
+      if (!response.ok) throw new Error(`Weather provider returned ${response.status}`);
+      const data = buildVadodaraWeather(await response.json());
+      const providerExpiry = Date.parse(response.headers.get('expires') || '');
+      const expiresAt = Number.isFinite(providerExpiry) && providerExpiry > Date.now()
+        ? providerExpiry
+        : Date.now() + 30 * 60 * 1000;
+      await cacheRef.set({ data, fetchedAt: Date.now(), expiresAt });
+      return data;
+    })().finally(() => { weatherRequestPromise = null; });
+  }
+
+  try { return await weatherRequestPromise; }
+  catch (error) {
+    if (cached?.data) return cached.data;
+    throw new functions.https.HttpsError('unavailable', 'Weather is temporarily unavailable');
+  }
+});
+
 const PUBLIC_LEAD_PATH = 'leads';
 const LEAD_TEMPLATE_PATH = 'leadMessageTemplates';
 const LEAD_NOTIFICATION_LOG_PATH = 'leadNotificationLogs';

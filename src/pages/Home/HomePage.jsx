@@ -11,6 +11,8 @@ import SwipeableCategoryFilter from '../../components/Category/SwipeableCategory
 import EnhancedNewsFeed from '../../components/Feed/EnhancedNewsFeed';
 import BreakingNews from '../../components/Breaking/BreakingNews';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
+import WeatherAtmosphere from '../../components/Weather/WeatherAtmosphere';
+import { useVadodaraWeather } from '../../utils/weather';
 import {
   Cloud,
   TrendingUp,
@@ -45,6 +47,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
   const [refreshKey, setRefreshKey] = useState(0);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [feedTab, setFeedTab] = useState('for-you'); // 'for-you' | 'following' | 'all'
+  const { weather: homeWeather } = useVadodaraWeather();
 
   // Shares the same scroll-direction logic as the fixed Header so the whole
   // top chrome hides and reappears together.
@@ -82,10 +85,6 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
     threshold: 80,
     enabled: true
   });
-
-  const sectionHeading = activeSection
-    ? t('latest_news', 'Latest News')
-    : t('top_stories', 'Top Stories');
 
   // Define available sections
   const sections = [
@@ -198,7 +197,8 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
             }`}
             style={{ top: 'calc(59px + env(safe-area-inset-top))' }}
           >
-            <div className="liquid-panel rounded-[1.35rem] px-3 py-2.5 space-y-2.5 border border-white/60 dark:border-white/10">
+            <div className="liquid-panel relative isolate overflow-hidden rounded-[1.35rem] px-3 py-2.5 space-y-2.5 border border-white/60 dark:border-white/10">
+              {homeWeather?.current?.symbolCode && <WeatherAtmosphere symbolCode={homeWeather.current.symbolCode} compact />}
 
               {/* Row 1: section title + more button */}
               <div className="flex items-center justify-between">

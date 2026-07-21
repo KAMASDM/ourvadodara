@@ -579,6 +579,39 @@ video[data-reel] {
 .reel-content           { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 .reel-overlay           { will-change: opacity; backface-visibility: hidden; }
 
+/* ─── Live weather atmosphere ────────────────────────────── */
+.weather-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .72; }
+.weather-atmosphere--compact { opacity: .42; mask-image: linear-gradient(to left, #000 0%, transparent 82%); }
+.weather-atmosphere--rain, .weather-atmosphere--thunder { background: linear-gradient(135deg, rgba(56,189,248,.10), rgba(15,23,42,.12)); }
+.weather-atmosphere--clear { background: radial-gradient(circle at 88% 12%, rgba(253,224,71,.28), transparent 31%); }
+.weather-atmosphere--clear-night { background: linear-gradient(135deg, rgba(30,41,59,.08), rgba(79,70,229,.14)); }
+.weather-cloud { position: absolute; width: 7rem; height: 2rem; border-radius: 999px; background: rgba(255,255,255,.44); filter: blur(1px); animation: weather-cloud-drift 13s ease-in-out infinite alternate; }
+.weather-cloud::before, .weather-cloud::after { content: ''; position: absolute; bottom: 0; border-radius: 50%; background: inherit; }
+.weather-cloud::before { left: 1.2rem; width: 3.2rem; height: 3.2rem; }
+.weather-cloud::after { right: 1rem; width: 2.4rem; height: 2.4rem; }
+.weather-cloud--one { right: 4%; top: 18%; }
+.weather-cloud--two { right: 36%; top: 52%; scale: .62; opacity: .48; animation-delay: -5s; }
+.weather-rain, .weather-snow { position: absolute; inset: 0; }
+.weather-rain i { position: absolute; top: -20%; left: var(--drop-left); width: 1px; height: 18px; border-radius: 99px; background: linear-gradient(transparent, rgba(14,165,233,.78)); transform: rotate(12deg); animation: weather-rain-fall .9s linear infinite; animation-delay: var(--drop-delay); }
+.weather-lightning { position: absolute; inset: 0; background: rgba(255,255,255,.55); opacity: 0; animation: weather-lightning 5.2s steps(1) infinite; }
+.weather-snow i { position: absolute; top: -12%; left: var(--flake-left); color: rgba(255,255,255,.9); font-size: 16px; text-shadow: 0 0 6px rgba(186,230,253,.9); animation: weather-snow-fall 3.2s linear infinite; animation-delay: var(--flake-delay); }
+.weather-fog { position: absolute; left: -10%; width: 120%; height: 18%; border-radius: 999px; background: rgba(255,255,255,.36); filter: blur(11px); animation: weather-fog-drift 8s ease-in-out infinite alternate; }
+.weather-fog--one { top: 31%; }.weather-fog--two { top: 57%; animation-delay: -3s; }
+.weather-sun { position: absolute; right: 7%; top: 16%; width: 4rem; height: 4rem; border-radius: 50%; background: rgba(250,204,21,.6); box-shadow: 0 0 0 13px rgba(253,224,71,.12), 0 0 42px rgba(250,204,21,.5); animation: weather-sun-pulse 4s ease-in-out infinite; }
+.weather-moon { position: absolute; right: 8%; top: 16%; width: 3.4rem; height: 3.4rem; border-radius: 50%; background: rgba(254,249,195,.85); box-shadow: -10px 3px 0 rgba(99,102,241,.3), 0 0 26px rgba(254,249,195,.35); }
+.weather-stars { position: absolute; inset: 10% 5% 30% 45%; background-image: radial-gradient(circle, rgba(255,255,255,.9) 1px, transparent 1px); background-size: 21px 19px; animation: weather-stars 2.4s ease-in-out infinite alternate; }
+@keyframes weather-cloud-drift { to { transform: translateX(-24px) translateY(4px); } }
+@keyframes weather-rain-fall { to { transform: translate(-18px, 650px) rotate(12deg); } }
+@keyframes weather-lightning { 0%, 91%, 94%, 100% { opacity: 0; } 92%, 93% { opacity: .7; } }
+@keyframes weather-snow-fall { to { transform: translate(18px, 620px) rotate(240deg); } }
+@keyframes weather-fog-drift { to { transform: translateX(9%); opacity: .55; } }
+@keyframes weather-sun-pulse { 50% { transform: scale(1.06); box-shadow: 0 0 0 17px rgba(253,224,71,.09), 0 0 52px rgba(250,204,21,.58); } }
+@keyframes weather-stars { to { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) {
+  .weather-atmosphere * { animation: none !important; }
+  .weather-lightning { display: none; }
+}
+
 /* ─── Swipe utilities ─────────────────────────────────────── */
 .swipe-container { touch-action: pan-y; -webkit-overflow-scrolling: touch; }
 .swipe-item      { scroll-snap-align: start; scroll-snap-stop: always; }
