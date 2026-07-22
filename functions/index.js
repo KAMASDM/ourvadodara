@@ -1951,17 +1951,17 @@ exports.claimBrandOffer = functions.https.onCall(async (data, context) => {
   });
   if (!claimResult.committed) throw new functions.https.HttpsError('already-exists', 'You have reached the claim limit for this offer');
 
-  let claimedOffer;
-  const stockResult = await offerRef.transaction(current => {
-    const error = getOfferAvailabilityError(current, Date.now(), { claiming: true });
-    if (error) return;
-    const totalLimit = normalizePositiveLimit(current.totalCouponLimit);
-    const issuedCount = Math.max(0, Number(current.issuedCount) || 0);
+  const claimedOffer = initialOffer;
+  const totalLimit = normalizePositiveLimit(initialOffer.totalCouponLimit);
+  const issuedCountRef = offerRef.child('issuedCount');
+  const stockResult = await issuedCountRef.transaction(current => {
+    // A missing counter is zero. Transacting only on this value also avoids
+    // treating an RTDB transaction's initial null cache value as a missing offer.
+    const issuedCount = Math.max(0, Number(current) || 0);
     if (totalLimit && issuedCount >= totalLimit) return;
-    claimedOffer = current;
-    return { ...current, issuedCount: issuedCount + 1, updatedAt: Date.now() };
+    return issuedCount + 1;
   });
-  if (!stockResult.committed || !claimedOffer) {
+  if (!stockResult.committed) {
     await claimCountRef.transaction(count => Math.max(0, (Number(count) || 1) - 1));
     throw new functions.https.HttpsError('failed-precondition', 'This offer is unavailable or sold out');
   }

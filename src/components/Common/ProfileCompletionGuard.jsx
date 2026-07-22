@@ -14,7 +14,7 @@ export const useProfileCompletionGuard = () => {
   const { user, profileCompletion } = useAuth();
   const [showModal, setShowModal] = useState(false);
   
-  const checkProfileComplete = (actionName = 'perform this action') => {
+  const checkProfileComplete = (_actionName = 'perform this action') => {
     // Allow if user doesn't exist (will be handled by login check)
     if (!user) return true;
     
@@ -127,19 +127,19 @@ export const ProfileCompletionModal = ({ isOpen, onClose, missingFields = [] }) 
         </div>
         
         {/* Footer */}
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3">
+        <div className="flex flex-col-reverse gap-3 border-t border-gray-200 p-6 dark:border-gray-700 sm:flex-row">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 font-medium transition-colors"
+            className="w-full flex-1 rounded-lg border border-gray-300 px-4 py-2.5 font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
           >
             Not Now
           </button>
           <button
             onClick={handleGoToProfile}
-            className="flex-1 px-4 py-2.5 bg-primary-red text-white rounded-lg hover:bg-secondary-red font-semibold transition-colors flex items-center justify-center gap-2"
+            className="flex w-full flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
           >
             <User className="w-4 h-4" />
-            Complete Profile
+            <span>Complete Profile</span>
           </button>
         </div>
       </div>
