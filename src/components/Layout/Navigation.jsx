@@ -5,7 +5,7 @@
 // =============================================
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CalendarDays, Compass, Home, User, Clapperboard } from 'lucide-react';
+import { AlertTriangle, Compass, Home, User, Clapperboard } from 'lucide-react';
 
 const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChange, hasActiveSOS = false }) {
   const { t } = useTranslation();
@@ -60,7 +60,7 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
     { id: 'home',     Icon: Home,          label: t('home', 'Home') },
     { id: 'reels',    Icon: Clapperboard,  label: t('reels', 'Reels') },
     { id: 'explore',  Icon: Compass,       label: t('explore.title', 'Explore'), featured: true },
-    { id: 'events',   Icon: CalendarDays,  label: t('events', 'Events') },
+    { id: 'breaking', Icon: AlertTriangle, label: t('breakingNav', 'Breaking'), alert: true },
     // Logged-out users see the same Profile tab; App opens sign-in when tapped.
     { id: 'profile', Icon: User, label: t('profile', 'Profile') },
   ];
@@ -77,13 +77,15 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
     >
       <div className="max-w-app mx-auto mb-2 px-2">
         <div className="liquid-glass relative flex h-[64px] rounded-3xl !border-teal-700/35 shadow-[0_12px_38px_rgba(15,118,110,0.16)] dark:!border-teal-400/30 dark:shadow-[0_12px_38px_rgba(20,184,166,0.10)]">
-        {navItems.map(({ id, Icon, label, featured }) => {
+        {navItems.map(({ id, Icon, label, featured, alert }) => {
           const active = activeTab === id;
           const color = active
             ? 'text-teal-700 dark:text-teal-300'
             : featured
               ? 'text-teal-600 dark:text-teal-300'
-              : 'text-neutral-500 dark:text-neutral-400';
+              : alert
+                ? 'text-accent-500'
+                : 'text-neutral-500 dark:text-neutral-400';
 
           return (
             <button

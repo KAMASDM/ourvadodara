@@ -103,7 +103,7 @@ function AppContent() {
     if (eventMatch) {
       const eventId = decodeURIComponent(eventMatch[1]);
       setCurrentView({ type: 'event-detail', data: { eventId } });
-      setActiveTab('events');
+      setActiveTab('explore');
       return;
     }
 
@@ -166,13 +166,13 @@ function AppContent() {
     const breakingMatch = path.match(/^\/breaking\/([^/]+)$/);
     if (breakingMatch) {
       setCurrentView({ type: 'breaking-detail', data: { newsId: decodeURIComponent(breakingMatch[1]) } });
-      setActiveTab('explore');
+      setActiveTab('breaking');
       return;
     }
 
     if (path === '/breaking') {
       setCurrentView({ type: 'breaking', data: null });
-      setActiveTab('explore');
+      setActiveTab('breaking');
       return;
     }
 
@@ -184,7 +184,7 @@ function AppContent() {
 
     if (path === '/events') {
       setCurrentView({ type: 'events', data: null });
-      setActiveTab('events');
+      setActiveTab('explore');
       return;
     }
 
@@ -403,7 +403,7 @@ function AppContent() {
       home: '/',
       reels: '/reels',
       explore: '/explore',
-      events: '/events',
+      breaking: '/breaking',
       profile: '/profile'
     };
     const nextPath = tabPaths[tab] || `/${tab}`;
@@ -440,10 +440,10 @@ function AppContent() {
         setActiveTab('home');
       } else if (type === 'reels') {
         setActiveTab('reels');
-      } else if (type === 'explore' || type === 'offers' || type === 'breaking') {
+      } else if (type === 'explore' || type === 'offers' || type === 'events') {
         setActiveTab('explore');
-      } else if (type === 'events') {
-        setActiveTab('events');
+      } else if (type === 'breaking' || type === 'breaking-detail') {
+        setActiveTab('breaking');
       } else if (type === 'profile') {
         setActiveTab('profile');
       }
@@ -564,7 +564,7 @@ function AppContent() {
             onBack={() => {
               window.history.pushState({ view: 'events' }, '', '/events');
               setCurrentView({ type: 'events', data: null });
-              setActiveTab('events');
+              setActiveTab('explore');
             }}
           />
         );
@@ -599,7 +599,7 @@ function AppContent() {
             onBack={() => {
               window.history.pushState({ view: 'breaking' }, '', '/breaking');
               setCurrentView({ type: 'breaking', data: null });
-              setActiveTab('explore');
+              setActiveTab('breaking');
             }}
             onNavigate={(newsId) => {
               window.history.pushState({ view: 'breaking-detail', newsId }, '', `/breaking/${encodeURIComponent(newsId)}`);
@@ -618,7 +618,7 @@ function AppContent() {
             onEventClick={(eventId) => {
               window.history.pushState({ view: 'event-detail', eventId }, '', `/events/${encodeURIComponent(eventId)}`);
               setCurrentView({ type: 'event-detail', data: { eventId } });
-              setActiveTab('events');
+              setActiveTab('explore');
             }}
           />
         );
@@ -635,7 +635,7 @@ function AppContent() {
             onEventClick={(eventId) => {
               window.history.pushState({ view: 'event-detail', eventId }, '', `/events/${encodeURIComponent(eventId)}`);
               setCurrentView({ type: 'event-detail', data: { eventId } });
-              setActiveTab('events');
+              setActiveTab('explore');
             }}
           />
         );
