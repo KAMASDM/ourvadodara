@@ -384,11 +384,12 @@ const ThreadedCommentSection = ({ postId }) => {
               Please sign in to join the conversation
             </p>
             <button
+              type="button"
               onClick={() => setShowLogin(true)}
-              className="inline-flex items-center px-4 py-2 bg-primary-red text-white rounded-lg hover:bg-secondary-red transition-colors text-sm"
+              className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 dark:bg-red-600 dark:hover:bg-red-500"
             >
               <LogIn className="w-4 h-4 mr-2" />
-              Sign In to Comment
+              <span>Sign In to Comment</span>
             </button>
           </div>
         </div>
