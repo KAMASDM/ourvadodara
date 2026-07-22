@@ -51,6 +51,9 @@ const MediaRenderer = ({
   const lastCarouselSnapshot = useRef({ index: null, total: null });
 
   const { type, mediaContent, media } = post;
+  const commentsAllowed = post.commentsEnabled !== false
+    && post.reelSettings?.allowComments !== false
+    && post.interactions?.allowComments !== false;
   const brandName = 'Our Vadodara';
   const brandAvatar = logoImage;
   const { items: rawItems = [], settings = {} } = mediaContent || {};
@@ -640,13 +643,13 @@ const MediaRenderer = ({
             <Heart className={`w-6 h-6 ${actionState.isLiked ? 'fill-current text-red-400' : ''}`} />
           </button>
           
-          <button
+          {commentsAllowed && <button
             type="button"
             onClick={(event) => handleActionButtonClick(event, 'comment')}
             className="w-12 h-12 flex items-center justify-center text-white bg-black bg-opacity-30 rounded-full hover:bg-opacity-50 transition-colors"
           >
             <MessageCircle className="w-6 h-6" />
-          </button>
+          </button>}
           
           <button
             type="button"

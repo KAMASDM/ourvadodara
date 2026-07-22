@@ -6,15 +6,22 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { ref, push, update, remove, serverTimestamp, increment } from '../../firebase-config';
+import { runTransaction } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { Send, Heart, MessageCircle, LogIn, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { CommentSkeleton } from '../Common/SkeletonLoader';
 import EnhancedLogin from '../Auth/EnhancedLogin';
 
+const countCommentBranch = comment => 1 + Object.values(comment?.replies || {}).reduce(
+  (total, reply) => total + countCommentBranch(reply),
+  0
+);
+
 const Comment = ({
   comment,
   postId,
+  contentPath,
   commentPath,
   level = 0,
   onReply,
@@ -27,6 +34,7 @@ const Comment = ({
   const { data: repliesObject } = useRealtimeData(`${commentPath}/replies`);
 
   const isOwnComment = user?.uid && user.uid === comment.authorId;
+  const isLiked = Boolean(user?.uid && comment.likedBy?.[user.uid]);
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
@@ -49,10 +57,11 @@ const Comment = ({
     if (!window.confirm('Delete this comment? This cannot be undone.')) return;
     try {
       await remove(ref(db, commentPath));
-      if (level === 0) {
-        // Keep the post's comment counter in sync for top-level deletes
-        await update(ref(db, `posts/${postId}`), { comments: increment(-1) });
-      }
+      const removedCount = countCommentBranch(comment);
+      await update(ref(db), {
+        [`${contentPath}/${postId}/comments`]: increment(-removedCount),
+        [`${contentPath}/${postId}/analytics/comments`]: increment(-removedCount)
+      });
       await update(ref(db, `users/${user.uid}`), { totalComments: increment(-1) });
     } catch (error) {
       console.error('Error deleting comment:', error);
@@ -132,11 +141,13 @@ const Comment = ({
             
             <button 
               onClick={() => onLike(commentPath)}
+              aria-label={isLiked ? 'Unlike comment' : 'Like comment'}
+              aria-pressed={isLiked}
               className={`flex items-center space-x-1 text-xs hover:text-red-500 transition-colors ${
-                comment.likes > 0 ? 'text-red-500 font-medium' : 'text-gray-500'
+                isLiked ? 'text-red-500 font-medium' : 'text-gray-500'
               }`}
             >
-              <Heart className={`w-3 h-3 ${comment.likes > 0 ? 'fill-red-500' : ''}`} />
+              <Heart className={`w-3 h-3 ${isLiked ? 'fill-red-500' : ''}`} />
               {comment.likes > 0 && <span>{comment.likes}</span>}
             </button>
 
@@ -196,6 +207,7 @@ const Comment = ({
               key={reply.id}
               comment={reply}
               postId={postId}
+              contentPath={contentPath}
               commentPath={`${commentPath}/replies/${reply.id}`}
               level={level + 1}
               onReply={onReply}
@@ -208,7 +220,7 @@ const Comment = ({
   );
 };
 
-const ThreadedCommentSection = ({ postId }) => {
+const ThreadedCommentSection = ({ postId, contentPath = 'posts', commentsEnabled = true }) => {
   const { user } = useAuth();
   const [newComment, setNewComment] = useState('');
   const [showLogin, setShowLogin] = useState(false);
@@ -230,61 +242,74 @@ const ThreadedCommentSection = ({ postId }) => {
         })
     : [];
 
-  const handleSubmitComment = (e) => {
+  const handleSubmitComment = async (e) => {
     e.preventDefault();
-    if (!newComment.trim() || !user) return;
+    if (!newComment.trim() || !user || !commentsEnabled) return;
 
-    if (replyingTo) {
-      // Submit as a reply
-      const parentCommentPath = replyingTo.commentPath || `comments/${postId}/${replyingTo.id}`;
-      const repliesRef = ref(db, `${parentCommentPath}/replies`);
-      push(repliesRef, {
-        text: newComment,
-        author: user.displayName || 'Anonymous',
-        authorId: user.uid,
-        createdAt: serverTimestamp(),
-        likes: 0,
-        parentId: replyingTo.id
-      });
+    try {
+      if (replyingTo) {
+        // Submit as a reply
+        const parentCommentPath = replyingTo.commentPath || `comments/${postId}/${replyingTo.id}`;
+        const repliesRef = ref(db, `${parentCommentPath}/replies`);
+        await push(repliesRef, {
+          text: newComment,
+          author: user.displayName || 'Anonymous',
+          authorId: user.uid,
+          createdAt: serverTimestamp(),
+          likes: 0,
+          parentId: replyingTo.id
+        });
 
-      // Increment reply count
-      const commentRef = ref(db, parentCommentPath);
-      update(commentRef, {
-        replyCount: increment(1)
-      });
-    } else {
-      // Submit as top-level comment
-      const commentsRef = ref(db, `comments/${postId}`);
-      push(commentsRef, {
-        text: newComment,
-        author: user.displayName || 'Anonymous',
-        authorId: user.uid,
-        createdAt: serverTimestamp(),
-        likes: 0,
-        replyCount: 0
-      });
-      
-      // Increment comments count on the post
-      const postRef = ref(db, `posts/${postId}`);
-      update(postRef, {
-        comments: increment(1)
-      });
+        await update(ref(db), {
+          [`${parentCommentPath}/replyCount`]: increment(1),
+          [`${contentPath}/${postId}/comments`]: increment(1),
+          [`${contentPath}/${postId}/analytics/comments`]: increment(1)
+        });
+      } else {
+        // Submit as top-level comment
+        const commentsRef = ref(db, `comments/${postId}`);
+        await push(commentsRef, {
+          text: newComment,
+          author: user.displayName || 'Anonymous',
+          authorId: user.uid,
+          createdAt: serverTimestamp(),
+          likes: 0,
+          replyCount: 0
+        });
+        await update(ref(db), {
+          [`${contentPath}/${postId}/comments`]: increment(1),
+          [`${contentPath}/${postId}/analytics/comments`]: increment(1)
+        });
+      }
+
+      await update(ref(db, `users/${user.uid}`), { totalComments: increment(1) });
+
+      setNewComment('');
+      setReplyingTo(null);
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      alert(commentsEnabled ? 'Unable to post this comment. Please try again.' : 'Comments are turned off.');
     }
-
-    // Track the user's own comment count for profile stats
-    update(ref(db, `users/${user.uid}`), { totalComments: increment(1) });
-
-    setNewComment('');
-    setReplyingTo(null);
   };
 
-  const handleLikeComment = (commentPath) => {
+  const handleLikeComment = async (commentPath) => {
     if (!user) return;
-
-    const commentRef = ref(db, commentPath);
-    update(commentRef, {
-      likes: increment(1)
-    });
+    try {
+      await runTransaction(ref(db, commentPath), current => {
+        if (!current) return current;
+        const likedBy = { ...(current.likedBy || {}) };
+        const wasLiked = Boolean(likedBy[user.uid]);
+        if (wasLiked) delete likedBy[user.uid];
+        else likedBy[user.uid] = true;
+        return {
+          ...current,
+          likedBy,
+          likes: Math.max(0, Number(current.likes || 0) + (wasLiked ? -1 : 1))
+        };
+      });
+    } catch (error) {
+      console.error('Error toggling comment like:', error);
+    }
   };
 
   const handleReply = (comment) => {
@@ -318,6 +343,7 @@ const ThreadedCommentSection = ({ postId }) => {
                 key={comment.id}
                 comment={comment}
                 postId={postId}
+                contentPath={contentPath}
                 commentPath={`comments/${postId}/${comment.id}`}
                 level={0}
                 onReply={handleReply}
@@ -334,7 +360,11 @@ const ThreadedCommentSection = ({ postId }) => {
       </div>
 
       {/* Comment Input */}
-      {user ? (
+      {!commentsEnabled ? (
+        <div className="border-t border-gray-200 p-4 text-center text-sm font-medium text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          Comments are turned off for this content.
+        </div>
+      ) : user ? (
         <div className="border-t border-gray-200 dark:border-gray-700 p-4">
           {/* Reply Indicator */}
           {replyingTo && (

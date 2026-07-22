@@ -32,6 +32,7 @@ import EmptyState from '../Common/EmptyState';
 import HeartAnimation from '../Common/HeartAnimation';
 import ShareSheet from '../Common/ShareSheet';
 import TopicChip from '../Topics/TopicChip';
+import ThreadedCommentSection from '../Comments/ThreadedCommentSection';
 import { FeedSkeleton, ReelsGridSkeleton } from '../Common/SkeletonLoader';
 import { POST_TYPES } from '../../utils/mediaSchema';
 import { getLocalizedText } from '../../utils/textUtils';
@@ -498,6 +499,9 @@ function arePostCardPropsEqual(previous, next) {
     previous.post?.likes === next.post?.likes &&
     previous.post?.comments === next.post?.comments &&
     previous.post?.shares === next.post?.shares &&
+    previous.post?.commentsEnabled === next.post?.commentsEnabled &&
+    previous.post?.reelSettings?.allowComments === next.post?.reelSettings?.allowComments &&
+    previous.post?.carouselSettings?.allowComments === next.post?.carouselSettings?.allowComments &&
     previous.isLiked === next.isLiked &&
     previous.isSaved === next.isSaved &&
     previous.isExpanded === next.isExpanded &&
@@ -545,6 +549,7 @@ const PostCard = React.memo(function PostCard({
   const [heartPosition, setHeartPosition] = useState({ x: 0, y: 0 });
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [showInlineComments, setShowInlineComments] = useState(false);
   const menuRef = useRef(null);
 
   // Close the options menu on outside tap/click or Escape
@@ -630,6 +635,10 @@ const PostCard = React.memo(function PostCard({
   const shouldShowReadMore = content.length > 150;
   const isClickable = post.source === 'posts';
   const isReel = post.type === POST_TYPES.REEL || post.source === 'reels';
+  const isCarousel = post.type === POST_TYPES.CAROUSEL || post.source === 'carousels';
+  const commentsAllowed = isCarousel
+    ? post.commentsEnabled === true || post.carouselSettings?.allowComments === true
+    : post.commentsEnabled !== false && post.reelSettings?.allowComments !== false;
   const titleClasses = `text-xl font-bold text-slate-950 dark:text-white tracking-tight leading-snug transition-colors ${
     isClickable ? 'cursor-pointer hover:text-blue-700 dark:hover:text-sky-300' : 'cursor-default'
   }`;
@@ -637,7 +646,18 @@ const PostCard = React.memo(function PostCard({
   const authorAvatar = logoImage;
 
   return (
-    <article className="feed-card content-vis group liquid-card rounded-[1.35rem] lg:transition-transform lg:duration-300 lg:hover:-translate-y-0.5">
+    <article
+      className={`feed-card content-vis group liquid-card rounded-[1.35rem] lg:transition-transform lg:duration-300 lg:hover:-translate-y-0.5 ${isClickable ? 'cursor-pointer' : ''}`}
+      onClick={isClickable ? event => {
+        if (event.target.closest('button, a, input, textarea, select, [role="button"]')) return;
+        onPostClick(post.id);
+      } : undefined}
+      onKeyDown={isClickable ? event => {
+        if (event.key === 'Enter' && !event.target.closest('button, a, input, textarea, select, [role="button"]')) onPostClick(post.id);
+      } : undefined}
+      role={isClickable ? 'link' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+    >
       {/* Heart animation overlay */}
       <HeartAnimation
         show={showHeartAnimation}
@@ -758,7 +778,6 @@ const PostCard = React.memo(function PostCard({
         {title && (
           <h2 
             className={titleClasses}
-            onClick={isClickable ? () => onPostClick(post.id) : undefined}
           >
             {title}
           </h2>
@@ -931,18 +950,19 @@ const PostCard = React.memo(function PostCard({
               <span>Like</span>
             </button>
 
-            <button
-              onClick={isReel ? () => onShowReels(post.id) : isClickable ? () => onPostClick(post.id) : undefined}
+            {commentsAllowed && <button
+              onClick={isReel ? () => onShowReels(post.id) : isClickable ? () => onPostClick(post.id) : isCarousel ? () => setShowInlineComments(value => !value) : undefined}
               className={`flex flex-shrink-0 items-center gap-2 rounded-full px-2.5 py-2 transition-colors ${
-                isClickable || isReel
+                isClickable || isReel || isCarousel
                   ? 'text-slate-700 dark:text-slate-300 hover:text-blue-700 hover:bg-white/45 dark:hover:bg-white/10'
                   : 'text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60'
               }`}
-              disabled={!isClickable && !isReel}
+              disabled={!isClickable && !isReel && !isCarousel}
+              aria-expanded={isCarousel ? showInlineComments : undefined}
             >
               <MessageCircle className="w-5 h-5" />
               <span className="font-medium">Comment</span>
-            </button>
+            </button>}
 
             <button
               onClick={onShare}
@@ -966,6 +986,11 @@ const PostCard = React.memo(function PostCard({
           </button>
         </div>
       </div>
+      {showInlineComments && isCarousel && commentsAllowed && (
+        <div className="relative border-t border-white/50 dark:border-white/10" onClick={event => event.stopPropagation()}>
+          <ThreadedCommentSection postId={post.id} contentPath="carousels" commentsEnabled={commentsAllowed} />
+        </div>
+      )}
     </article>
   );
 }, arePostCardPropsEqual);

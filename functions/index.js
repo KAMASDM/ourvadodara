@@ -2020,17 +2020,22 @@ exports.redeemOfferCoupon = functions.https.onCall(async (data, context) => {
   let redemptionError = 'Coupon could not be redeemed';
   const couponRef = admin.database().ref(`couponRedemptions/${couponId}`);
   const result = await couponRef.transaction(current => {
-    if (!current || current.brandId !== brandId) return;
+    // Server transactions can invoke the updater with an initial null value
+    // before the remote coupon is loaded. The coupon was read immediately
+    // above, so use that snapshot as the first-pass value; Firebase will retry
+    // with the latest server value if it changed concurrently.
+    const coupon = current || initialCoupon;
+    if (coupon.brandId !== brandId) return;
     const now = Date.now();
-    const useCount = Math.max(0, Number(current.useCount) || 0);
-    const maxUses = normalizePositiveLimit(current.maxUses, 1);
-    if (current.status === 'cancelled') { redemptionError = 'Coupon is cancelled'; return; }
-    if (current.expiresAt && now > Date.parse(current.expiresAt)) { redemptionError = 'Coupon has expired'; return; }
-    if (useCount >= maxUses || current.status === 'redeemed') { redemptionError = 'Coupon usage limit has been reached'; return; }
+    const useCount = Math.max(0, Number(coupon.useCount) || 0);
+    const maxUses = normalizePositiveLimit(coupon.maxUses, 1);
+    if (coupon.status === 'cancelled') { redemptionError = 'Coupon is cancelled'; return; }
+    if (coupon.expiresAt && now > Date.parse(coupon.expiresAt)) { redemptionError = 'Coupon has expired'; return; }
+    if (useCount >= maxUses || coupon.status === 'redeemed') { redemptionError = 'Coupon usage limit has been reached'; return; }
     const availabilityError = getOfferAvailabilityError(offer, now);
     if (availabilityError) { redemptionError = availabilityError; return; }
     const nextUseCount = useCount + 1;
-    updatedCoupon = { ...current, useCount: nextUseCount, status: nextUseCount >= maxUses ? 'redeemed' : 'issued', lastRedeemedAt: now };
+    updatedCoupon = { ...coupon, useCount: nextUseCount, status: nextUseCount >= maxUses ? 'redeemed' : 'issued', lastRedeemedAt: now };
     return updatedCoupon;
   });
   if (!result.committed || !updatedCoupon) throw new functions.https.HttpsError('failed-precondition', redemptionError);

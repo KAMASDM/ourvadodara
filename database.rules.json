@@ -50,12 +50,7 @@
     "comments": {
       ".read": true,
       "$postId": {
-        ".write": "auth != null",
-        "$commentId": {
-          "replies": {
-            ".write": "auth != null"
-          }
-        }
+        ".write": "auth != null && ((root.child('posts').child($postId).exists() && root.child('posts').child($postId).child('commentsEnabled').val() != false) || (root.child('reels').child($postId).exists() && root.child('reels').child($postId).child('commentsEnabled').val() != false && root.child('reels').child($postId).child('reelSettings').child('allowComments').val() != false) || (root.child('carousels').child($postId).exists() && (root.child('carousels').child($postId).child('commentsEnabled').val() == true || root.child('carousels').child($postId).child('carouselSettings').child('allowComments').val() == true)) || root.child('polls').child($postId).exists())"
       }
     },
     

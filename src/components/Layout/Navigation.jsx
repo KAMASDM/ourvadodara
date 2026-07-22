@@ -5,7 +5,7 @@
 // =============================================
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Home, Newspaper, User, AlertTriangle, Clapperboard } from 'lucide-react';
+import { Home, User, AlertTriangle, Clapperboard } from 'lucide-react';
 import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 
@@ -69,7 +69,6 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
 
   const navItems = [
     { id: 'home',     Icon: Home,          label: t('home', 'Home') },
-    { id: 'roundup',  Icon: Newspaper,     label: 'Roundup' },
     { id: 'reels',    Icon: Clapperboard,  label: 'Reels' },
     { id: 'breaking', Icon: AlertTriangle, label: 'Breaking', alert: true },
     // Logged-out users see the same Profile tab; tapping it opens the login

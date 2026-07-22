@@ -301,7 +301,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
           )}
 
           {/* Scrollable content */}
-          <div className="flex-1 pb-6">
+          {activeSection !== 'events' && <div className="flex-1 pb-6">
             <div className="px-2 mt-3">
               <BreakingNews onOpenBreaking={handleOpenBreaking} />
             </div>
@@ -323,7 +323,7 @@ const HomePage = ({ onPostClick, onShowReels = () => {}, initialCategory = 'all'
                 feedType="all"
               />
             </div>
-          </div>
+          </div>}
         </div>
       )}
 

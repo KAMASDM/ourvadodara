@@ -32,7 +32,6 @@ const NotificationSettings = React.lazy(() => import('./components/Settings/Noti
 const GeneralSettings = React.lazy(() => import('./components/Settings/GeneralSettings.jsx'));
 const ActivityHistory = React.lazy(() => import('./pages/Profile/ActivityHistory.jsx'));
 const ReelsPage = React.lazy(() => import('./pages/Reels/ReelsPage.jsx'));
-const RoundupPage = React.lazy(() => import('./pages/Roundup/RoundupPage.jsx'));
 const AdvertisePage = React.lazy(() => import('./pages/Advertise/AdvertisePage.jsx'));
 const EventsCalendar = React.lazy(() => import('./components/Events/EventsCalendar.jsx'));
 const EventDetail = React.lazy(() => import('./components/Events/EventDetail.jsx'));
@@ -127,8 +126,9 @@ function AppContent() {
     }
 
     if (path === '/roundup') {
-      setCurrentView({ type: 'roundup', data: null });
-      setActiveTab('roundup');
+      window.history.replaceState({ view: 'home' }, '', '/');
+      setCurrentView({ type: 'home', data: null });
+      setActiveTab('home');
       return;
     }
 
@@ -388,7 +388,6 @@ function AppContent() {
 
     const tabPaths = {
       home: '/',
-      roundup: '/roundup',
       reels: '/reels',
       breaking: '/breaking',
       events: '/events',
@@ -524,8 +523,6 @@ function AppContent() {
         );
       case 'search':
         return <SearchPage onPostClick={handlePostClick} onShowReels={handleShowReels} />;
-      case 'roundup':
-        return <RoundupPage onBack={handleBackToHome} />;
       case 'advertise':
         return <AdvertisePage onBack={handleBackToHome} />;
       case 'events':

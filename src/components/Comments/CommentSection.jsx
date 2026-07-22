@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { ref, push, update, serverTimestamp, increment } from '../../firebase-config';
+import { runTransaction } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { Send, Heart, LogIn } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -47,13 +48,25 @@ const CommentSection = ({ postId }) => {
     setNewComment('');
   };
 
-  const handleLikeComment = (commentId) => {
+  const handleLikeComment = async (commentId) => {
       if (!user) return; // or prompt to login
       const commentRef = ref(db, `comments/${postId}/${commentId}`);
-      // Simple like toggle - for a real app, you'd track users who liked
-      update(commentRef, {
-          likes: increment(1)
-      });
+      try {
+        await runTransaction(commentRef, current => {
+          if (!current) return current;
+          const likedBy = { ...(current.likedBy || {}) };
+          const wasLiked = Boolean(likedBy[user.uid]);
+          if (wasLiked) delete likedBy[user.uid];
+          else likedBy[user.uid] = true;
+          return {
+            ...current,
+            likedBy,
+            likes: Math.max(0, Number(current.likes || 0) + (wasLiked ? -1 : 1))
+          };
+        });
+      } catch (error) {
+        console.error('Error toggling comment like:', error);
+      }
   }
 
   return (
@@ -71,8 +84,8 @@ const CommentSection = ({ postId }) => {
                             </div>
                             <div className="flex items-center space-x-4 mt-1">
                                 <span className="text-xs text-gray-500">{formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}</span>
-                                <button onClick={() => handleLikeComment(comment.id)} className="flex items-center space-x-1 text-xs text-gray-500 hover:text-red-500">
-                                    <Heart className="w-3 h-3" />
+                                <button onClick={() => handleLikeComment(comment.id)} aria-label={comment.likedBy?.[user?.uid] ? 'Unlike comment' : 'Like comment'} aria-pressed={Boolean(comment.likedBy?.[user?.uid])} className={`flex items-center space-x-1 text-xs hover:text-red-500 ${comment.likedBy?.[user?.uid] ? 'text-red-500' : 'text-gray-500'}`}>
+                                    <Heart className={`w-3 h-3 ${comment.likedBy?.[user?.uid] ? 'fill-current' : ''}`} />
                                     <span>{comment.likes || 0}</span>
                                 </button>
                             </div>

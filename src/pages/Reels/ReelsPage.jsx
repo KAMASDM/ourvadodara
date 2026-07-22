@@ -6,8 +6,9 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import useViewTracking from '../../hooks/useViewTracking';
-import { ref, update, increment, get } from 'firebase/database';
-import { db } from '../../firebase-config';
+import { ref, update, increment, get, push, set } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../firebase-config';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
 import ThreadedCommentSection from '../../components/Comments/ThreadedCommentSection';
 import SuggestedReelsPanel from '../../components/Reels/SuggestedReelsPanel';
@@ -25,10 +26,25 @@ import {
   User,
   Plus,
   Play,
-  Pause
+  Pause,
+  Download,
+  GitFork,
+  Upload,
+  X
 } from 'lucide-react';
 import { POST_TYPES } from '../../utils/mediaSchema';
 import { getLocalizedText } from '../../utils/textUtils';
+
+const getReelVideoUrl = reel => {
+  const items = reel?.mediaContent?.items;
+  const firstItem = Array.isArray(items) ? items[0] : Object.values(items || {})[0];
+  return firstItem?.url || reel?.videoUrl || '';
+};
+
+const countVisibleComments = collection => Object.values(collection || {}).reduce((total, comment) => {
+  if (!comment || comment.rejected === true || !(comment.text || comment.content)) return total;
+  return total + 1 + countVisibleComments(comment.replies);
+}, 0);
 
 const ExpandableReelDescription = ({ text, reelId }) => {
   const paragraphRef = useRef(null);
@@ -116,6 +132,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const [isMuted, setIsMuted] = useState(true);
   const [showComments, setShowComments] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [duetReel, setDuetReel] = useState(null);
   const [likedReels, setLikedReels] = useState(new Set());
   const [savedReels, setSavedReels] = useState(new Set());
   const [showLikeAnimation, setShowLikeAnimation] = useState(false);
@@ -187,6 +204,17 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
   const currentFeedItem = feedItems[currentFeedIndex];
   const currentReel = currentFeedItem?.type === 'reel' ? currentFeedItem.reel : null;
+  const { data: currentCommentsData } = useRealtimeData(currentReel?.id ? `comments/${currentReel.id}` : null);
+  const currentCommentCount = currentCommentsData
+    ? countVisibleComments(currentCommentsData)
+    : Number(currentReel?.analytics?.comments ?? currentReel?.comments ?? 0);
+  const commentsAllowed = currentReel?.commentsEnabled !== false && currentReel?.reelSettings?.allowComments !== false;
+  const downloadAllowed = currentReel?.reelSettings?.allowDownload === true;
+  const duetAllowed = currentReel?.reelSettings?.allowDuet === true;
+
+  useEffect(() => {
+    if (!commentsAllowed) setShowComments(false);
+  }, [commentsAllowed, currentReel?.id]);
 
   // Track view for current reel
   useViewTracking(currentReel?.id, 'reels');
@@ -589,6 +617,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   };
 
   const handleComment = () => {
+    if (!commentsAllowed) return;
     if (!user) {
       alert('Please sign in to comment');
       return;
@@ -600,6 +629,36 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     }
     
     setShowComments(true);
+  };
+
+  const handleDownload = async reel => {
+    const url = getReelVideoUrl(reel);
+    if (!url || reel?.reelSettings?.allowDownload !== true) return;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Download failed');
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `our-vadodara-reel-${reel.id}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Error downloading reel:', error);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleDuet = reel => {
+    if (!user) {
+      alert('Please sign in to create a duet');
+      return;
+    }
+    if (!checkProfileComplete() || reel?.reelSettings?.allowDuet !== true) return;
+    setShowActionsMenu(false);
+    setDuetReel(reel);
   };
 
   if (isLoading) {
@@ -672,13 +731,17 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
             aria-label={`Reel ${reels.findIndex(reel => reel.id === item.reel.id) + 1} of ${reels.length}`}
           >
             <div className={`relative h-full w-full ${isDesktop ? 'max-w-md' : ''}`}>
+              <div className={`h-full w-full ${item.reel.duetSourceVideoUrl ? 'grid grid-cols-2 gap-0.5' : ''}`}>
+              {item.reel.duetSourceVideoUrl && (
+                <video src={item.reel.duetSourceVideoUrl} className="h-full w-full object-cover" loop playsInline muted autoPlay={index === currentFeedIndex} aria-label="Original reel" />
+              )}
               <video
                 ref={element => {
                   if (element) videoRefs.current[item.reel.id] = element;
                   else delete videoRefs.current[item.reel.id];
                 }}
                 data-reel="true"
-                src={item.reel.mediaContent?.items?.[0]?.url || item.reel.videoUrl}
+                src={getReelVideoUrl(item.reel)}
                 poster={item.reel.mediaContent?.items?.[0]?.thumbnailUrl || item.reel.thumbnail}
                 className={`h-full w-full ${isDesktop ? 'object-contain' : 'object-cover'}`}
                 loop
@@ -686,11 +749,13 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
                 preload={index === currentFeedIndex || index === currentFeedIndex + 1 ? 'auto' : 'none'}
                 fetchPriority={index === currentFeedIndex ? 'high' : 'auto'}
                 muted={isMuted}
+                controlsList={item.reel.reelSettings?.allowDownload === true ? undefined : 'nodownload'}
                 onLoadStart={() => index === currentFeedIndex && setIsBuffering(true)}
                 onWaiting={() => index === currentFeedIndex && setIsBuffering(true)}
                 onCanPlay={() => index === currentFeedIndex && setIsBuffering(false)}
                 onPlaying={() => index === currentFeedIndex && setIsBuffering(false)}
               />
+              </div>
               <button
                 type="button"
                 className="absolute inset-0 z-10 cursor-pointer bg-transparent"
@@ -841,7 +906,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
             </button>
 
             {/* Comment Button - Primary */}
-            <button
+            {commentsAllowed && <button
               type="button"
               onClick={(event) => {
                 event.preventDefault();
@@ -853,12 +918,12 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
               <div className="w-12 h-12 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm text-white rounded-full hover:bg-gray-900/70 transition-all">
                 <MessageCircle className="w-6 h-6" />
               </div>
-              {currentReel.analytics?.comments > 0 && (
+              {currentCommentCount > 0 && (
                 <span className="text-white text-xs font-semibold drop-shadow-lg">
-                  {formatNumber(currentReel.analytics.comments)}
+                  {formatNumber(currentCommentCount)}
                 </span>
               )}
-            </button>
+            </button>}
 
             {/* More Menu - Secondary Actions */}
             <div className="relative flex flex-col items-center">
@@ -905,6 +970,20 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
                         )}
                       </div>
                     </button>
+                    {downloadAllowed && <button
+                      type="button"
+                      onClick={(event) => { event.preventDefault(); event.stopPropagation(); handleDownload(currentReel); setShowActionsMenu(false); }}
+                      className="flex w-full items-center space-x-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/10"
+                    >
+                      <Download className="h-5 w-5" /><span className="text-sm font-medium">Download</span>
+                    </button>}
+                    {duetAllowed && <button
+                      type="button"
+                      onClick={(event) => { event.preventDefault(); event.stopPropagation(); handleDuet(currentReel); }}
+                      className="flex w-full items-center space-x-3 px-4 py-3 text-left text-white transition-colors hover:bg-white/10"
+                    >
+                      <GitFork className="h-5 w-5" /><span className="text-sm font-medium">Create duet</span>
+                    </button>}
                     <button
                       type="button"
                       onClick={(event) => {
@@ -949,6 +1028,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           onClose={() => setShowComments(false)}
         />
       )}
+      {duetReel && <DuetModal reel={duetReel} user={user} onClose={() => setDuetReel(null)} />}
       
       {/* Profile Completion Modal */}
       <ProfileCompletionModal
@@ -956,6 +1036,66 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         onClose={closeModal}
         missingFields={profileCompletion?.missingFields || []}
       />
+    </div>
+  );
+};
+
+const DuetModal = ({ reel, user, onClose }) => {
+  const [file, setFile] = useState(null);
+  const [caption, setCaption] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const publishDuet = async event => {
+    event.preventDefault();
+    if (!file || !user?.uid || saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+      const fileRef = storageRef(storage, `reels/${user.uid}/${Date.now()}-duet-${safeName}`);
+      const snapshot = await uploadBytes(fileRef, file, { contentType: file.type || 'video/mp4' });
+      const videoUrl = await getDownloadURL(snapshot.ref);
+      const reelRef = push(ref(db, 'reels'));
+      const now = new Date().toISOString();
+      const originalTitle = getLocalizedText(reel.title, 'en') || 'Original reel';
+      await set(reelRef, {
+        id: reelRef.key,
+        type: POST_TYPES.REEL,
+        title: { en: caption.trim() || `Duet with ${originalTitle}`, hi: '', gu: '' },
+        description: { en: caption.trim(), hi: '', gu: '' },
+        videoUrl,
+        duetOf: reel.id,
+        duetSourceVideoUrl: getReelVideoUrl(reel),
+        author: { uid: user.uid, name: user.displayName || 'Our Vadodara user', avatar: user.photoURL || '' },
+        authorId: user.uid,
+        isPublished: true,
+        createdAt: now,
+        updatedAt: now,
+        publishedAt: now,
+        commentsEnabled: true,
+        mediaContent: { type: 'video', items: [{ id: `duet-${Date.now()}`, type: 'video', url: videoUrl, filename: file.name }] },
+        reelSettings: { allowDownload: true, allowDuet: true, allowComments: true },
+        analytics: { views: 0, likes: 0, comments: 0, shares: 0, saves: 0 }
+      });
+      onClose();
+    } catch (publishError) {
+      console.error('Error publishing duet:', publishError);
+      setError('Unable to publish the duet. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 p-3 backdrop-blur-sm sm:items-center" onClick={onClose}>
+      <form onSubmit={publishDuet} onClick={event => event.stopPropagation()} className="w-full max-w-lg rounded-3xl bg-white p-5 text-slate-900 shadow-2xl dark:bg-slate-900 dark:text-white">
+        <div className="flex items-center justify-between gap-3"><div><h3 className="text-xl font-black">Create a duet</h3><p className="text-sm text-slate-500">Record or choose your side of the Reel.</p></div><button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 dark:bg-slate-800" aria-label="Close duet creator"><X className="h-5 w-5" /></button></div>
+        <label className="mt-5 flex cursor-pointer flex-col items-center rounded-2xl border-2 border-dashed border-slate-300 px-4 py-8 text-center dark:border-slate-700"><Upload className="h-8 w-8 text-pink-600" /><span className="mt-2 font-bold">{file ? file.name : 'Record or choose a video'}</span><span className="mt-1 text-xs text-slate-500">MP4, MOV, or WebM up to 100 MB</span><input type="file" accept="video/*" capture="user" onChange={event => setFile(event.target.files?.[0] || null)} className="sr-only" /></label>
+        <label className="mt-4 block text-sm font-bold">Caption<input value={caption} onChange={event => setCaption(event.target.value)} maxLength={240} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-950" placeholder="Add a caption (optional)" /></label>
+        {error && <p className="mt-3 text-sm font-semibold text-red-600">{error}</p>}
+        <button type="submit" disabled={!file || saving} className="mt-5 w-full rounded-xl bg-pink-600 px-4 py-3 font-black text-white transition hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50">{saving ? 'Publishing duet…' : 'Publish duet'}</button>
+      </form>
     </div>
   );
 };
@@ -985,7 +1125,7 @@ const CommentsModal = ({ reel, onClose }) => {
         
         {/* ThreadedCommentSection - includes comments list and input */}
         <div className="flex-1 overflow-hidden pb-20">
-          <ThreadedCommentSection postId={reel.id} />
+          <ThreadedCommentSection postId={reel.id} contentPath="reels" commentsEnabled={reel.commentsEnabled !== false && reel.reelSettings?.allowComments !== false} />
         </div>
       </div>
     </div>

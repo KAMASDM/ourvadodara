@@ -746,13 +746,13 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
                     <span className="font-medium">{news.analytics?.likes ?? news.likes ?? 0}</span>
                   </button>
                   
-                  <button
+                  {news.commentsEnabled !== false && <button
                     onClick={() => setShowComments(!showComments)}
                     className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-blue-500 transition-colors"
                   >
                     <MessageCircle className="w-6 h-6" />
                     <span className="font-medium">{news.comments}</span>
-                  </button>
+                  </button>}
                   
                   <button
                     onClick={() => setShowShareModal(true)}
@@ -778,9 +778,10 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
           </div>
 
           {/* Comments Section */}
-          {showComments && (
+          {showComments && news.commentsEnabled !== false && (
             <ThreadedCommentSection
               postId={news.id}
+              commentsEnabled={news.commentsEnabled !== false}
             />
           )}
 

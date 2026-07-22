@@ -74,6 +74,7 @@ const createInitialFormData = () => ({
   isBreaking: false,
   isUrgent: false,
   isFeatured: false,
+  commentsEnabled: true,
   publishDate: '',
   scheduledTime: '',
   mediaContent: {
@@ -112,7 +113,8 @@ const createInitialFormData = () => ({
     interval: 3000,
     showIndicators: true,
     showArrows: true,
-    transition: 'slide'
+    transition: 'slide',
+    allowComments: true
   }
 });
 
@@ -713,6 +715,12 @@ const UnifiedPostCreator = () => {
           saves: 0
         }
       };
+
+      postData.commentsEnabled = postType === POST_TYPES.REEL
+        ? formData.reelSettings.allowComments
+        : postType === POST_TYPES.CAROUSEL
+          ? formData.carouselSettings.allowComments
+          : formData.commentsEnabled;
       
       // Add media content for media posts
       if (postType !== POST_TYPES.STANDARD) {
@@ -1434,6 +1442,16 @@ const UnifiedPostCreator = () => {
         )}
 
         {/* Reel Settings */}
+        {postType === POST_TYPES.STANDARD && (
+          <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+            <label className="flex cursor-pointer items-center justify-between gap-4">
+              <div><span className="block text-sm font-semibold text-neutral-800 dark:text-neutral-100">Allow comments</span><span className="text-xs text-neutral-500">Users can view and post comments on this news article.</span></div>
+              <input type="checkbox" checked={formData.commentsEnabled} onChange={(e) => setFormData(prev => ({ ...prev, commentsEnabled: e.target.checked }))} className="h-5 w-5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500" />
+            </label>
+          </div>
+        )}
+
+        {/* Reel Settings */}
         {postType === POST_TYPES.REEL && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1501,6 +1519,7 @@ const UnifiedPostCreator = () => {
                 { key: 'autoPlay', label: 'Auto Play', obj: 'carouselSettings' },
                 { key: 'showIndicators', label: 'Show Indicators', obj: 'carouselSettings' },
                 { key: 'showArrows', label: 'Show Arrows', obj: 'carouselSettings' },
+                { key: 'allowComments', label: 'Allow Comments', obj: 'carouselSettings' },
               ].map(({ key, label }) => (
                 <label key={key} className={`relative flex items-center gap-2 px-3.5 py-2 rounded-lg border-2 cursor-pointer transition select-none ${
                   formData.carouselSettings[key]

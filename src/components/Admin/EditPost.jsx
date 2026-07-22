@@ -40,7 +40,8 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
     externalLink: '',
     isBreaking: false,
     isUrgent: false,
-    isFeatured: false
+    isFeatured: false,
+    commentsEnabled: true
   });
   const [mediaFiles, setMediaFiles] = useState([]);
   const [errors, setErrors] = useState({});
@@ -79,7 +80,8 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
             externalLink: postData.externalLink || '',
             isBreaking: postData.isBreaking || false,
             isUrgent: postData.isUrgent || false,
-            isFeatured: postData.isFeatured || false
+            isFeatured: postData.isFeatured || false,
+            commentsEnabled: postData.commentsEnabled !== false
           });
           setMediaFiles(postData.media || []);
           setMirrorCities(Array.isArray(postData.cities) ? postData.cities : []);
@@ -631,6 +633,15 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
         </div>
 
         <div className="flex flex-wrap gap-4">
+          <label className="flex items-center text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={formData.commentsEnabled}
+              onChange={(e) => handleInputChange('commentsEnabled', e.target.checked)}
+              className="rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
+            />
+            <span className="ml-2">Allow Comments</span>
+          </label>
           <label className="flex items-center text-sm text-gray-700 dark:text-gray-300">
             <input
               type="checkbox"

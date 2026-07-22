@@ -4,14 +4,17 @@ import { useTranslation } from 'react-i18next';
 import { getDatabase, ref, onValue, update } from 'firebase/database';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { DATABASE_PATHS } from '../../utils/databaseSchema';
+import ThreadedCommentSection from '../Comments/ThreadedCommentSection';
 
 const PollWidget = ({ className = '' }) => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const { user } = useAuth();
   const [polls, setPolls] = useState([]);
   const [userVotes, setUserVotes] = useState(new Map());
   const [showResults, setShowResults] = useState(new Map());
   const [loading, setLoading] = useState(true);
+  const [openCommentsFor, setOpenCommentsFor] = useState(null);
+  const [feedback, setFeedback] = useState('');
 
   const getCurrentLang = () => {
     const lang = i18n.language || 'en';
@@ -99,6 +102,21 @@ const PollWidget = ({ className = '' }) => {
     setShowResults(newShowResults);
   };
 
+  const handleShare = async (poll) => {
+    const question = getMultiLangText(poll.question, 'Community poll');
+    const url = `${window.location.origin}${window.location.pathname}#poll-${poll.id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: question, text: question, url });
+      } else {
+        await navigator.clipboard.writeText(`${question}\n${url}`);
+        setFeedback('Poll link copied.');
+      }
+    } catch (error) {
+      if (error?.name !== 'AbortError') setFeedback('Unable to share this poll right now.');
+    }
+  };
+
   const hasVoted = (pollId) => {
     const poll = polls.find(p => p.id === pollId);
     if (user && poll) {
@@ -165,7 +183,7 @@ const PollWidget = ({ className = '' }) => {
           const totalVotes = poll.totalVotes || 0;
 
           return (
-            <div key={poll.id} className="p-6">
+            <div key={poll.id} id={`poll-${poll.id}`} className="p-6">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   {getMultiLangText(poll.question)}
@@ -255,14 +273,19 @@ const PollWidget = ({ className = '' }) => {
                 </button>
 
                 <div className="flex items-center space-x-2 text-gray-500">
-                  <button className="p-1 hover:text-blue-600 transition-colors">
+                  <button type="button" onClick={() => handleShare(poll)} aria-label="Share poll" className="p-1 hover:text-blue-600 transition-colors">
                     <Share2 className="h-4 w-4" />
                   </button>
-                  <button className="p-1 hover:text-blue-600 transition-colors">
+                  <button type="button" onClick={() => setOpenCommentsFor(current => current === poll.id ? null : poll.id)} aria-label="Comment on poll" aria-expanded={openCommentsFor === poll.id} className="p-1 hover:text-blue-600 transition-colors">
                     <MessageCircle className="h-4 w-4" />
                   </button>
                 </div>
               </div>
+              {openCommentsFor === poll.id && (
+                <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
+                  <ThreadedCommentSection postId={poll.id} contentPath="polls" />
+                </div>
+              )}
             </div>
           );
         })}
@@ -275,6 +298,7 @@ const PollWidget = ({ className = '' }) => {
           </button>
         </div>
       )}
+      {feedback && <p role="status" className="border-t border-gray-100 px-4 py-3 text-center text-sm font-medium text-blue-700">{feedback}</p>}
     </div>
   );
 };

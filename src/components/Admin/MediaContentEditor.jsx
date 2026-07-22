@@ -63,7 +63,18 @@ const MediaContentEditor = ({ item, onClose, onSave }) => {
       : null,
     category: item.category || '',
     isBreaking: !!item.isBreaking,
-    isFeatured: !!item.isFeatured
+    isFeatured: !!item.isFeatured,
+    commentsEnabled: item.commentsEnabled !== false,
+    reelSettings: {
+      ...(item.reelSettings || {}),
+      allowDownload: item.reelSettings?.allowDownload === true,
+      allowDuet: item.reelSettings?.allowDuet === true,
+      allowComments: item.reelSettings?.allowComments !== false
+    },
+    carouselSettings: {
+      ...(item.carouselSettings || {}),
+      allowComments: item.carouselSettings?.allowComments ?? item.commentsEnabled ?? false
+    }
   });
 
   const [selectedCities, setSelectedCities] = useState(() => {
@@ -202,6 +213,11 @@ const MediaContentEditor = ({ item, onClose, onSave }) => {
         category: formData.category,
         isBreaking: formData.isBreaking,
         isFeatured: formData.isFeatured,
+        commentsEnabled: item.type === 'reel'
+          ? formData.reelSettings.allowComments
+          : item.type === 'carousel'
+            ? formData.carouselSettings.allowComments
+            : formData.commentsEnabled,
         mediaContent: {
           ...(item.mediaContent || {}),
           items: mediaItems
@@ -214,6 +230,8 @@ const MediaContentEditor = ({ item, onClose, onSave }) => {
       if (formData.excerpt) {
         payload.excerpt = formData.excerpt;
       }
+      if (item.type === 'reel') payload.reelSettings = formData.reelSettings;
+      if (item.type === 'carousel') payload.carouselSettings = formData.carouselSettings;
 
       // Sync the canonical entry and every per-city mirror in one atomic
       // write; removed cities get their mirror deleted.
@@ -489,6 +507,23 @@ const MediaContentEditor = ({ item, onClose, onSave }) => {
               </label>
             </div>
           </div>
+
+          {(item.type === 'reel' || item.type === 'carousel') && (
+            <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Interaction permissions</h3>
+              <div className="mt-3 flex flex-wrap gap-4">
+                {item.type === 'reel' && [
+                  ['allowComments', 'Allow Comments'],
+                  ['allowDownload', 'Allow Download'],
+                  ['allowDuet', 'Allow Duet']
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" checked={Boolean(formData.reelSettings[key])} onChange={event => setFormData(prev => ({ ...prev, reelSettings: { ...prev.reelSettings, [key]: event.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600" /><span className="ml-2">{label}</span></label>
+                ))}
+                {item.type === 'carousel' && <label className="flex items-center text-sm text-gray-700 dark:text-gray-300"><input type="checkbox" checked={Boolean(formData.carouselSettings.allowComments)} onChange={event => setFormData(prev => ({ ...prev, carouselSettings: { ...prev.carouselSettings, allowComments: event.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600" /><span className="ml-2">Allow Comments</span></label>}
+              </div>
+              <p className="mt-2 text-xs text-gray-500">Changes apply immediately after saving.</p>
+            </div>
+          )}
 
           <div>
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">Media Items</h3>

@@ -385,6 +385,15 @@ const PostCard = ({ post, onPostClick }) => {
     <article
       ref={cardRef}
       className="bg-white dark:bg-neutral-900 border-b border-neutral-100 dark:border-neutral-800 transition-colors duration-150"
+      onClick={(event) => {
+        if (event.target.closest('button, a, input, textarea, select, [role="button"]')) return;
+        handlePostClick();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && !event.target.closest('button, a, input, textarea, select, [role="button"]')) handlePostClick();
+      }}
+      role="link"
+      tabIndex={0}
     >
       {/* ── Post header ───────────────────────────── */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
@@ -416,7 +425,7 @@ const PostCard = ({ post, onPostClick }) => {
       </div>
 
       {/* ── Clickable body ────────────────────────── */}
-      <div onClick={handlePostClick} className="cursor-pointer">
+      <div className="cursor-pointer">
 
         {/* Breaking badge */}
         {post.isBreaking && (
@@ -552,7 +561,7 @@ const PostCard = ({ post, onPostClick }) => {
           </button>
 
           {/* Comment */}
-          <button
+          {post.commentsEnabled !== false && <button
             onClick={handlePostClick}
             className="flex items-center gap-1.5 text-neutral-400 dark:text-neutral-500 transition-transform active:scale-90"
           >
@@ -560,7 +569,7 @@ const PostCard = ({ post, onPostClick }) => {
             {post.comments > 0 && (
               <span className="text-[12px] font-medium">{post.comments}</span>
             )}
-          </button>
+          </button>}
 
           {/* Share */}
           <button
