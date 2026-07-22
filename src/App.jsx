@@ -32,6 +32,7 @@ const NotificationSettings = React.lazy(() => import('./components/Settings/Noti
 const GeneralSettings = React.lazy(() => import('./components/Settings/GeneralSettings.jsx'));
 const ActivityHistory = React.lazy(() => import('./pages/Profile/ActivityHistory.jsx'));
 const ReelsPage = React.lazy(() => import('./pages/Reels/ReelsPage.jsx'));
+const ExplorePage = React.lazy(() => import('./pages/Explore/ExplorePage.jsx'));
 const AdvertisePage = React.lazy(() => import('./pages/Advertise/AdvertisePage.jsx'));
 const EventsCalendar = React.lazy(() => import('./components/Events/EventsCalendar.jsx'));
 const EventDetail = React.lazy(() => import('./components/Events/EventDetail.jsx'));
@@ -138,6 +139,14 @@ function AppContent() {
     }
     if (path === '/offers' || path === '/coupons') {
       setCurrentView({ type: 'offers', data: null });
+      setActiveTab('explore');
+      return;
+    }
+
+    const exploreMatch = path.match(/^\/explore(?:\/([^/]+))?\/?$/);
+    if (exploreMatch) {
+      setCurrentView({ type: 'explore', data: { section: exploreMatch[1] || null } });
+      setActiveTab('explore');
       return;
     }
 
@@ -157,13 +166,13 @@ function AppContent() {
     const breakingMatch = path.match(/^\/breaking\/([^/]+)$/);
     if (breakingMatch) {
       setCurrentView({ type: 'breaking-detail', data: { newsId: decodeURIComponent(breakingMatch[1]) } });
-      setActiveTab('breaking');
+      setActiveTab('explore');
       return;
     }
 
     if (path === '/breaking') {
       setCurrentView({ type: 'breaking', data: null });
-      setActiveTab('breaking');
+      setActiveTab('explore');
       return;
     }
 
@@ -393,20 +402,13 @@ function AppContent() {
     const tabPaths = {
       home: '/',
       reels: '/reels',
-      breaking: '/breaking',
+      explore: '/explore',
       events: '/events',
       profile: '/profile'
     };
     const nextPath = tabPaths[tab] || `/${tab}`;
     if (window.location.pathname !== nextPath) {
       window.history.pushState({ view: tab }, '', nextPath);
-    }
-    
-    // Breaking news can be accessed without authentication
-    if (tab === 'breaking') {
-      setActiveTab(tab);
-      setCurrentView({ type: 'breaking', data: null });
-      return;
     }
     
     setActiveTab(tab);
@@ -438,6 +440,8 @@ function AppContent() {
         setActiveTab('home');
       } else if (type === 'reels') {
         setActiveTab('reels');
+      } else if (type === 'explore' || type === 'offers' || type === 'breaking') {
+        setActiveTab('explore');
       } else if (type === 'events') {
         setActiveTab('events');
       } else if (type === 'profile') {
@@ -543,6 +547,8 @@ function AppContent() {
         );
       case 'search':
         return <SearchPage onPostClick={handlePostClick} onShowReels={handleShowReels} />;
+      case 'explore':
+        return <ExplorePage initialSection={currentView.data?.section || null} />;
       case 'advertise':
         return <AdvertisePage onBack={handleBackToHome} />;
       case 'events':
@@ -593,7 +599,7 @@ function AppContent() {
             onBack={() => {
               window.history.pushState({ view: 'breaking' }, '', '/breaking');
               setCurrentView({ type: 'breaking', data: null });
-              setActiveTab('breaking');
+              setActiveTab('explore');
             }}
             onNavigate={(newsId) => {
               window.history.pushState({ view: 'breaking-detail', newsId }, '', `/breaking/${encodeURIComponent(newsId)}`);
@@ -649,7 +655,6 @@ function AppContent() {
             {hasMobileHeader && (
               <Header 
                 onNotificationClick={handleNotificationsClick}
-                onLoginClick={() => setShowLogin(true)}
                 onProfileClick={handleProfileClick}
                 onSearchClick={handleSearchClick}
               />

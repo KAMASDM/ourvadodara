@@ -5,26 +5,15 @@
 // =============================================
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Home, User, AlertTriangle, Clapperboard } from 'lucide-react';
-import { useEnhancedAuth } from '../../context/Auth/SimpleEnhancedAuth';
-import { useRealtimeData } from '../../hooks/useRealtimeData';
+import { CalendarDays, Compass, Home, User, Clapperboard } from 'lucide-react';
 
 const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChange, hasActiveSOS = false }) {
   const { t } = useTranslation();
-  const { user } = useEnhancedAuth();
   const handleChange = onTabChange || setActiveTab;
   const [isHidden, setIsHidden] = useState(false);
   const lastScrollY = useRef(typeof window !== 'undefined' ? window.scrollY : 0);
   const hiddenRef = useRef(false);
   const tickingRef = useRef(false);
-
-  const { data: notificationsObject } = useRealtimeData(
-    user ? `notifications/${user.uid}` : null
-  );
-
-  const unreadCount = notificationsObject
-    ? Object.values(notificationsObject).filter(n => !n.isRead).length
-    : 0;
 
   useEffect(() => {
     const setHiddenIfChanged = (nextHidden) => {
@@ -70,11 +59,10 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
   const navItems = [
     { id: 'home',     Icon: Home,          label: t('home', 'Home') },
     { id: 'reels',    Icon: Clapperboard,  label: t('reels', 'Reels') },
-    { id: 'breaking', Icon: AlertTriangle, label: t('breakingNav', 'Breaking'), alert: true },
-    // Logged-out users see the same Profile tab; tapping it opens the login
-    // modal (handled in App.handleTabChange). The header owns the Login CTA,
-    // so the label here must not duplicate it.
-    { id: 'profile', Icon: User, label: t('profile', 'Profile'), badge: user ? unreadCount : 0 },
+    { id: 'explore',  Icon: Compass,       label: t('explore.title', 'Explore'), featured: true },
+    { id: 'events',   Icon: CalendarDays,  label: t('events', 'Events') },
+    // Logged-out users see the same Profile tab; App opens sign-in when tapped.
+    { id: 'profile', Icon: User, label: t('profile', 'Profile') },
   ];
 
   return (
@@ -89,12 +77,12 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
     >
       <div className="max-w-app mx-auto mb-2 px-2">
         <div className="liquid-glass relative flex h-[64px] rounded-3xl !border-teal-700/35 shadow-[0_12px_38px_rgba(15,118,110,0.16)] dark:!border-teal-400/30 dark:shadow-[0_12px_38px_rgba(20,184,166,0.10)]">
-        {navItems.map(({ id, Icon, label, alert, badge }) => {
+        {navItems.map(({ id, Icon, label, featured }) => {
           const active = activeTab === id;
           const color = active
             ? 'text-teal-700 dark:text-teal-300'
-            : alert
-              ? 'text-accent-500'
+            : featured
+              ? 'text-teal-600 dark:text-teal-300'
               : 'text-neutral-500 dark:text-neutral-400';
 
           return (
@@ -104,7 +92,7 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
               onClick={() => handleChange?.(id)}
               aria-label={label}
               aria-current={active ? 'page' : undefined}
-              className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 ${color} transition-all duration-200 active:scale-95`}
+              className={`relative min-w-0 flex-1 flex flex-col items-center justify-center gap-0.5 ${color} transition-all duration-200 active:scale-95`}
             >
               {active && (
                 <span
@@ -112,15 +100,9 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
                   className="absolute inset-x-1 top-1 bottom-1 rounded-[1.35rem] border border-teal-600/55 bg-gradient-to-b from-teal-50/95 to-white/80 shadow-[0_3px_12px_rgba(15,118,110,0.14)] ring-1 ring-teal-600/10 dark:border-teal-400/50 dark:from-teal-950/70 dark:to-slate-900/70 dark:ring-teal-300/10"
                 />
               )}
+              {featured && !active && <span className="absolute top-1.5 z-0 h-8 w-8 rounded-full bg-teal-50 ring-1 ring-teal-100 dark:bg-teal-950/50 dark:ring-teal-800" aria-hidden />}
               {React.createElement(Icon, { className: 'relative z-10 h-[22px] w-[22px]', strokeWidth: active ? 2.5 : 2 })}
-              <span className="relative z-10 text-[10px] font-semibold tracking-[0.02em]">{label}</span>
-
-              {/* Notification badge */}
-              {badge > 0 && (
-                <span className="absolute top-2 right-[calc(50%-14px)] h-4 w-4 flex items-center justify-center rounded-full bg-danger-500 text-[9px] font-bold text-white">
-                  {badge > 9 ? '9+' : badge}
-                </span>
-              )}
+              <span className="relative z-10 max-w-full truncate px-0.5 text-[10px] font-semibold tracking-[0.02em]">{label}</span>
 
               {/* SOS pulse indicator */}
               {id === 'home' && hasActiveSOS && (

@@ -120,10 +120,10 @@ const InstallPrompt = () => {
 
   return (
     <div className="fixed inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-[70] px-3 sm:bottom-5">
-      <div className="liquid-panel mx-auto max-w-md rounded-[1.5rem] border border-white/70 p-4 shadow-2xl">
-        <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/75 shadow-inner">
-            <img src={logoImage} alt="Our Vadodara" className="h-9 w-9 object-contain" />
+      <div className="liquid-panel mx-auto max-w-md rounded-[1.5rem] border border-white/70 p-3 shadow-2xl sm:p-4">
+        <div className="flex items-start gap-2.5 sm:gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/75 shadow-inner sm:h-12 sm:w-12 sm:rounded-2xl">
+            <img src={logoImage} alt="Our Vadodara" className="h-8 w-8 object-contain sm:h-9 sm:w-9" />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -132,7 +132,7 @@ const InstallPrompt = () => {
                 <h3 className="text-sm font-bold text-slate-950">
                   {isUpdate ? 'Update Our Vadodara' : 'Install Our Vadodara'}
                 </h3>
-                <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+                <p className="mt-0.5 hidden text-xs leading-relaxed text-slate-600 sm:block">
                   {isUpdate
                     ? 'A fresh version is ready with the latest fixes and improvements.'
                     : 'Get faster access, full-screen reading, and a phone-ready city news experience.'}
@@ -149,7 +149,7 @@ const InstallPrompt = () => {
             </div>
 
             {isUpdate ? (
-              <div className="mt-4 flex gap-2">
+              <div className="mt-2 flex gap-2 sm:mt-4">
                 <button
                   type="button"
                   onClick={updateApp}
@@ -161,7 +161,7 @@ const InstallPrompt = () => {
                 </button>
               </div>
             ) : isIOS ? (
-              <div className="mt-4 space-y-2 text-xs text-slate-600">
+              <div className="mt-2 space-y-2 text-xs text-slate-600 sm:mt-4">
                 <div className="flex items-center gap-2 rounded-2xl bg-white/55 px-3 py-2">
                   <Share className="h-4 w-4 text-teal-700" />
                   <span>Tap Safari Share.</span>
@@ -172,7 +172,7 @@ const InstallPrompt = () => {
                 </div>
               </div>
             ) : (
-              <div className="mt-4 flex gap-2">
+              <div className="mt-2 flex gap-2 sm:mt-4">
                 <button
                   type="button"
                   onClick={handleInstall}
@@ -193,7 +193,7 @@ const InstallPrompt = () => {
             )}
 
             {!isUpdate && (
-              <div className="mt-3 flex items-center gap-2 text-[11px] font-medium text-slate-500">
+              <div className="mt-3 hidden items-center gap-2 text-[11px] font-medium text-slate-500 sm:flex">
                 <Smartphone className="h-3.5 w-3.5" />
                 <span>Designed for Android and iPhone home screens.</span>
                 <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-emerald-600" />

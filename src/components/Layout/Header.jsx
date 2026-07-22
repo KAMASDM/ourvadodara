@@ -1,7 +1,6 @@
 // =============================================
 // src/components/Layout/Header.jsx
-// Modernized header — frosted chrome, logo tile,
-// city pill, language, notifications, auth button.
+// Simplified mobile header — identity, search, preferences, notifications.
 // =============================================
 import React, { memo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,13 +11,13 @@ import { useCity } from '../../context/CityContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
 import { useAutoHideOnScroll } from '../../hooks/useAutoHideOnScroll';
 import { LANGUAGES } from '../../utils/constants';
-import { Globe, Bell, LogIn, MapPin, AlertCircle, X, ChevronDown, Search } from 'lucide-react';
+import { Globe2, Bell, MapPin, AlertCircle, X, Search } from 'lucide-react';
 import Logo from '../Shared/Logo';
 import PWAInstallButton from '../PWA/PWAInstallButton';
 
 const ReadingStreak = React.lazy(() => import('../Gamification/ReadingStreak'));
 
-const Header = memo(function Header({ onNotificationClick, onNotifClick, onLoginClick, onProfileClick, onSearchClick }) {
+const Header = memo(function Header({ onNotificationClick, onNotifClick, onProfileClick, onSearchClick }) {
   const { t } = useTranslation();
   const { currentLanguage, changeLanguage } = useLanguage();
   const { currentCity, setCurrentCity, cities } = useCity();
@@ -60,19 +59,14 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
       >
         <div className="max-w-app mx-auto h-[56px] px-4 flex items-center gap-2">
 
-          {/* Left — Logo + city pill */}
-          <Logo size="sm" onClick={() => window.location.reload()} />
-
-          <button
-            type="button"
-            onClick={() => setShowSettingsMenu(true)}
-            className="liquid-chip max-w-[120px] text-xs font-semibold text-neutral-700 dark:text-neutral-200 transition-colors truncate"
-            aria-label="Select city"
-          >
-            <MapPin className="w-3 h-3 flex-shrink-0 text-teal-500" />
-            <span className="truncate">{currentCity?.name || 'City'}</span>
-            <ChevronDown className="w-3 h-3 flex-shrink-0" />
-          </button>
+          {/* Left — product identity */}
+          <Logo
+            size="sm"
+            onClick={() => {
+              window.history.pushState({ view: 'home' }, '', '/');
+              window.dispatchEvent(new Event('popstate'));
+            }}
+          />
 
           <div className="flex-1" />
 
@@ -82,7 +76,7 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
               type="button"
               onClick={onSearchClick}
               className="btn-icon"
-              aria-label="Search"
+              aria-label={t('search.search', 'Search')}
             >
               <Search className="w-5 h-5" strokeWidth={2} />
             </button>
@@ -91,16 +85,20 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
               type="button"
               onClick={() => setShowSettingsMenu(true)}
               className="btn-icon"
-              aria-label="Language"
+              aria-label={t('app_preferences', 'City and language')}
+              title={t('app_preferences', 'City and language')}
             >
-              <Globe className="w-5 h-5" strokeWidth={2} />
+              <Globe2 className="w-5 h-5" strokeWidth={2} />
+              <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 rounded bg-teal-600 px-1 text-[7px] font-black uppercase leading-3 text-white" aria-hidden>
+                {currentLanguage.split('-')[0]}
+              </span>
             </button>
 
             <button
               type="button"
               onClick={handleNotifClick}
               className="btn-icon"
-              aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
+              aria-label={t('notifications.aria_label', { count: unreadCount })}
             >
               <Bell className="w-5 h-5" strokeWidth={2} />
               {bellBadge ? (
@@ -115,17 +113,7 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
               ) : null}
             </button>
 
-            {!user ? (
-              <button
-                type="button"
-                onClick={onLoginClick}
-                className="btn btn-primary !px-3 !py-2 !text-sm ml-1"
-                title={t('login', 'Login')}
-              >
-                <LogIn className="w-4 h-4" />
-                <span className="hidden sm:inline">{t('login', 'Login')}</span>
-              </button>
-            ) : showIncompleteProfileBadge ? (
+            {showIncompleteProfileBadge ? (
               <button
                 type="button"
                 onClick={onProfileClick}
@@ -155,15 +143,18 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
             </div>
 
             <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-100 dark:border-neutral-800">
-              <h3 className="text-base font-semibold">Settings</h3>
-              <button type="button" onClick={closeSheet} className="btn-icon !w-8 !h-8" aria-label="Close">
+              <div>
+                <h3 className="text-base font-semibold">{t('app_preferences', 'City and language')}</h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">{t('preferences_hint', 'Personalize the app in one place')}</p>
+              </div>
+              <button type="button" onClick={closeSheet} className="btn-icon !w-8 !h-8" aria-label={t('close', 'Close')}>
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="p-5 space-y-5">
               <div>
-                <label className="eyebrow mb-2 block">City</label>
+                <label className="eyebrow mb-2 block">{t('city', 'City')}</label>
                 <div className="relative">
                   <select
                     value={currentCity?.id}
@@ -182,7 +173,7 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
               </div>
 
               <div>
-                <label className="eyebrow mb-2 block">Language</label>
+                <label className="eyebrow mb-2 block">{t('language', 'Language')}</label>
                 <div className="relative">
                   <select
                     value={currentLanguage}
@@ -193,7 +184,7 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
                       <option key={lang.code} value={lang.code}>{lang.nativeName}</option>
                     ))}
                   </select>
-                  <Globe className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                  <Globe2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
                 </div>
               </div>
 
@@ -214,7 +205,7 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onLogin
                 onClick={closeSheet}
                 className="btn-primary w-full py-3"
               >
-                Done
+                {t('done', 'Done')}
               </button>
             </div>
           </div>
