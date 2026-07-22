@@ -69,8 +69,8 @@ const Navigation = memo(function Navigation({ activeTab, setActiveTab, onTabChan
 
   const navItems = [
     { id: 'home',     Icon: Home,          label: t('home', 'Home') },
-    { id: 'reels',    Icon: Clapperboard,  label: 'Reels' },
-    { id: 'breaking', Icon: AlertTriangle, label: 'Breaking', alert: true },
+    { id: 'reels',    Icon: Clapperboard,  label: t('reels', 'Reels') },
+    { id: 'breaking', Icon: AlertTriangle, label: t('breakingNav', 'Breaking'), alert: true },
     // Logged-out users see the same Profile tab; tapping it opens the login
     // modal (handled in App.handleTabChange). The header owns the Login CTA,
     // so the label here must not duplicate it.

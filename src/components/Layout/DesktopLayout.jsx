@@ -3,6 +3,7 @@
 // Desktop Layout with Top Navigation
 // =============================================
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useCity } from '../../context/CityContext';
@@ -32,8 +33,10 @@ import {
   Gift
 } from 'lucide-react';
 import logoImage from '../../assets/images/our-vadodara-logo.png.png';
+import { useRealtimeData } from '../../hooks/useRealtimeData';
 
 const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) => {
+  const { t } = useTranslation();
   const { currentLanguage, changeLanguage } = useLanguage();
   const { user, logout } = useAuth();
   const { currentCity, setCurrentCity, cities } = useCity();
@@ -44,6 +47,10 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
   const [headerBottom, setHeaderBottom] = useState(80);
   const headerRef = useRef(null);
+  const { data: notificationsObject } = useRealtimeData(user ? `notifications/${user.uid}` : null);
+  const unreadCount = notificationsObject
+    ? Object.values(notificationsObject).filter((notification) => !notification.isRead).length
+    : 0;
 
   // The desktop header is content-sized, so a hard-coded popup offset can put
   // menus on top of it at shorter desktop resolutions, non-default zoom
@@ -288,11 +295,16 @@ const DesktopLayout = ({ children, currentView = {}, onNavigate = () => {} }) =>
                 <button
                   type="button"
                   className="liquid-action relative rounded-2xl p-2 transition-colors"
-                  onClick={() => handleNavigation('notifications-settings')}
-                  title="Notifications"
+                  onClick={() => handleNavigation('notifications')}
+                  title={t('notifications.title')}
+                  aria-label={t('notifications.aria_label', { count: unreadCount })}
                 >
                   <Bell className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500"></span>
+                  {unreadCount > 0 && (
+                    <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-900">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
                 </button>
 
                 {user ? (

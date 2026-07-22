@@ -1,87 +1,163 @@
 // =============================================
 // src/components/Notifications/NotificationCenter.jsx
-// Now with real-time Firebase notifications
+// Shared responsive notification destination for web and mobile.
 // =============================================
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
-import { ref, update, remove } from '../../firebase-config';
+import { ref, update } from '../../firebase-config';
 import { db } from '../../firebase-config';
-import { Bell, Heart, MessageCircle, X, Check } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import LoadingSpinner from '../Common/LoadingSpinner';
+import { Bell, Check, Heart, MessageCircle, Settings } from 'lucide-react';
 import { NotificationSkeleton } from '../Common/SkeletonLoader';
 
-const NotificationCenter = ({ isOpen, onClose }) => {
+const formatRelativeTime = (timestamp, language) => {
+  const parsedTimestamp = typeof timestamp === 'number' ? timestamp : new Date(timestamp).getTime();
+  if (!Number.isFinite(parsedTimestamp)) return '';
+  const elapsedSeconds = Math.round((parsedTimestamp - Date.now()) / 1000);
+  const ranges = [
+    { unit: 'year', seconds: 31536000 },
+    { unit: 'month', seconds: 2592000 },
+    { unit: 'week', seconds: 604800 },
+    { unit: 'day', seconds: 86400 },
+    { unit: 'hour', seconds: 3600 },
+    { unit: 'minute', seconds: 60 },
+    { unit: 'second', seconds: 1 },
+  ];
+  const range = ranges.find(({ seconds }) => Math.abs(elapsedSeconds) >= seconds) || ranges.at(-1);
+  const value = Math.round(elapsedSeconds / range.seconds);
+  return new Intl.RelativeTimeFormat(language, { numeric: 'auto' }).format(value, range.unit);
+};
+
+const NotificationCenter = ({ onOpenSettings }) => {
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { data: notificationsObject, isLoading } = useRealtimeData(user ? `notifications/${user.uid}` : null);
 
-  const notifications = notificationsObject 
-    ? Object.entries(notificationsObject).map(([key, value]) => ({...value, id: key})).sort((a, b) => b.createdAt - a.createdAt) 
+  const notifications = notificationsObject
+    ? Object.entries(notificationsObject)
+      .map(([key, value]) => ({ ...value, id: key }))
+      .sort((a, b) => b.createdAt - a.createdAt)
     : [];
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = notifications.filter((notification) => !notification.isRead).length;
+  const language = (i18n.resolvedLanguage || i18n.language || 'en').split('-')[0];
 
   const getNotificationIcon = (type) => {
     switch (type) {
-      case 'like': return <Heart className="w-5 h-5 text-red-500" />;
-      case 'comment': return <MessageCircle className="w-5 h-5 text-blue-500" />;
-      default: return <Bell className="w-5 h-5 text-gray-500" />;
+      case 'like':
+        return <Heart className="h-5 w-5 text-rose-500" />;
+      case 'comment':
+        return <MessageCircle className="h-5 w-5 text-blue-500" />;
+      default:
+        return <Bell className="h-5 w-5 text-teal-600 dark:text-teal-300" />;
     }
   };
 
-  const markAllAsRead = () => {
-    if (!user) return;
+  const markAllAsRead = async () => {
+    if (!user || unreadCount === 0) return;
     const updates = {};
-    notifications.forEach(notif => {
-      if (!notif.isRead) {
-        updates[`/notifications/${user.uid}/${notif.id}/isRead`] = true;
+    notifications.forEach((notification) => {
+      if (!notification.isRead) {
+        updates[`/notifications/${user.uid}/${notification.id}/isRead`] = true;
       }
     });
-    // Use Firebase v9+ update function
-    update(ref(db), updates);
+    await update(ref(db), updates);
   };
 
-  if (!isOpen) return null;
+  const markAsRead = async (notification) => {
+    if (!user || notification.isRead) return;
+    await update(ref(db), {
+      [`/notifications/${user.uid}/${notification.id}/isRead`]: true,
+    });
+  };
 
   return (
-    // z-[70]: must clear the home control bar (z-[55]) and header sheets (z-[60])
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-start justify-center pt-16">
-      <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-md m-4 max-h-[80vh] flex flex-col">
-        <div className="p-4 border-b flex justify-between items-center">
-          <h2 className="text-lg font-semibold">Notifications {unreadCount > 0 && `(${unreadCount})`}</h2>
-          <button onClick={onClose}><X /></button>
-        </div>
-        
-        <div className="p-2 border-b">
-            <button onClick={markAllAsRead} disabled={unreadCount === 0} className="text-sm text-primary-red disabled:text-gray-400 flex items-center gap-1"><Check size={16} /> Mark all as read</button>
+    <section className="mx-auto w-full max-w-4xl px-3 pb-28 pt-3 sm:px-5 sm:pt-5 lg:pb-8" aria-labelledby="notifications-heading">
+      <div className="liquid-panel overflow-hidden rounded-3xl border border-white/70 shadow-xl shadow-slate-900/5 dark:border-white/10">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-4 py-4 dark:border-white/10 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
+              <Bell className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h1 id="notifications-heading" className="text-xl font-extrabold text-slate-950 dark:text-white">
+                {t('notifications.title')}
+              </h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {unreadCount > 0
+                  ? t('notifications.unread_count', { count: unreadCount })
+                  : t('notifications.all_caught_up')}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={markAllAsRead}
+              disabled={unreadCount === 0}
+              className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-teal-700 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-transparent dark:text-teal-300 dark:hover:bg-teal-950/50"
+            >
+              <Check className="h-4 w-4" />
+              {t('notifications.mark_all_read')}
+            </button>
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="liquid-action rounded-xl p-2.5"
+                aria-label={t('notifications.open_preferences')}
+                title={t('notifications.open_preferences')}
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="overflow-y-auto flex-1">
-          {isLoading ? (
-            <div>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <NotificationSkeleton key={i} />
-              ))}
+        <div className="divide-y divide-slate-200/70 dark:divide-white/10">
+          {!user ? (
+            <div className="px-6 py-16 text-center">
+              <Bell className="mx-auto mb-4 h-10 w-10 text-slate-300 dark:text-slate-600" />
+              <h2 className="font-extrabold text-slate-900 dark:text-white">{t('notifications.sign_in_title')}</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('notifications.sign_in_description')}</p>
             </div>
+          ) : isLoading ? (
+            Array.from({ length: 5 }).map((_, index) => <NotificationSkeleton key={index} />)
+          ) : notifications.length > 0 ? (
+            notifications.map((notification) => (
+              <button
+                key={notification.id}
+                type="button"
+                onClick={() => markAsRead(notification)}
+                className={`flex w-full items-start gap-3 px-4 py-4 text-left transition hover:bg-white/55 dark:hover:bg-white/5 sm:px-6 ${
+                  !notification.isRead ? 'bg-teal-50/70 dark:bg-teal-950/20' : ''
+                }`}
+              >
+                <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm dark:bg-slate-800">
+                  {getNotificationIcon(notification.type)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium leading-6 text-slate-800 dark:text-slate-200">{notification.message}</span>
+                  <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                    {formatRelativeTime(notification.createdAt, language)}
+                  </span>
+                </span>
+                {!notification.isRead && <span className="mt-3 h-2.5 w-2.5 shrink-0 rounded-full bg-teal-500" aria-hidden />}
+              </button>
+            ))
           ) : (
-            notifications.length > 0 ? (
-              notifications.map(notif => (
-                <div key={notif.id} className={`p-4 flex items-start gap-3 border-b ${!notif.isRead ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}>
-                  {getNotificationIcon(notif.type)}
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-800 dark:text-gray-200">{notif.message}</p>
-                    <p className="text-xs text-gray-500 mt-1">{formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true })}</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-sm text-gray-500 py-8">You have no notifications.</p>
-            )
+            <div className="px-6 py-16 text-center">
+              <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
+                <Bell className="h-7 w-7 text-slate-400" />
+              </span>
+              <h2 className="font-extrabold text-slate-900 dark:text-white">{t('notifications.empty_title')}</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('notifications.empty_description')}</p>
+            </div>
           )}
         </div>
       </div>
-    </div>
+    </section>
   );
 };
 

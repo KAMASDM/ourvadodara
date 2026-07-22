@@ -10,6 +10,8 @@ const resources = {
     translation: {
       // Navigation
       home: 'Home',
+      reels: 'Reels',
+      breakingNav: 'Breaking',
       profile: 'Profile',
       admin: 'Admin',
       
@@ -48,6 +50,17 @@ const resources = {
         error_message: 'We could not submit your report. Please try again.'
       },
       notifications: {
+        title: 'Notifications',
+        aria_label: 'Notifications, {{count}} unread',
+        unread_count_one: '{{count}} unread notification',
+        unread_count_other: '{{count}} unread notifications',
+        all_caught_up: 'You are all caught up',
+        mark_all_read: 'Mark all as read',
+        open_preferences: 'Notification preferences',
+        empty_title: 'No notifications yet',
+        empty_description: 'Your latest updates will appear here.',
+        sign_in_title: 'Sign in to see notifications',
+        sign_in_description: 'Notifications are connected to your account.',
         settings: 'Notification settings',
         manage_preferences: 'Choose how and when Our Vadodara contacts you.',
         push_notifications: 'Push notifications',
@@ -151,6 +164,8 @@ const resources = {
     translation: {
       // Navigation
       home: 'होम',
+      reels: 'रील्स',
+      breakingNav: 'ब्रेकिंग',
       profile: 'प्रोफाइल',
       admin: 'एडमिन',
       
@@ -162,6 +177,40 @@ const resources = {
       like: 'पसंद',
       comment: 'टिप्पणी',
       save: 'सेव करें',
+
+      notifications: {
+        title: 'सूचनाएं',
+        aria_label: 'सूचनाएं, {{count}} अपठित',
+        unread_count_one: '{{count}} अपठित सूचना',
+        unread_count_other: '{{count}} अपठित सूचनाएं',
+        all_caught_up: 'आपने सभी सूचनाएं देख ली हैं',
+        mark_all_read: 'सभी को पढ़ा हुआ मानें',
+        open_preferences: 'सूचना प्राथमिकताएं',
+        empty_title: 'अभी कोई सूचना नहीं',
+        empty_description: 'आपके नवीनतम अपडेट यहां दिखाई देंगे।',
+        sign_in_title: 'सूचनाएं देखने के लिए साइन इन करें',
+        sign_in_description: 'सूचनाएं आपके खाते से जुड़ी होती हैं।',
+        settings: 'सूचना सेटिंग्स',
+        manage_preferences: 'चुनें कि हमारा वडोदरा आपसे कब और कैसे संपर्क करे।',
+        push_notifications: 'पुश सूचनाएं',
+        push_description: 'इस डिवाइस पर अलर्ट प्राप्त करें।',
+        email_notifications: 'ईमेल सूचनाएं',
+        email_description: 'ईमेल से महत्वपूर्ण अपडेट प्राप्त करें।',
+        sms_notifications: 'एसएमएस सूचनाएं',
+        sms_description: 'टेक्स्ट संदेश से जरूरी अलर्ट प्राप्त करें।',
+        breaking_news: 'ब्रेकिंग न्यूज़',
+        breaking_news_description: 'शहर और सार्वजनिक सुरक्षा के जरूरी अपडेट।',
+        daily_digest: 'दैनिक सारांश',
+        daily_digest_description: 'प्रमुख स्थानीय खबरों का दैनिक सारांश।',
+        category_updates: 'श्रेणी अपडेट',
+        category_updates_description: 'आपकी पसंदीदा श्रेणियों के अपडेट।',
+        comment_replies: 'टिप्पणी के जवाब',
+        comment_replies_description: 'किसी के जवाब देने पर सूचना पाएं।',
+        sound_enabled: 'सूचना ध्वनि',
+        sound_description: 'समर्थित सूचनाओं के लिए ध्वनि चलाएं।',
+        note_title: 'नियंत्रण आपके हाथ में है',
+        note_description: 'आप इन प्राथमिकताओं को कभी भी बदल सकते हैं।'
+      },
       
       // App specific
       appName: 'हमारा वडोदरा',
@@ -215,6 +264,8 @@ const resources = {
     translation: {
       // Navigation
       home: 'હોમ',
+      reels: 'રીલ્સ',
+      breakingNav: 'બ્રેકિંગ',
       profile: 'પ્રોફાઇલ',
       admin: 'એડમિન',
       
@@ -226,6 +277,40 @@ const resources = {
       like: 'લાઇક',
       comment: 'કોમેન્ટ',
       save: 'સેવ કરો',
+
+      notifications: {
+        title: 'સૂચનાઓ',
+        aria_label: 'સૂચનાઓ, {{count}} વાંચવાની બાકી',
+        unread_count_one: '{{count}} સૂચના વાંચવાની બાકી',
+        unread_count_other: '{{count}} સૂચનાઓ વાંચવાની બાકી',
+        all_caught_up: 'તમે બધી સૂચનાઓ જોઈ લીધી છે',
+        mark_all_read: 'બધી વાંચેલી ગણો',
+        open_preferences: 'સૂચના પસંદગીઓ',
+        empty_title: 'હજુ કોઈ સૂચના નથી',
+        empty_description: 'તમારા નવા અપડેટ અહીં દેખાશે.',
+        sign_in_title: 'સૂચનાઓ જોવા સાઇન ઇન કરો',
+        sign_in_description: 'સૂચનાઓ તમારા એકાઉન્ટ સાથે જોડાયેલી છે.',
+        settings: 'સૂચના સેટિંગ્સ',
+        manage_preferences: 'અમારું વડોદરા તમારો ક્યારે અને કેવી રીતે સંપર્ક કરે તે પસંદ કરો.',
+        push_notifications: 'પુશ સૂચનાઓ',
+        push_description: 'આ ઉપકરણ પર એલર્ટ મેળવો.',
+        email_notifications: 'ઇમેઇલ સૂચનાઓ',
+        email_description: 'ઇમેઇલ દ્વારા મહત્વપૂર્ણ અપડેટ મેળવો.',
+        sms_notifications: 'એસએમએસ સૂચનાઓ',
+        sms_description: 'ટેક્સ્ટ સંદેશ દ્વારા તાત્કાલિક એલર્ટ મેળવો.',
+        breaking_news: 'બ્રેકિંગ ન્યૂઝ',
+        breaking_news_description: 'શહેર અને જાહેર સુરક્ષાના તાત્કાલિક અપડેટ.',
+        daily_digest: 'દૈનિક સારાંશ',
+        daily_digest_description: 'મુખ્ય સ્થાનિક સમાચારોનો દૈનિક સારાંશ.',
+        category_updates: 'કેટેગરી અપડેટ',
+        category_updates_description: 'તમે અનુસરતા વિભાગોના અપડેટ.',
+        comment_replies: 'કૉમેન્ટના જવાબ',
+        comment_replies_description: 'કોઈ જવાબ આપે ત્યારે સૂચના મેળવો.',
+        sound_enabled: 'સૂચના અવાજ',
+        sound_description: 'સમર્થિત સૂચનાઓ માટે અવાજ વગાડો.',
+        note_title: 'નિયંત્રણ તમારા હાથમાં છે',
+        note_description: 'તમે આ પસંદગીઓ કોઈપણ સમયે બદલી શકો છો.'
+      },
       
       // App specific
       appName: 'અમારું વડોદરા',

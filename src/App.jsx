@@ -56,7 +56,6 @@ import './utils/i18n.js';
 function AppContent() {
   const [activeTab, setActiveTab] = useState('home');
   const [currentView, setCurrentView] = useState({ type: 'home', data: null });
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showGuestPrompt, setShowGuestPrompt] = useState(false);
   const [showFirebaseSetup, setShowFirebaseSetup] = useState(false);
@@ -192,8 +191,13 @@ function AppContent() {
       return;
     }
 
-    if (path === '/settings' || path === '/notifications-settings') {
-      setCurrentView({ type: path === '/settings' ? 'settings' : 'notifications-settings', data: null });
+    if (path === '/settings' || path === '/notifications-settings' || path === '/notifications') {
+      const type = path === '/settings'
+        ? 'settings'
+        : path === '/notifications-settings'
+          ? 'notifications-settings'
+          : 'notifications';
+      setCurrentView({ type, data: null });
       setActiveTab('home');
       return;
     }
@@ -491,6 +495,22 @@ function AppContent() {
     setCurrentView({ type: 'search', data: null });
   };
 
+  const handleNotificationsClick = () => {
+    if (!user) {
+      setShowLogin(true);
+      return;
+    }
+    window.history.pushState({ view: 'notifications' }, '', '/notifications');
+    setActiveTab('home');
+    setCurrentView({ type: 'notifications', data: null });
+  };
+
+  const handleNotificationSettingsClick = () => {
+    window.history.pushState({ view: 'notifications-settings' }, '', '/notifications-settings');
+    setActiveTab('home');
+    setCurrentView({ type: 'notifications-settings', data: null });
+  };
+
   const renderContent = () => {
     switch (currentView.type) {
       case 'news-detail':
@@ -598,6 +618,8 @@ function AppContent() {
         );
       case 'notifications-settings':
         return <NotificationSettings />;
+      case 'notifications':
+        return <NotificationCenter onOpenSettings={handleNotificationSettingsClick} />;
       case 'settings':
         return <GeneralSettings />;
       case 'activity':
@@ -626,7 +648,7 @@ function AppContent() {
             {/* Only show mobile header on mobile or for full-width views */}
             {hasMobileHeader && (
               <Header 
-                onNotificationClick={() => setShowNotifications(true)}
+                onNotificationClick={handleNotificationsClick}
                 onLoginClick={() => setShowLogin(true)}
                 onProfileClick={handleProfileClick}
                 onSearchClick={handleSearchClick}
@@ -659,11 +681,6 @@ function AppContent() {
           <InstallPrompt />
 
           {/* Modals */}
-          <NotificationCenter 
-            isOpen={showNotifications}
-            onClose={() => setShowNotifications(false)}
-          />
-          
           {showLogin && (
             <EnhancedLogin onClose={() => setShowLogin(false)} />
           )}
