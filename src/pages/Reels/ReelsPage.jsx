@@ -148,9 +148,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const containerRef = useRef(null);
   const videoRefs = useRef({});
   const scrollFrameRef = useRef(null);
-  const soundUnlockedAtRef = useRef(0);
   const soundPreferenceSetRef = useRef(false);
-  const touchResumeRef = useRef(false);
+  const touchGestureRef = useRef(null);
   const suppressTouchClickRef = useRef(false);
 
   useEffect(() => {
@@ -407,7 +406,6 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   }, []);
 
   const togglePlay = useCallback(() => {
-    if (performance.now() - soundUnlockedAtRef.current < 700) return;
     setIsPlaying(prev => !prev);
     setShowPlayPauseIcon(true);
     setTimeout(() => setShowPlayPauseIcon(false), 500);
@@ -415,19 +413,46 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
   const handleReelPressStart = useCallback((event) => {
     if (event.pointerType !== 'touch') return;
-    touchResumeRef.current = isPlaying;
+    touchGestureRef.current = {
+      startedAt: performance.now(),
+      startX: event.clientX,
+      startY: event.clientY,
+      wasPlaying: isPlaying
+    };
     suppressTouchClickRef.current = true;
     if (isPlaying) setIsPlaying(false);
   }, [isPlaying]);
 
   const handleReelPressEnd = useCallback((event) => {
     if (event.pointerType !== 'touch') return;
-    if (touchResumeRef.current) setIsPlaying(true);
-    touchResumeRef.current = false;
+    const gesture = touchGestureRef.current;
+    if (!gesture) return;
+    const elapsed = performance.now() - gesture.startedAt;
+    const moved = Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY);
+    const isQuickTap = event.type !== 'pointercancel' && elapsed < 260 && moved < 14;
+    const nextPlaying = isQuickTap ? !gesture.wasPlaying : gesture.wasPlaying;
+
+    setIsPlaying(nextPlaying);
+    if (isQuickTap) {
+      setShowPlayPauseIcon(true);
+      window.setTimeout(() => setShowPlayPauseIcon(false), 500);
+    }
+    if (nextPlaying) {
+      const shouldEnableSound = !soundPreferenceSetRef.current;
+      if (shouldEnableSound) setIsMuted(false);
+      const video = videoRefs.current[currentReel?.id];
+      if (video) {
+        video.muted = shouldEnableSound ? false : isMuted;
+        video.play().catch(error => {
+          if (error?.name !== 'AbortError') console.log('Gesture playback failed:', error);
+        });
+      }
+    }
+    touchGestureRef.current = null;
     window.setTimeout(() => {
       suppressTouchClickRef.current = false;
     }, 350);
-  }, []);
+  }, [currentReel?.id, isMuted]);
 
   const handleReelClick = useCallback(() => {
     if (suppressTouchClickRef.current) return;
@@ -438,30 +463,6 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     soundPreferenceSetRef.current = true;
     setIsMuted(prev => !prev);
   }, []);
-
-  // Mobile browsers prohibit audible autoplay before a user gesture. Treat
-  // the swipe itself as that gesture, so users never have to tap just to make
-  // the next reel start with sound.
-  const activateVisibleReelFromGesture = useCallback(() => {
-    const container = containerRef.current;
-    const visibleIndex = container?.clientHeight
-      ? Math.max(0, Math.min(feedItems.length - 1, Math.round(container.scrollTop / container.clientHeight)))
-      : currentFeedIndex;
-    const visibleItem = feedItems[visibleIndex];
-    const visibleReel = visibleItem?.type === 'reel' ? visibleItem.reel : null;
-    const video = videoRefs.current[visibleReel?.id];
-
-    const shouldEnableSound = !soundPreferenceSetRef.current;
-    if (shouldEnableSound && isMuted) soundUnlockedAtRef.current = performance.now();
-    if (shouldEnableSound) setIsMuted(false);
-    setIsPlaying(true);
-    if (video) {
-      video.muted = shouldEnableSound ? false : isMuted;
-      video.play().catch(error => {
-        if (error?.name !== 'AbortError') console.log('Gesture playback failed:', error);
-      });
-    }
-  }, [currentFeedIndex, feedItems, isMuted]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -736,7 +737,6 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       <div
         ref={containerRef}
         onScroll={handleReelScroll}
-        onTouchEnd={activateVisibleReelFromGesture}
         className="absolute inset-0 overflow-y-auto overscroll-y-contain snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
       >
