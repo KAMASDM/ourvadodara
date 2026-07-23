@@ -313,8 +313,8 @@ const CouponManagement = () => {
                     <td className="px-4 py-3">{Number(offer.issuedCount || 0)}</td>
                     <td className="px-4 py-3">{Number(offer.redeemedCount || 0)}</td>
                     <td className="px-4 py-3"><div className="flex min-w-max gap-2">
-                      {workflowStatus === 'pending_approval' && <button disabled={processingId === offer.id} onClick={() => reviewOffer(offer, 'approve_and_publish')} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 font-semibold text-white"><CheckCircle2 className="h-4 w-4" /> Approve & publish</button>}
-                      {workflowStatus === 'pending_approval' && <button disabled={processingId === offer.id} onClick={() => reviewOffer(offer, 'reject')} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 font-semibold text-red-700"><XCircle className="h-4 w-4" /> Reject</button>}
+                      {['draft', 'pending_approval', 'rejected'].includes(workflowStatus) && <button disabled={processingId === offer.id} onClick={() => reviewOffer(offer, 'approve_and_publish')} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 font-semibold text-white"><CheckCircle2 className="h-4 w-4" /> Approve & publish</button>}
+                      {['draft', 'pending_approval'].includes(workflowStatus) && <button disabled={processingId === offer.id} onClick={() => reviewOffer(offer, 'reject')} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 font-semibold text-red-700"><XCircle className="h-4 w-4" /> Reject</button>}
                       {workflowStatus === 'approved' && <button disabled={processingId === offer.id} onClick={() => reviewOffer(offer, 'publish')} className="rounded-lg bg-blue-600 px-3 py-2 font-semibold text-white">Publish</button>}
                       {workflowStatus === 'published' && <button disabled={processingId === offer.id} onClick={() => reviewOffer(offer, 'deactivate')} className="rounded-lg border border-amber-200 px-3 py-2 font-semibold text-amber-700">Deactivate</button>}
                     </div></td>

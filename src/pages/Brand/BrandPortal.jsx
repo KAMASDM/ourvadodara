@@ -18,7 +18,7 @@ const EMPTY_OFFER = {
   title: '', description: '', terms: '', discountType: 'percentage', discountValue: 10,
   minimumPurchase: 0, maximumDiscount: 0, startsAt: '', endsAt: '', totalCouponLimit: 0,
   perUserClaimLimit: 1, maxUsesPerCoupon: 1, couponValidityDays: 0, validDays: [],
-  dailyStartTime: '', dailyEndTime: '', status: 'draft'
+  dailyStartTime: '', dailyEndTime: ''
 };
 
 const toDateTimeInput = value => {
@@ -30,7 +30,6 @@ const toDateTimeInput = value => {
 
 const toOfferForm = offer => ({
   ...EMPTY_OFFER, ...offer,
-  status: offer?.workflowStatus === 'pending_approval' ? 'pending_approval' : 'draft',
   startsAt: toDateTimeInput(offer.startsAt),
   endsAt: toDateTimeInput(offer.endsAt),
   validDays: Array.isArray(offer.validDays) ? offer.validDays.map(Number) : []
@@ -137,7 +136,7 @@ const OfferEditor = ({ offer, onClose, onSaved }) => {
       </fieldset>
 
       <label className="block text-sm font-semibold">Terms and conditions<textarea rows="4" value={form.terms} onChange={event => setField('terms', event.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-slate-950" /></label>
-      <div className="flex flex-wrap items-end justify-between gap-4"><label className="text-sm font-semibold">Submission status<select value={form.status} onChange={event => setField('status', event.target.value)} className="ml-3 rounded-xl border px-3 py-2"><option value="draft">Save as draft</option><option value="pending_approval">Submit for admin approval</option></select></label><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? 'Saving…' : form.status === 'pending_approval' ? 'Submit offer' : 'Save draft'}</button></div>
+      <div className="flex flex-wrap items-center justify-between gap-4"><p className="text-sm text-slate-500">Saving sends this offer to Our Vadodara Admin for approval. It cannot be published by the brand.</p><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? 'Submitting…' : 'Submit for approval'}</button></div>
     </form>
   );
 };

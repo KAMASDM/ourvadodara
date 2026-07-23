@@ -1661,7 +1661,6 @@ const normalizePositiveLimit = (value, fallback = 0) => {
 
 const normalizeOfferInput = input => {
   const discountTypes = new Set(['percentage', 'fixed', 'bogo', 'freebie', 'custom']);
-  const statusTypes = new Set(['draft', 'pending_approval']);
   const discountType = discountTypes.has(input?.discountType) ? input.discountType : 'percentage';
   const rawDiscountValue = Math.max(0, Number(input?.discountValue) || 0);
   const validDays = Array.isArray(input?.validDays)
@@ -1690,7 +1689,6 @@ const normalizeOfferInput = input => {
     validDays,
     dailyStartTime: /^\d{2}:\d{2}$/.test(input?.dailyStartTime || '') ? input.dailyStartTime : '',
     dailyEndTime: /^\d{2}:\d{2}$/.test(input?.dailyEndTime || '') ? input.dailyEndTime : '',
-    status: statusTypes.has(input?.status) ? input.status : 'draft',
     featured: input?.featured === true
   };
 };
@@ -1973,14 +1971,15 @@ exports.saveBrandOffer = functions.https.onCall(async (data, context) => {
   const existing = requestedId ? (await offerRef.once('value')).val() : null;
   if (requestedId && (!existing || existing.brandId !== brandId)) throw new functions.https.HttpsError('permission-denied', 'Offer does not belong to this brand');
   const now = Date.now();
-  const workflowStatus = offer.status === 'pending_approval' ? 'pending_approval' : 'draft';
+  // Brands cannot choose an approval or publication state. Every create/edit
+  // is submitted to the Admin queue and only an Admin callable can publish it.
+  const workflowStatus = 'pending_approval';
   const record = {
-    ...existing, ...offer, status: workflowStatus === 'pending_approval' ? 'pending_approval' : 'draft', workflowStatus, id: offerRef.key, brandId, brandName: brand.name, brandSlug: brand.slug,
+    ...existing, ...offer, status: 'pending_approval', workflowStatus, id: offerRef.key, brandId, brandName: brand.name, brandSlug: brand.slug,
     brandLogoUrl: brand.logoUrl || '', category: brand.category, categoryId: brand.categoryId,
     brandActive: brand.active !== false,
-    active: false, approvalStatus: workflowStatus === 'pending_approval' ? 'pending' : 'draft',
-    rejectionReason: workflowStatus === 'pending_approval' ? '' : (existing?.rejectionReason || ''),
-    submittedAt: workflowStatus === 'pending_approval' ? now : (existing?.submittedAt || null),
+    active: false, approvalStatus: 'pending',
+    rejectionReason: '', submittedAt: now,
     issuedCount: Number(existing?.issuedCount || 0),
     redeemedCount: Number(existing?.redeemedCount || 0), createdAt: existing?.createdAt || now, updatedAt: now
   };
