@@ -3,8 +3,8 @@
 // =============================================
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell, BellOff, Smartphone, Mail, MessageSquare, AlertCircle, CheckCircle } from 'lucide-react';
-import { initializeNotifications } from '../../utils/notificationManager.js';
+import { Bell, BellOff, Smartphone, Mail, MessageSquare, AlertCircle, CheckCircle, Send } from 'lucide-react';
+import notificationManager, { initializeNotifications } from '../../utils/notificationManager.js';
 import { onValue, ref, set } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { useAuth } from '../../context/Auth/AuthContext';
@@ -28,6 +28,8 @@ const NotificationSettings = () => {
   });
   const [pushStatus, setPushStatus] = useState(getPermission()); // 'default' | 'granted' | 'denied'
   const [enabling, setEnabling] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testMessage, setTestMessage] = useState('');
   const [savedSettings, setSavedSettings] = useState(null);
   const [saveMessage, setSaveMessage] = useState('');
 
@@ -98,6 +100,35 @@ const NotificationSettings = () => {
     }));
   };
 
+  const handleSendTestNotification = async () => {
+    if (sendingTest) return;
+    setSendingTest(true);
+    setTestMessage('');
+
+    try {
+      await notificationManager.sendTestNotification();
+      setTestMessage('Test notification sent. It may take a few seconds to appear.');
+    } catch (error) {
+      console.error('Failed to send test notification:', error);
+      const code = String(error?.code || '');
+      if (code.includes('unauthenticated')) {
+        setTestMessage('Please sign in before sending a test notification.');
+      } else if (code.includes('permission-denied')) {
+        setTestMessage('Notifications are blocked. Allow them in your browser or device settings and try again.');
+      } else if (code.includes('failed-precondition') || code.includes('registration-failed')) {
+        setTestMessage('This device is not registered for notifications yet. Turn Push Notifications off and on, then try again.');
+      } else if (code.includes('resource-exhausted')) {
+        setTestMessage('Please wait a few seconds before sending another test.');
+      } else if (code.includes('unsupported')) {
+        setTestMessage('Push notifications are not supported in this browser. On iPhone, install the app to your Home Screen first.');
+      } else {
+        setTestMessage(error?.message || 'We could not send the test notification. Please try again.');
+      }
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   const NotificationToggle = ({ id, title, description, icon: Icon, enabled }) => (
     <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
       <div className="flex items-center space-x-3">
@@ -145,9 +176,21 @@ const NotificationSettings = () => {
         </div>
       )}
       {pushStatus === 'granted' && settings.pushNotifications && (
-        <div className="mb-4 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200">
-          <CheckCircle className="h-5 w-5 flex-shrink-0" />
-          <p className="text-sm font-medium">Push notifications are on. You'll get the latest Vadodara news as it's published.</p>
+        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 flex-shrink-0" />
+            <p className="text-sm font-medium">Push notifications are on. You'll get the latest Vadodara news as it's published.</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleSendTestNotification}
+            disabled={sendingTest}
+            className="mt-3 inline-flex items-center gap-2 rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-800 disabled:cursor-wait disabled:opacity-60 dark:bg-green-600 dark:hover:bg-green-500"
+          >
+            <Send className="h-4 w-4" />
+            {sendingTest ? 'Sending…' : 'Send me a test notification'}
+          </button>
+          {testMessage && <p className="mt-2 text-xs">{testMessage}</p>}
         </div>
       )}
 

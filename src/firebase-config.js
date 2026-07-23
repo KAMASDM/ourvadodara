@@ -42,18 +42,18 @@ export const db = getDatabase(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
-// Initialize messaging for push notifications - ONLY on mobile PWA
+// Initialize messaging whenever the browser supports the APIs Firebase needs.
+// iOS exposes these APIs only for installed PWAs, while supported desktop and
+// Android browsers can receive notifications without the extra restriction.
 let messaging = null;
 try {
-  // Check if running as PWA and on mobile device
-  const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
-                window.navigator.standalone === true;
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const hasServiceWorker = typeof window !== 'undefined' && 'serviceWorker' in navigator;
+  const hasNotifications = typeof window !== 'undefined' && 'Notification' in window;
+  const hasPushManager = typeof window !== 'undefined' && 'PushManager' in window;
+  const hasIndexedDb = typeof window !== 'undefined' && 'indexedDB' in window;
   const isSecureContext = window.isSecureContext || window.location.hostname === 'localhost';
   
-  // Only initialize if ALL conditions are met
-  if (isPWA && isMobile && hasServiceWorker && isSecureContext) {
+  if (hasServiceWorker && hasNotifications && hasPushManager && hasIndexedDb && isSecureContext) {
     messaging = getMessaging(app);
   }
 } catch (error) {

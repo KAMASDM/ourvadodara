@@ -18,17 +18,10 @@ class NotificationManager {
 
   // Check if notifications are supported
   isSupported() {
-    // Only support on mobile PWA installations
-    const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
-                  window.navigator.standalone === true;
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
     // Check if we're in a secure context (HTTPS or localhost)
     const isSecureContext = window.isSecureContext || window.location.hostname === 'localhost';
     
     return (
-      isPWA &&
-      isMobile &&
       isSecureContext &&
       'Notification' in window &&
       'serviceWorker' in navigator &&
@@ -112,16 +105,15 @@ class NotificationManager {
 
     try {
       // Wait for service worker to be ready before getting token
-      if ('serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.ready;
-        if (!registration || !registration.active) {
-          console.log('No active service worker');
-          return null;
-        }
+      const registration = await navigator.serviceWorker.ready;
+      if (!registration || !registration.active) {
+        console.log('No active service worker');
+        return null;
       }
 
       const currentToken = await getToken(fcmMessaging, {
-        vapidKey: VAPID_KEY
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: registration
       });
 
       if (currentToken) {
@@ -201,6 +193,35 @@ class NotificationManager {
       console.error('Error subscribing to topics:', error);
       return false;
     }
+  }
+
+  // Send a real FCM notification to the current signed-in user's device.
+  async sendTestNotification() {
+    const user = firebaseAuth.currentUser;
+    if (!user) {
+      const error = new Error('Please sign in before sending a test notification.');
+      error.code = 'unauthenticated';
+      throw error;
+    }
+
+    if (!this.isSupported()) {
+      const error = new Error('Push notifications are not supported in this browser.');
+      error.code = 'unsupported';
+      throw error;
+    }
+
+    if (!this.isInitialized || !this.token) {
+      const initialized = await this.initialize();
+      if (!initialized || !this.token) {
+        const error = new Error('Notifications could not be enabled on this device.');
+        error.code = Notification.permission === 'denied' ? 'permission-denied' : 'registration-failed';
+        throw error;
+      }
+    }
+
+    const sendTestNotification = httpsCallable(functions, 'sendTestNotification');
+    const result = await sendTestNotification();
+    return result.data;
   }
 
   // Setup foreground message listener

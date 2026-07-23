@@ -810,7 +810,7 @@ exports.sendLeadMessageNotifications = functions
                 badge: '/icons/icon-72x72.png',
                 tag: `lead-${leadId}-${template.id}`
               },
-              fcm_options: {
+              fcmOptions: {
                 link: '/admin'
               }
             }
@@ -1066,7 +1066,7 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
           }
         ]
       },
-      fcm_options: {
+      fcmOptions: {
         link: `/?post=${postId}`
       }
     }
@@ -1261,7 +1261,7 @@ exports.sendBreakingNewsNotification = functions.database
           vibrate: [300, 100, 300, 100, 300],
           renotify: true
         },
-        fcm_options: {
+        fcmOptions: {
           link: `/breaking/${newsId}`
         }
       }
@@ -1404,6 +1404,92 @@ exports.clearBadgeCount = functions.https.onCall(async (data, context) => {
   } catch (error) {
     console.error('Error clearing badge count:', error);
     throw new functions.https.HttpsError('internal', 'Error clearing badge count');
+  }
+});
+
+// Send a test push to the authenticated user's registered device. Keeping
+// this server-side verifies the complete FCM path instead of showing a local
+// browser notification that may succeed even when delivery is broken.
+exports.sendTestNotification = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const userId = context.auth.uid;
+  const tokenRef = admin.database().ref(`/fcmTokens/${userId}`);
+  const tokenSnapshot = await tokenRef.once('value');
+  const tokenData = tokenSnapshot.val();
+  const token = tokenData?.token;
+
+  if (!token) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'This device is not registered for push notifications'
+    );
+  }
+
+  const lastTestSentAt = Number(tokenData.lastTestSentAt || 0);
+  if (Date.now() - lastTestSentAt < 10_000) {
+    throw new functions.https.HttpsError(
+      'resource-exhausted',
+      'Please wait a few seconds before sending another test'
+    );
+  }
+
+  try {
+    const messageId = await admin.messaging().send({
+      token,
+      notification: {
+        title: 'Our Vadodara notifications are working',
+        body: 'You will receive important stories and breaking news here.'
+      },
+      data: {
+        type: 'test',
+        title: 'Our Vadodara notifications are working',
+        body: 'You will receive important stories and breaking news here.',
+        url: '/',
+        tag: `notification-test-${userId}`
+      },
+      webpush: {
+        headers: {
+          Urgency: 'high',
+          TTL: '300'
+        },
+        notification: {
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-72x72.png',
+          tag: `notification-test-${userId}`,
+          renotify: true,
+          vibrate: [200, 100, 200]
+        },
+        fcmOptions: {
+          link: '/'
+        }
+      }
+    });
+
+    await tokenRef.update({
+      lastTestSentAt: admin.database.ServerValue.TIMESTAMP,
+      lastTestMessageId: messageId
+    });
+
+    return { success: true, messageId };
+  } catch (error) {
+    console.error(`Error sending test notification for ${userId}:`, error);
+    const invalidTokenCodes = new Set([
+      'messaging/invalid-registration-token',
+      'messaging/registration-token-not-registered'
+    ]);
+
+    if (invalidTokenCodes.has(error?.code)) {
+      await tokenRef.remove();
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'The saved notification registration expired. Enable notifications again.'
+      );
+    }
+
+    throw new functions.https.HttpsError('internal', 'Unable to send the test notification');
   }
 });
 
