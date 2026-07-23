@@ -22,7 +22,8 @@ const isSoldOut = offer => {
 
 const isPubliclyAvailable = offer => {
   const now = Date.now();
-  return offer.active !== false && offer.brandActive !== false && (!offer.status || offer.status === 'published')
+  const approvalReady = !offer.workflowStatus || offer.workflowStatus === 'published';
+  return offer.active !== false && offer.brandActive !== false && approvalReady && (!offer.status || offer.status === 'published')
     && (!offer.startsAt || Date.parse(offer.startsAt) <= now)
     && (!offer.endsAt || Date.parse(offer.endsAt) >= now);
 };

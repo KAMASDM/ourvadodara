@@ -150,6 +150,8 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const scrollFrameRef = useRef(null);
   const soundUnlockedAtRef = useRef(0);
   const soundPreferenceSetRef = useRef(false);
+  const touchResumeRef = useRef(false);
+  const suppressTouchClickRef = useRef(false);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1024px)');
@@ -410,6 +412,27 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     setShowPlayPauseIcon(true);
     setTimeout(() => setShowPlayPauseIcon(false), 500);
   }, []);
+
+  const handleReelPressStart = useCallback((event) => {
+    if (event.pointerType !== 'touch') return;
+    touchResumeRef.current = isPlaying;
+    suppressTouchClickRef.current = true;
+    if (isPlaying) setIsPlaying(false);
+  }, [isPlaying]);
+
+  const handleReelPressEnd = useCallback((event) => {
+    if (event.pointerType !== 'touch') return;
+    if (touchResumeRef.current) setIsPlaying(true);
+    touchResumeRef.current = false;
+    window.setTimeout(() => {
+      suppressTouchClickRef.current = false;
+    }, 350);
+  }, []);
+
+  const handleReelClick = useCallback(() => {
+    if (suppressTouchClickRef.current) return;
+    togglePlay();
+  }, [togglePlay]);
 
   const toggleMute = useCallback(() => {
     soundPreferenceSetRef.current = true;
@@ -713,7 +736,6 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
       <div
         ref={containerRef}
         onScroll={handleReelScroll}
-        onTouchStart={activateVisibleReelFromGesture}
         onTouchEnd={activateVisibleReelFromGesture}
         className="absolute inset-0 overflow-y-auto overscroll-y-contain snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
@@ -733,7 +755,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
             <div className={`relative h-full w-full ${isDesktop ? 'max-w-md' : ''}`}>
               <div className={`h-full w-full ${item.reel.duetSourceVideoUrl ? 'grid grid-cols-2 gap-0.5' : ''}`}>
               {item.reel.duetSourceVideoUrl && (
-                <video src={item.reel.duetSourceVideoUrl} className="h-full w-full object-cover" loop playsInline muted autoPlay={index === currentFeedIndex} aria-label="Original reel" />
+                <video src={item.reel.duetSourceVideoUrl} className="h-full w-full object-contain" loop playsInline muted autoPlay={index === currentFeedIndex} aria-label="Original reel" />
               )}
               <video
                 ref={element => {
@@ -743,7 +765,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
                 data-reel="true"
                 src={getReelVideoUrl(item.reel)}
                 poster={item.reel.mediaContent?.items?.[0]?.thumbnailUrl || item.reel.thumbnail}
-                className={`h-full w-full ${isDesktop ? 'object-contain' : 'object-cover'}`}
+                className="h-full w-full object-contain"
                 loop
                 playsInline
                 preload={index === currentFeedIndex || index === currentFeedIndex + 1 ? 'auto' : 'none'}
@@ -760,7 +782,10 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
                 type="button"
                 className="absolute inset-0 z-10 cursor-pointer bg-transparent"
                 style={{ touchAction: 'pan-y' }}
-                onClick={togglePlay}
+                onPointerDown={handleReelPressStart}
+                onPointerUp={handleReelPressEnd}
+                onPointerCancel={handleReelPressEnd}
+                onClick={handleReelClick}
                 aria-label={isPlaying && index === currentFeedIndex ? 'Pause reel' : 'Play reel'}
               />
             </div>

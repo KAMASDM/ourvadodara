@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, Copy, ExternalLink, ImagePlus, KeyRound, Pencil, Plus, Store, Tags } from 'lucide-react';
+import { Archive, Building2, CheckCircle2, Copy, ExternalLink, ImagePlus, KeyRound, Pencil, Plus, Power, Store, Tags, XCircle } from 'lucide-react';
 import { onValue, ref } from 'firebase/database';
 import { db, functions, httpsCallable } from '../../firebase-config';
 import BrandAnalyticsDashboard from './BrandAnalyticsDashboard';
@@ -13,9 +13,11 @@ const EMPTY_BRAND = {
 
 const slugify = value => String(value || '').toLowerCase().trim()
   .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+const cleanFunctionError = error => String(error?.message || 'Something went wrong').replace(/^Firebase:\s*/i, '');
 
 const CouponManagement = () => {
   const [brands, setBrands] = useState([]);
+  const [offers, setOffers] = useState([]);
   const [accounts, setAccounts] = useState({});
   const [savedCategories, setSavedCategories] = useState([]);
   const [form, setForm] = useState(EMPTY_BRAND);
@@ -26,11 +28,15 @@ const CouponManagement = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
   const [analyticsBrand, setAnalyticsBrand] = useState(null);
+  const [processingId, setProcessingId] = useState('');
 
   useEffect(() => onValue(ref(db, 'brandsPublic'), snapshot => {
     setBrands(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value })));
   }), []);
   useEffect(() => onValue(ref(db, 'brandAccounts'), snapshot => setAccounts(snapshot.val() || {})), []);
+  useEffect(() => onValue(ref(db, 'offers'), snapshot => {
+    setOffers(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value })).sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0)));
+  }), []);
   useEffect(() => onValue(ref(db, 'couponCategories'), snapshot => {
     setSavedCategories(Object.values(snapshot.val() || {}).map(category => category.name).filter(Boolean));
   }), []);
@@ -141,6 +147,40 @@ const CouponManagement = () => {
 
   const copyPortal = async slug => navigator.clipboard.writeText(`${window.location.origin}/${slug}`);
 
+  const setBrandStatus = async (brand, status) => {
+    const label = status === 'archived' ? 'archive' : status === 'active' ? 'activate' : 'deactivate';
+    if (!window.confirm(`Are you sure you want to ${label} ${brand.name}?`)) return;
+    setProcessingId(brand.id);
+    setError('');
+    try {
+      await httpsCallable(functions, 'adminSetBrandStatus')({ brandId: brand.id, status });
+      setSuccess({ name: brand.name, mode: 'updated', loginEmail: accounts[brand.id]?.loginEmail || '', portalUrl: `/${brand.slug}` });
+    } catch (statusError) {
+      setError(cleanFunctionError(statusError));
+    } finally {
+      setProcessingId('');
+    }
+  };
+
+  const reviewOffer = async (offer, action) => {
+    let note = '';
+    if (action === 'reject') {
+      note = window.prompt('Rejection reason (shown to the brand):', '') || '';
+      if (!note.trim()) return;
+    } else if (action === 'deactivate') {
+      note = window.prompt('Optional internal note:', '') || '';
+    }
+    setProcessingId(offer.id);
+    setError('');
+    try {
+      await httpsCallable(functions, 'adminReviewBrandOffer')({ offerId: offer.id, action, note });
+    } catch (reviewError) {
+      setError(cleanFunctionError(reviewError));
+    } finally {
+      setProcessingId('');
+    }
+  };
+
   if (analyticsBrand) {
     return <BrandAnalyticsDashboard brand={analyticsBrand} onBack={() => setAnalyticsBrand(null)} />;
   }
@@ -240,11 +280,50 @@ const CouponManagement = () => {
               <div className="min-w-48 flex-1"><button type="button" onClick={() => setAnalyticsBrand(brand)} className="font-semibold text-blue-700 underline-offset-4 hover:underline dark:text-blue-300">{brand.name}</button><p className="text-sm text-gray-500">{brand.category} · {brand.phone}</p></div>
               <div className="text-sm"><p className="font-medium">{accounts[brand.id]?.loginEmail || 'Loading account…'}</p><p className="text-gray-500">/{brand.slug}</p><span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${accounts[brand.id]?.active === true ? 'bg-emerald-100 text-emerald-700' : accounts[brand.id]?.active === false ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{accounts[brand.id]?.active === true ? 'Active' : accounts[brand.id]?.active === false ? 'Inactive' : 'Checking status'}</span></div>
               <button type="button" onClick={() => openEditForm(brand)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"><Pencil className="h-4 w-4" /> Edit</button>
+              {accounts[brand.id]?.active === false ? (
+                <button disabled={processingId === brand.id} type="button" onClick={() => setBrandStatus(brand, 'active')} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700"><Power className="h-4 w-4" /> Activate</button>
+              ) : (
+                <button disabled={processingId === brand.id} type="button" onClick={() => setBrandStatus(brand, 'inactive')} className="inline-flex items-center gap-2 rounded-lg border border-amber-200 px-3 py-2 text-sm font-semibold text-amber-700"><Power className="h-4 w-4" /> Deactivate</button>
+              )}
+              <button disabled={processingId === brand.id} type="button" onClick={() => setBrandStatus(brand, 'archived')} className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700"><Archive className="h-4 w-4" /> Archive</button>
               <button type="button" onClick={() => copyPortal(brand.slug)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><Copy className="h-4 w-4" /> Copy portal</button>
               <a href={`/${brand.slug}`} target="_blank" rel="noreferrer" className="rounded-lg border p-2" aria-label={`Open ${brand.name} portal`}><ExternalLink className="h-4 w-4" /></a>
             </div>
           ))}
           {!brands.length && <p className="px-5 py-12 text-center text-gray-500">No brands created yet.</p>}
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border bg-white dark:bg-gray-900">
+        <div className="border-b px-5 py-4">
+          <h2 className="font-bold">Offer approval queue</h2>
+          <p className="mt-1 text-sm text-gray-500">Only approved and published offers can appear in the marketplace or issue coupons.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y text-sm">
+            <thead className="bg-gray-50 dark:bg-gray-800"><tr>{['Brand', 'Offer', 'Status', 'Claimed', 'Redeemed', 'Actions'].map(label => <th key={label} className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">{label}</th>)}</tr></thead>
+            <tbody className="divide-y">
+              {offers.map(offer => {
+                const workflowStatus = offer.workflowStatus || (offer.status === 'published' ? 'published' : offer.status || 'draft');
+                return (
+                  <tr key={offer.id}>
+                    <td className="px-4 py-3 font-medium">{offer.brandName || 'Unknown brand'}</td>
+                    <td className="max-w-xs px-4 py-3"><p className="truncate font-medium">{offer.title}</p>{offer.rejectionReason && <p className="mt-1 truncate text-xs text-red-600">{offer.rejectionReason}</p>}</td>
+                    <td className="px-4 py-3 capitalize">{workflowStatus.replaceAll('_', ' ')}</td>
+                    <td className="px-4 py-3">{Number(offer.issuedCount || 0)}</td>
+                    <td className="px-4 py-3">{Number(offer.redeemedCount || 0)}</td>
+                    <td className="px-4 py-3"><div className="flex min-w-max gap-2">
+                      {workflowStatus === 'pending_approval' && <button disabled={processingId === offer.id} onClick={() => reviewOffer(offer, 'approve_and_publish')} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 font-semibold text-white"><CheckCircle2 className="h-4 w-4" /> Approve & publish</button>}
+                      {workflowStatus === 'pending_approval' && <button disabled={processingId === offer.id} onClick={() => reviewOffer(offer, 'reject')} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 font-semibold text-red-700"><XCircle className="h-4 w-4" /> Reject</button>}
+                      {workflowStatus === 'approved' && <button disabled={processingId === offer.id} onClick={() => reviewOffer(offer, 'publish')} className="rounded-lg bg-blue-600 px-3 py-2 font-semibold text-white">Publish</button>}
+                      {workflowStatus === 'published' && <button disabled={processingId === offer.id} onClick={() => reviewOffer(offer, 'deactivate')} className="rounded-lg border border-amber-200 px-3 py-2 font-semibold text-amber-700">Deactivate</button>}
+                    </div></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {!offers.length && <p className="px-5 py-12 text-center text-gray-500">No offers have been created yet.</p>}
         </div>
       </section>
     </div>

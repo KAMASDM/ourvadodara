@@ -20,7 +20,7 @@ import {
   Users,
   X
 } from 'lucide-react';
-import { onValue, ref, remove, set } from 'firebase/database';
+import { onValue, ref, remove, runTransaction, set } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useLanguage } from '../../context/Language/LanguageContext';
@@ -89,6 +89,15 @@ const EventDetail = ({ eventId, onBack }) => {
       setLoading(false);
     });
   }, [eventId]);
+
+  useEffect(() => {
+    if (!eventId || !user?.uid) return;
+    const viewKey = `ov-event-viewed-${eventId}`;
+    if (sessionStorage.getItem(viewKey)) return;
+    sessionStorage.setItem(viewKey, '1');
+    runTransaction(ref(db, `events/${eventId}/analytics/views`), value => Math.max(0, Number(value) || 0) + 1)
+      .catch(() => sessionStorage.removeItem(viewKey));
+  }, [eventId, user?.uid]);
 
   useEffect(() => {
     if (!user?.uid || !eventId) {

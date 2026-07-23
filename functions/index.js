@@ -1572,6 +1572,59 @@ const requireAdminAccount = async context => {
   return profile;
 };
 
+exports.adminSetUserAccess = functions.https.onCall(async (data, context) => {
+  await requireAdminAccount(context);
+  const userId = String(data?.userId || '').trim();
+  const requestedRole = data?.role === undefined ? null : String(data.role);
+  const requestedStatus = data?.status === undefined ? null : String(data.status);
+  const allowedRoles = new Set(['user', 'editor', 'moderator', 'admin']);
+  const allowedStatuses = new Set(['active', 'inactive', 'suspended']);
+  if (!userId || (requestedRole === null && requestedStatus === null)) {
+    throw new functions.https.HttpsError('invalid-argument', 'User and access change are required');
+  }
+  if (requestedRole !== null && !allowedRoles.has(requestedRole)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Unsupported user role');
+  }
+  if (requestedStatus !== null && !allowedStatuses.has(requestedStatus)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Unsupported account status');
+  }
+
+  const profileRef = admin.database().ref(`users/${userId}`);
+  const profile = (await profileRef.once('value')).val();
+  if (!profile) throw new functions.https.HttpsError('not-found', 'User was not found');
+  if (profile.role === 'brand') {
+    throw new functions.https.HttpsError('failed-precondition', 'Manage brand accounts from Coupons & Brands');
+  }
+  if (userId === context.auth.uid && (
+    (requestedRole !== null && requestedRole !== 'admin') ||
+    (requestedStatus !== null && requestedStatus !== 'active')
+  )) {
+    throw new functions.https.HttpsError('failed-precondition', 'You cannot remove your own Admin access');
+  }
+
+  const now = Date.now();
+  const updates = { updatedAt: new Date(now).toISOString(), accessUpdatedBy: context.auth.uid };
+  if (requestedRole !== null) {
+    updates.role = requestedRole;
+    updates.roleChangedAt = now;
+  }
+  if (requestedStatus !== null) {
+    updates.status = requestedStatus;
+    updates.statusChangedAt = now;
+  }
+  const resultingStatus = requestedStatus || profile.status || 'active';
+  await admin.auth().updateUser(userId, { disabled: resultingStatus !== 'active' });
+  await profileRef.update(updates);
+  if (resultingStatus !== 'active' || (requestedRole !== null && requestedRole !== profile.role)) {
+    await admin.auth().revokeRefreshTokens(userId);
+  }
+  return {
+    userId,
+    role: requestedRole || profile.role || 'user',
+    status: resultingStatus
+  };
+});
+
 const requireBrandAccount = async context => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Brand sign-in required');
   const profile = await getAccountProfile(context.auth.uid);
@@ -1608,7 +1661,7 @@ const normalizePositiveLimit = (value, fallback = 0) => {
 
 const normalizeOfferInput = input => {
   const discountTypes = new Set(['percentage', 'fixed', 'bogo', 'freebie', 'custom']);
-  const statusTypes = new Set(['draft', 'published', 'paused']);
+  const statusTypes = new Set(['draft', 'pending_approval']);
   const discountType = discountTypes.has(input?.discountType) ? input.discountType : 'percentage';
   const rawDiscountValue = Math.max(0, Number(input?.discountValue) || 0);
   const validDays = Array.isArray(input?.validDays)
@@ -1653,7 +1706,10 @@ const getIndiaDateParts = timestamp => {
 
 const getOfferAvailabilityError = (offer, now = Date.now(), { claiming = false } = {}) => {
   if (!offer || offer.active === false || offer.brandActive === false || offer.status === 'paused') return 'This offer is currently unavailable';
-  if (claiming && offer.status !== 'published') return 'This offer is not published';
+  const isLegacyPublished = !offer.workflowStatus && offer.status === 'published';
+  if (claiming && !isLegacyPublished && (offer.workflowStatus !== 'published' || offer.status !== 'published')) {
+    return 'This offer has not been approved and published';
+  }
   const starts = parseOfferDateTime(offer.startsAt, 0);
   const ends = parseOfferDateTime(offer.endsAt, Infinity);
   if (!Number.isFinite(starts) || Number.isNaN(ends)) return 'This offer has invalid validity dates';
@@ -1695,17 +1751,9 @@ const uploadBrandLogoDataUrl = async (value, uploaderUid) => {
     throw new functions.https.HttpsError('invalid-argument', 'Brand logo must be smaller than 5 MB');
   }
 
-  const extensionByType = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
-  const contentType = match[1].toLowerCase();
-  const storagePath = `brand-logos/${uploaderUid}/${Date.now()}-${crypto.randomUUID()}.${extensionByType[contentType]}`;
-  const downloadToken = crypto.randomUUID();
-  const bucket = admin.storage().bucket();
-  await bucket.file(storagePath).save(buffer, {
-    resumable: false,
-    metadata: { contentType, metadata: { firebaseStorageDownloadTokens: downloadToken } }
-  });
-  const logoUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media&token=${downloadToken}`;
-  return { logoUrl, storagePath };
+  // This project deliberately keeps brand assets in Realtime Database and
+  // does not depend on Firebase Storage permissions.
+  return { logoUrl: logoValue, storagePath: '', uploaderUid };
 };
 
 exports.adminCreateBrand = functions.https.onCall(async (data, context) => {
@@ -1771,13 +1819,13 @@ exports.adminCreateBrand = functions.https.onCall(async (data, context) => {
       address: String(data?.address || '').trim().slice(0, 500),
       phone: String(data?.phone || '').trim().slice(0, 40),
       email: String(data?.email || '').trim().toLowerCase().slice(0, 160),
-      logoUrl: uploadedLogo.logoUrl, active: true, createdAt: now, updatedAt: now
+      logoUrl: uploadedLogo.logoUrl, active: true, status: 'active', createdAt: now, updatedAt: now
     };
     const updates = {};
     updates[`brandsPublic/${brandId}`] = publicBrand;
     updates[`brandSlugs/${slug}`] = { brandId, name, logoUrl: publicBrand.logoUrl, active: true };
-    updates[`brandAccounts/${brandId}`] = { authUid: authUser.uid, loginEmail, active: true, createdAt: now, createdBy: context.auth.uid };
-    updates[`users/${authUser.uid}`] = { email: loginEmail, displayName: name, role: 'brand', brandId, profileComplete: true, createdAt: new Date(now).toISOString(), permissions: { canManageOffers: true, canRedeemCoupons: true, canViewBrandAnalytics: true } };
+    updates[`brandAccounts/${brandId}`] = { authUid: authUser.uid, loginEmail, active: true, status: 'active', createdAt: now, createdBy: context.auth.uid };
+    updates[`users/${authUser.uid}`] = { email: loginEmail, displayName: name, role: 'brand', status: 'active', brandId, profileComplete: true, createdAt: new Date(now).toISOString(), permissions: { canManageOffers: true, canRedeemCoupons: true, canViewBrandAnalytics: true } };
     updates[`couponCategories/${categoryId}`] = { id: categoryId, name: categoryName, createdAt: now, createdBy: context.auth.uid };
     await admin.database().ref().update(updates);
     return { brandId, slug, portalUrl: `/${slug}` };
@@ -1865,6 +1913,7 @@ exports.adminUpdateBrand = functions.https.onCall(async (data, context) => {
       email: String(data?.email || '').trim().toLowerCase().slice(0, 160),
       logoUrl: uploadedLogo.logoUrl,
       active,
+      status: active ? 'active' : 'inactive',
       updatedAt: now
     };
     const offersSnapshot = await admin.database().ref('offers').orderByChild('brandId').equalTo(brandId).once('value');
@@ -1874,9 +1923,11 @@ exports.adminUpdateBrand = functions.https.onCall(async (data, context) => {
     if (slugChanged) updates[`brandSlugs/${existingBrand.slug}`] = null;
     updates[`brandAccounts/${brandId}/loginEmail`] = loginEmail;
     updates[`brandAccounts/${brandId}/active`] = active;
+    updates[`brandAccounts/${brandId}/status`] = active ? 'active' : 'inactive';
     updates[`brandAccounts/${brandId}/updatedAt`] = now;
     updates[`users/${existingAccount.authUid}/email`] = loginEmail;
     updates[`users/${existingAccount.authUid}/displayName`] = name;
+    updates[`users/${existingAccount.authUid}/status`] = active ? 'active' : 'inactive';
     updates[`couponCategories/${categoryId}`] = { id: categoryId, name: categoryName, createdAt: now, createdBy: context.auth.uid };
     offersSnapshot.forEach(offerSnapshot => {
       const offerPath = `offers/${offerSnapshot.key}`;
@@ -1922,15 +1973,84 @@ exports.saveBrandOffer = functions.https.onCall(async (data, context) => {
   const existing = requestedId ? (await offerRef.once('value')).val() : null;
   if (requestedId && (!existing || existing.brandId !== brandId)) throw new functions.https.HttpsError('permission-denied', 'Offer does not belong to this brand');
   const now = Date.now();
+  const workflowStatus = offer.status === 'pending_approval' ? 'pending_approval' : 'draft';
   const record = {
-    ...existing, ...offer, id: offerRef.key, brandId, brandName: brand.name, brandSlug: brand.slug,
+    ...existing, ...offer, status: workflowStatus === 'pending_approval' ? 'pending_approval' : 'draft', workflowStatus, id: offerRef.key, brandId, brandName: brand.name, brandSlug: brand.slug,
     brandLogoUrl: brand.logoUrl || '', category: brand.category, categoryId: brand.categoryId,
     brandActive: brand.active !== false,
-    active: offer.status === 'published', issuedCount: Number(existing?.issuedCount || 0),
+    active: false, approvalStatus: workflowStatus === 'pending_approval' ? 'pending' : 'draft',
+    rejectionReason: workflowStatus === 'pending_approval' ? '' : (existing?.rejectionReason || ''),
+    submittedAt: workflowStatus === 'pending_approval' ? now : (existing?.submittedAt || null),
+    issuedCount: Number(existing?.issuedCount || 0),
     redeemedCount: Number(existing?.redeemedCount || 0), createdAt: existing?.createdAt || now, updatedAt: now
   };
   await offerRef.set(record);
   return { offerId: offerRef.key };
+});
+
+exports.adminReviewBrandOffer = functions.https.onCall(async (data, context) => {
+  await requireAdminAccount(context);
+  const offerId = String(data?.offerId || '').trim();
+  const action = String(data?.action || '').trim();
+  const note = String(data?.note || '').trim().slice(0, 1000);
+  const allowedActions = new Set(['approve', 'approve_and_publish', 'reject', 'publish', 'deactivate']);
+  if (!offerId || !allowedActions.has(action)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Offer and review action are required');
+  }
+  const offerRef = admin.database().ref(`offers/${offerId}`);
+  const offer = (await offerRef.once('value')).val();
+  if (!offer) throw new functions.https.HttpsError('not-found', 'Offer was not found');
+  if (action === 'reject' && !note) {
+    throw new functions.https.HttpsError('invalid-argument', 'Add a rejection reason for the brand');
+  }
+  if (action === 'publish' && offer.approvalStatus !== 'approved' && offer.workflowStatus !== 'approved') {
+    throw new functions.https.HttpsError('failed-precondition', 'Approve this offer before publishing it');
+  }
+  const now = Date.now();
+  const update = { reviewedBy: context.auth.uid, reviewedAt: now, updatedAt: now };
+  if (action === 'approve') Object.assign(update, { workflowStatus: 'approved', approvalStatus: 'approved', status: 'draft', active: false, rejectionReason: '', reviewNote: note });
+  if (action === 'approve_and_publish' || action === 'publish') Object.assign(update, { workflowStatus: 'published', approvalStatus: 'approved', status: 'published', active: true, publishedAt: now, rejectionReason: '', reviewNote: note });
+  if (action === 'reject') Object.assign(update, { workflowStatus: 'rejected', approvalStatus: 'rejected', status: 'draft', active: false, rejectionReason: note });
+  if (action === 'deactivate') Object.assign(update, { workflowStatus: 'inactive', status: 'paused', active: false, deactivatedAt: now, reviewNote: note });
+  await offerRef.update(update);
+  return { offerId, workflowStatus: update.workflowStatus };
+});
+
+exports.adminSetBrandStatus = functions.https.onCall(async (data, context) => {
+  await requireAdminAccount(context);
+  const brandId = String(data?.brandId || '').trim();
+  const status = String(data?.status || '').trim();
+  if (!brandId || !new Set(['active', 'inactive', 'archived']).has(status)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Brand and a valid status are required');
+  }
+  const [brandSnapshot, accountSnapshot, offersSnapshot] = await Promise.all([
+    admin.database().ref(`brandsPublic/${brandId}`).once('value'),
+    admin.database().ref(`brandAccounts/${brandId}`).once('value'),
+    admin.database().ref('offers').orderByChild('brandId').equalTo(brandId).once('value')
+  ]);
+  const brand = brandSnapshot.val();
+  const account = accountSnapshot.val();
+  if (!brand || !account?.authUid) throw new functions.https.HttpsError('not-found', 'Brand was not found');
+  const active = status === 'active';
+  const now = Date.now();
+  const updates = {
+    [`brandsPublic/${brandId}/active`]: active,
+    [`brandsPublic/${brandId}/status`]: status,
+    [`brandsPublic/${brandId}/updatedAt`]: now,
+    [`brandAccounts/${brandId}/active`]: active,
+    [`brandAccounts/${brandId}/status`]: status,
+    [`brandAccounts/${brandId}/updatedAt`]: now,
+    [`brandSlugs/${brand.slug}/active`]: active,
+    [`users/${account.authUid}/status`]: active ? 'active' : 'inactive'
+  };
+  offersSnapshot.forEach(snapshot => {
+    updates[`offers/${snapshot.key}/brandActive`] = active;
+    updates[`offers/${snapshot.key}/updatedAt`] = now;
+  });
+  await admin.auth().updateUser(account.authUid, { disabled: !active });
+  if (!active) await admin.auth().revokeRefreshTokens(account.authUid);
+  await admin.database().ref().update(updates);
+  return { brandId, status, active };
 });
 
 exports.claimBrandOffer = functions.https.onCall(async (data, context) => {

@@ -11,7 +11,9 @@ import {
   onAuthStateChanged 
 } from '../../firebase-config';
 import { updateProfile, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { getUserProfile, createAdminUser, createUserProfile } from '../../utils/adminSetup';
+import { onValue, ref } from 'firebase/database';
+import { db } from '../../firebase-config';
+import { getUserProfile, createAdminUser } from '../../utils/adminSetup';
 import { checkProfileCompletion, getAuthMethod, getAuthContactInfo } from '../../utils/profileHelpers';
 import { requiresEmailVerification } from '../../utils/authVerification';
 import { runRegistrationSecurityCheck } from '../../utils/registrationSecurity';
@@ -85,6 +87,7 @@ export const AuthProvider = ({ children }) => {
             emailVerified: firebaseUser.emailVerified,
             isAnonymous: firebaseUser.isAnonymous,
             role: userProfile?.role || 'user',
+            status: userProfile?.status || 'active',
             brandId: userProfile?.brandId || null,
             permissions: userProfile?.permissions || {},
             authMethod: userProfile?.authMethod || authMethod,
@@ -107,6 +110,7 @@ export const AuthProvider = ({ children }) => {
             emailVerified: firebaseUser.emailVerified,
             isAnonymous: firebaseUser.isAnonymous,
             role: 'user',
+            status: 'active',
             permissions: {},
             authMethod,
             authPhone: authContactInfo.phone,
@@ -126,6 +130,30 @@ export const AuthProvider = ({ children }) => {
     // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
+
+  // Keep permissions and account status live. Disabling a user in the Admin
+  // Panel therefore removes the current app session immediately instead of
+  // waiting for an ID token to expire.
+  useEffect(() => {
+    if (!user?.uid) return undefined;
+    return onValue(ref(db, `users/${user.uid}`), async snapshot => {
+      const profile = snapshot.val();
+      if (!profile) return;
+      const status = profile.status || 'active';
+      if (status === 'inactive' || status === 'suspended') {
+        await signOut(firebaseAuth).catch(() => {});
+        setUser(null);
+        return;
+      }
+      setUser(current => current ? {
+        ...current,
+        role: profile.role || 'user',
+        status,
+        permissions: profile.permissions || {},
+        brandId: profile.brandId || null
+      } : current);
+    });
+  }, [user?.uid]);
 
   const signIn = async (email, password) => {
     setLoading(true);

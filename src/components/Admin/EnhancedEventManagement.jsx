@@ -172,6 +172,53 @@ const EnhancedEventManagement = () => {
     ...registration
   })));
 
+  const eventAnalytics = events.map(event => {
+    const eventRegistrations = Object.values(event.registrations || {});
+    const ticketsSold = eventRegistrations.reduce((sum, registration) => {
+      const ticketQuantity = Object.values(registration.tickets || {}).reduce((total, quantity) => total + Number(quantity || 0), 0);
+      return sum + (ticketQuantity || Number(registration.quantity || 0) || registration.attendees?.length || 1);
+    }, 0);
+    const totalTickets = (event.ticketTypes || []).reduce((sum, ticket) => sum + Number(ticket.totalSeats || 0), 0);
+    const ticketsRemaining = (event.ticketTypes || []).reduce((sum, ticket) => sum + Number(ticket.availableSeats ?? ticket.totalSeats ?? 0), 0);
+    const revenue = eventRegistrations
+      .filter(registration => ['paid', 'free'].includes(registration.paymentStatus))
+      .reduce((sum, registration) => sum + Number(registration.finalAmount ?? registration.totalAmount ?? 0), 0);
+    const registrationCheckIns = eventRegistrations.filter(registration => registration.checkedIn).length;
+    const recordedCheckIns = Object.keys(event.checkedInUsers || {}).length;
+    const checkIns = Math.max(registrationCheckIns, recordedCheckIns, Number(event.analytics?.checkins || 0));
+    const promoUses = eventRegistrations.filter(registration => registration.promoCode).length;
+    const views = Number(event.analytics?.views || 0);
+    return {
+      id: event.id,
+      title: typeof event.title === 'string' ? event.title : event.title?.en || 'Untitled event',
+      views,
+      registrations: eventRegistrations.length,
+      ticketsSold,
+      totalTickets,
+      ticketsRemaining,
+      revenue,
+      checkIns,
+      promoUses,
+      conversion: views ? Math.round(eventRegistrations.length / views * 1000) / 10 : 0
+    };
+  });
+  const registrationTrend = Array.from({ length: 7 }, (_, offset) => {
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() - (6 - offset));
+    const nextDay = new Date(day);
+    nextDay.setDate(day.getDate() + 1);
+    return {
+      key: day.toISOString().slice(0, 10),
+      label: day.toLocaleDateString('en-IN', { weekday: 'short' }),
+      count: registrations.filter(item => {
+        const timestamp = Date.parse(item.registeredAt || item.createdAt || '');
+        return Number.isFinite(timestamp) && timestamp >= day.getTime() && timestamp < nextDay.getTime();
+      }).length
+    };
+  });
+  const maximumTrendCount = Math.max(1, ...registrationTrend.map(item => item.count));
+
   const exportRegistrations = () => {
     const escape = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const rows = registrations.map(item => [item.eventTitle, item.userDetails?.name || item.name, item.userDetails?.email || item.email, item.userDetails?.phone || item.phone, item.ticketType?.name || item.ticketType, item.quantity, item.totalAmount, item.paymentStatus, item.checkedIn ? 'Yes' : 'No', item.registeredAt || item.createdAt]);
@@ -1617,13 +1664,30 @@ const EnhancedEventManagement = () => {
       )}
 
       {activeTab === 'analytics' && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            ['Published events', events.filter(event => event.status === 'published').length],
-            ['Registrations', registrations.length],
-            ['Checked in', registrations.filter(item => item.checkedIn).length],
-            ['Revenue', `₹${registrations.filter(item => item.paymentStatus === 'paid').reduce((sum, item) => sum + Number(item.totalAmount || 0), 0).toLocaleString('en-IN')}`]
-          ].map(([label, value]) => <div key={label} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><p className="text-sm text-gray-500">{label}</p><p className="mt-2 text-3xl font-bold">{value}</p></div>)}
+        <div className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              ['Total event views', eventAnalytics.reduce((sum, item) => sum + item.views, 0)],
+              ['Tickets sold', eventAnalytics.reduce((sum, item) => sum + item.ticketsSold, 0)],
+              ['Attendees checked in', eventAnalytics.reduce((sum, item) => sum + item.checkIns, 0)],
+              ['Total revenue', `₹${eventAnalytics.reduce((sum, item) => sum + item.revenue, 0).toLocaleString('en-IN')}`]
+            ].map(([label, value]) => <div key={label} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><p className="text-sm text-gray-500">{label}</p><p className="mt-2 text-3xl font-bold">{value}</p></div>)}
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50"><tr>{['Event', 'Views', 'Bookings', 'Tickets sold', 'Remaining', 'Revenue', 'Check-ins', 'Promo uses', 'View → booking'].map(label => <th key={label} className="px-4 py-3 text-left font-semibold text-gray-600">{label}</th>)}</tr></thead>
+              <tbody className="divide-y divide-gray-100">
+                {eventAnalytics.map(item => <tr key={item.id}><td className="px-4 py-3 font-semibold">{item.title}</td><td className="px-4 py-3">{item.views}</td><td className="px-4 py-3">{item.registrations}</td><td className="px-4 py-3">{item.ticketsSold}</td><td className="px-4 py-3">{item.totalTickets ? item.ticketsRemaining : 'Unlimited'}</td><td className="px-4 py-3">₹{item.revenue.toLocaleString('en-IN')}</td><td className="px-4 py-3">{item.checkIns}</td><td className="px-4 py-3">{item.promoUses}</td><td className="px-4 py-3">{item.conversion}%</td></tr>)}
+              </tbody>
+            </table>
+            {!eventAnalytics.length && <p className="p-8 text-center text-gray-500">No event analytics are available yet.</p>}
+          </div>
+          <section className="rounded-xl border border-gray-200 bg-white p-5">
+            <h3 className="font-semibold text-gray-900">Registration trend · last 7 days</h3>
+            <div className="mt-5 flex h-44 items-end gap-3">
+              {registrationTrend.map(item => <div key={item.key} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"><span className="text-xs font-semibold text-gray-600">{item.count}</span><div className="w-full max-w-12 rounded-t-lg bg-blue-500" style={{ height: `${Math.max(item.count ? 12 : 2, item.count / maximumTrendCount * 112)}px` }} /><span className="text-xs text-gray-500">{item.label}</span></div>)}
+            </div>
+          </section>
         </div>
       )}
 

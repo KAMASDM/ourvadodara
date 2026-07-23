@@ -48,10 +48,11 @@ import ErrorBoundary from '../Common/ErrorBoundary';
 import CouponManagement from './CouponManagement';
 import PaymentManagement from './PaymentManagement';
 import PostReportManagement from './PostReportManagement';
+import { canAccessAdminSection, getRoleSummary, isStaffRole } from '../../utils/rbac';
 
 const AdminLayout = () => {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isStaff = isStaffRole(user?.role);
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -101,23 +102,33 @@ const AdminLayout = () => {
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
-  const navItems = isMobile ? mobileNavItems : desktopNavItems;
+  const navItems = (isMobile ? mobileNavItems : desktopNavItems)
+    .filter(item => canAccessAdminSection(user?.role, item.id));
 
-  if (!isAdmin) {
+  useEffect(() => {
+    if (!canAccessAdminSection(user?.role, activeSection)) {
+      setActiveSection('dashboard');
+    }
+  }, [activeSection, user?.role]);
+
+  if (!isStaff) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center p-8 bg-white rounded-lg shadow-md">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Access Denied</h2>
-          <p className="text-gray-600">You don't have admin permissions.</p>
+          <p className="text-gray-600">You don't have staff permissions.</p>
         </div>
       </div>
     );
   }
 
   const renderContent = () => {
+    if (!canAccessAdminSection(user?.role, activeSection)) {
+      return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-800">Your role does not allow access to this module.</div>;
+    }
     switch (activeSection) {
       case 'dashboard':
-        return <EnhancedDashboard />;
+        return user?.role === 'admin' ? <EnhancedDashboard /> : <RoleDashboard role={user?.role} navItems={navItems} onOpen={setActiveSection} />;
       case 'create-post':
         return isMobile ? <MobileContentWarning /> : <UnifiedPostCreator />;
       case 'media-management':
@@ -299,6 +310,22 @@ const MobileContentWarning = () => (
     <p className="text-sm text-gray-500 dark:text-gray-500">
       Please use a desktop or tablet (landscape mode) to access these features.
     </p>
+  </div>
+);
+
+const RoleDashboard = ({ role, navItems, onOpen }) => (
+  <div className="space-y-5">
+    <div className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">{role} workspace</p>
+      <h2 className="mt-2 text-2xl font-bold">Your approved tools</h2>
+      <p className="mt-2 text-gray-600 dark:text-gray-300">{getRoleSummary(role)}</p>
+    </div>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {navItems.filter(item => item.id !== 'dashboard').map(item => {
+        const Icon = item.icon;
+        return <button key={item.id} type="button" onClick={() => onOpen(item.id)} className="flex items-center gap-3 rounded-xl border bg-white p-4 text-left font-semibold shadow-sm hover:border-blue-300 dark:bg-gray-900"><Icon className="h-5 w-5 text-blue-600" /> {item.label}</button>;
+      })}
+    </div>
   </div>
 );
 

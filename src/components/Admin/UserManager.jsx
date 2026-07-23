@@ -17,10 +17,11 @@ import {
   Ban,
   CheckCircle
 } from 'lucide-react';
-import { ref, get, update, remove } from 'firebase/database';
-import { db } from '../../firebase-config';
+import { ref, get, remove } from 'firebase/database';
+import { db, functions, httpsCallable } from '../../firebase-config';
 import { useToast } from '../Common/Toast';
 import { adminStyles } from './adminStyles';
+import { getRoleSummary } from '../../utils/rbac';
 
 const UserManager = () => {
   const [users, setUsers] = useState([]);
@@ -71,7 +72,7 @@ const UserManager = () => {
                          user.username?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || (user.status || 'active') === statusFilter;
     
     return matchesSearch && matchesRole && matchesStatus;
   });
@@ -79,11 +80,7 @@ const UserManager = () => {
   // Update user status
   const updateUserStatus = async (userId, newStatus) => {
     try {
-      const userRef = ref(db, `users/${userId}`);
-      await update(userRef, {
-        status: newStatus,
-        updatedAt: new Date().toISOString()
-      });
+      await httpsCallable(functions, 'adminSetUserAccess')({ userId, status: newStatus });
       
       setUsers(users.map(user => 
         user.id === userId 
@@ -101,11 +98,7 @@ const UserManager = () => {
   // Update user role
   const updateUserRole = async (userId, newRole) => {
     try {
-      const userRef = ref(db, `users/${userId}`);
-      await update(userRef, {
-        role: newRole,
-        updatedAt: new Date().toISOString()
-      });
+      await httpsCallable(functions, 'adminSetUserAccess')({ userId, role: newRole });
       
       setUsers(users.map(user => 
         user.id === userId 
@@ -150,13 +143,8 @@ const UserManager = () => {
     }
 
     try {
-      const updatePromises = selectedUsers.map(userId => {
-        const userRef = ref(db, `users/${userId}`);
-        return update(userRef, {
-          status: newStatus,
-          updatedAt: new Date().toISOString()
-        });
-      });
+      const setAccess = httpsCallable(functions, 'adminSetUserAccess');
+      const updatePromises = selectedUsers.map(userId => setAccess({ userId, status: newStatus }));
 
       await Promise.all(updatePromises);
       
@@ -243,6 +231,15 @@ const UserManager = () => {
         </div>
       </div>
 
+      <div className="grid gap-3 md:grid-cols-3">
+        {['admin', 'editor', 'moderator'].map(role => (
+          <div key={role} className="rounded-xl border border-gray-200 bg-white p-4">
+            <p className="font-semibold capitalize text-gray-900">{role}</p>
+            <p className="mt-1 text-sm text-gray-500">{getRoleSummary(role)}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Search and Filters */}
       <div className={adminStyles.card}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
@@ -281,7 +278,6 @@ const UserManager = () => {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="suspended">Suspended</option>
-            <option value="pending">Pending</option>
           </select>
 
           {/* Bulk Actions */}
@@ -416,12 +412,11 @@ const UserManager = () => {
                       <select
                         value={user.status || 'active'}
                         onChange={(e) => updateUserStatus(user.id, e.target.value)}
-                        className={`text-xs font-semibold rounded-full px-2 py-1 border-0 ${getStatusColor(user.status)}`}
+                        className={`text-xs font-semibold rounded-full px-2 py-1 border-0 ${getStatusColor(user.status || 'active')}`}
                       >
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                         <option value="suspended">Suspended</option>
-                        <option value="pending">Pending</option>
                       </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

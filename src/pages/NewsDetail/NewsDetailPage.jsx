@@ -607,6 +607,8 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
                       src={mediaUrl}
                       poster={firstMediaItem?.thumbnailUrl || ''}
                       controls
+                      controlsList="nodownload"
+                      onContextMenu={event => event.preventDefault()}
                       preload="metadata"
                       className="w-full h-64 md:h-96 object-cover rounded-lg bg-gray-900"
                       onError={(e) => {

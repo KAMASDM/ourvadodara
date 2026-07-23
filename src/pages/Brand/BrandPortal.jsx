@@ -30,12 +30,14 @@ const toDateTimeInput = value => {
 
 const toOfferForm = offer => ({
   ...EMPTY_OFFER, ...offer,
+  status: offer?.workflowStatus === 'pending_approval' ? 'pending_approval' : 'draft',
   startsAt: toDateTimeInput(offer.startsAt),
   endsAt: toDateTimeInput(offer.endsAt),
   validDays: Array.isArray(offer.validDays) ? offer.validDays.map(Number) : []
 });
 
 const cleanFunctionError = error => String(error?.message || 'Something went wrong').replace(/^Firebase:\s*/i, '');
+const getOfferWorkflowStatus = offer => offer?.workflowStatus || (offer?.status === 'published' ? 'published' : offer?.status || 'draft');
 
 const BrandLogin = ({ brand, onLogin }) => {
   const [email, setEmail] = useState('');
@@ -108,6 +110,7 @@ const OfferEditor = ({ offer, onClose, onSaved }) => {
     <form onSubmit={submit} className="space-y-6 rounded-3xl border bg-white p-6 shadow-sm dark:bg-slate-900">
       <div className="flex items-start justify-between gap-3"><div><h2 className="text-xl font-bold">{offer ? 'Edit offer' : 'Create an offer'}</h2><p className="text-sm text-slate-500">Zero means unlimited wherever indicated.</p></div><button type="button" onClick={onClose} className="rounded-xl border px-3 py-2 text-sm">Cancel</button></div>
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {offer?.rejectionReason && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><strong>Admin feedback:</strong> {offer.rejectionReason}</p>}
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="text-sm font-semibold md:col-span-2">Offer title<input required value={form.title} onChange={event => setField('title', event.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-slate-950" /></label>
@@ -134,7 +137,7 @@ const OfferEditor = ({ offer, onClose, onSaved }) => {
       </fieldset>
 
       <label className="block text-sm font-semibold">Terms and conditions<textarea rows="4" value={form.terms} onChange={event => setField('terms', event.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-slate-950" /></label>
-      <div className="flex flex-wrap items-end justify-between gap-4"><label className="text-sm font-semibold">Status<select value={form.status} onChange={event => setField('status', event.target.value)} className="ml-3 rounded-xl border px-3 py-2"><option value="draft">Draft</option><option value="published">Published</option><option value="paused">Paused</option></select></label><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? 'Saving…' : 'Save offer'}</button></div>
+      <div className="flex flex-wrap items-end justify-between gap-4"><label className="text-sm font-semibold">Submission status<select value={form.status} onChange={event => setField('status', event.target.value)} className="ml-3 rounded-xl border px-3 py-2"><option value="draft">Save as draft</option><option value="pending_approval">Submit for admin approval</option></select></label><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? 'Saving…' : form.status === 'pending_approval' ? 'Submit offer' : 'Save draft'}</button></div>
     </form>
   );
 };
@@ -295,7 +298,7 @@ const BrandPortal = ({ slug }) => {
   const stats = useMemo(() => {
     const issued = offers.reduce((sum, offer) => sum + Number(offer.issuedCount || 0), 0);
     const redeemed = offers.reduce((sum, offer) => sum + Number(offer.redeemedCount || 0), 0);
-    return { issued, redeemed, conversion: issued ? Math.round(redeemed / issued * 100) : 0, active: offers.filter(offer => offer.status === 'published').length };
+    return { issued, redeemed, conversion: issued ? Math.round(redeemed / issued * 100) : 0, active: offers.filter(offer => getOfferWorkflowStatus(offer) === 'published').length };
   }, [offers]);
 
   if (loading || brandLoading) return <div className="grid min-h-screen place-items-center bg-slate-950 text-white">Loading brand portal…</div>;
