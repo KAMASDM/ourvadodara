@@ -183,7 +183,7 @@ const ContactVerificationModal = ({
     <>
       <div id="recaptcha-container-profile"></div>
       
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <div className="app-modal-layer flex items-center justify-center bg-black/50 backdrop-blur-sm">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8">
           {/* Header */}
           <div className="text-center mb-6">

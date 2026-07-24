@@ -52,7 +52,7 @@ const ImageViewer = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
   // Portal to <body> so no ancestor stacking context can trap the overlay
   // under the app header (which sits at z-50 within its own context).
   return createPortal(
-    <div className="fixed inset-0 bg-black bg-opacity-95 z-[100] flex items-center justify-center" onClick={onClose}>
+    <div className="app-modal-layer !p-0 flex items-center justify-center bg-black bg-opacity-95" onClick={onClose}>
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-black bg-opacity-50 p-4">
         <div className="flex items-center justify-between text-white">

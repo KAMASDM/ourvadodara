@@ -48,14 +48,14 @@ const Modal = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen p-4">
+    <div className="app-modal-layer">
+      <div className="flex min-h-full items-center justify-center">
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
           onClick={closeOnOverlayClick ? onClose : undefined}
         />
         
-        <div className={`relative bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full ${sizeClasses[size]} transform transition-all`}>
+        <div role="dialog" aria-modal="true" className={`app-modal-panel relative bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full ${sizeClasses[size]} transform transition-all`}>
           {(title || showCloseButton) && (
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               {title && (

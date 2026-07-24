@@ -669,7 +669,7 @@ const ContentManagement = () => {
 
       {/* Edit Post Modal */}
       {showEditModal && editingPostId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div className="app-modal-layer flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden border border-transparent dark:border-gray-700">
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Edit Post</h2>

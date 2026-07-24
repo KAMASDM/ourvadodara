@@ -496,7 +496,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
   const handleLike = async (reelId) => {
     if (!user) {
-      alert('Please sign in to like reels');
+      document.dispatchEvent(new CustomEvent('showGuestPrompt'));
       return;
     }
     
@@ -643,7 +643,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const handleComment = () => {
     if (!commentsAllowed) return;
     if (!user) {
-      alert('Please sign in to comment');
+      document.dispatchEvent(new CustomEvent('showGuestPrompt'));
       return;
     }
     
@@ -1113,8 +1113,8 @@ const DuetModal = ({ reel, user, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 p-3 backdrop-blur-sm sm:items-center" onClick={onClose}>
-      <form onSubmit={publishDuet} onClick={event => event.stopPropagation()} className="w-full max-w-lg rounded-3xl bg-white p-5 text-slate-900 shadow-2xl dark:bg-slate-900 dark:text-white">
+    <div className="app-modal-layer flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center" onClick={onClose} role="presentation">
+      <form onSubmit={publishDuet} onClick={event => event.stopPropagation()} className="app-modal-panel w-full max-w-lg rounded-3xl bg-white p-5 text-slate-900 shadow-2xl dark:bg-slate-900 dark:text-white" role="dialog" aria-modal="true" aria-label="Create a duet">
         <div className="flex items-center justify-between gap-3"><div><h3 className="text-xl font-black">Create a duet</h3><p className="text-sm text-slate-500">Record or choose your side of the Reel.</p></div><button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 dark:bg-slate-800" aria-label="Close duet creator"><X className="h-5 w-5" /></button></div>
         <label className="mt-5 flex cursor-pointer flex-col items-center rounded-2xl border-2 border-dashed border-slate-300 px-4 py-8 text-center dark:border-slate-700"><Upload className="h-8 w-8 text-pink-600" /><span className="mt-2 font-bold">{file ? file.name : 'Record or choose a video'}</span><span className="mt-1 text-xs text-slate-500">MP4, MOV, or WebM up to 100 MB</span><input type="file" accept="video/*" capture="user" onChange={event => setFile(event.target.files?.[0] || null)} className="sr-only" /></label>
         <label className="mt-4 block text-sm font-bold">Caption<input value={caption} onChange={event => setCaption(event.target.value)} maxLength={240} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-950" placeholder="Add a caption (optional)" /></label>
@@ -1128,10 +1128,13 @@ const DuetModal = ({ reel, user, onClose }) => {
 // Comments Modal Component
 const CommentsModal = ({ reel, onClose }) => {
   return (
-    <div className="fixed inset-0 bg-black/70 z-[100] flex items-end" onClick={onClose}>
+    <div className="app-modal-layer !p-0 flex items-end bg-black/70" onClick={onClose} role="presentation">
       <div 
-        className="bg-white dark:bg-gray-900 rounded-t-3xl w-full max-h-[80vh] flex flex-col shadow-2xl"
+        className="app-modal-panel bg-white dark:bg-gray-900 rounded-t-3xl w-full flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Reel comments"
       >
         {/* Header */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">

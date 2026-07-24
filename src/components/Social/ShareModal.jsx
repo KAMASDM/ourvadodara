@@ -89,7 +89,7 @@ const ShareModal = ({ isOpen, onClose, post }) => {
   ];
 
   return createPortal(
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-end justify-center" onClick={onClose} role="presentation">
+    <div className="app-modal-layer !p-0 flex items-end justify-center bg-black bg-opacity-50" onClick={onClose} role="presentation">
       <div className="bg-white dark:bg-gray-900 rounded-t-xl w-full max-w-md" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Share article">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">

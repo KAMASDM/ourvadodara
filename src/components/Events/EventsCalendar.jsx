@@ -264,7 +264,7 @@ const EventsCalendar = ({ className = '' }) => {
       </div>
 
       {filtersOpen && (
-        <div className="fixed inset-0 z-[80] flex items-stretch justify-end bg-slate-950/45 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4" onClick={() => setFiltersOpen(false)}>
+        <div className="app-modal-layer !p-0 flex items-stretch justify-end bg-slate-950/45 backdrop-blur-sm sm:items-center sm:justify-center sm:!p-4" onClick={() => setFiltersOpen(false)}>
           <div className="h-full w-[min(88vw,380px)] overflow-y-auto rounded-l-[2rem] bg-white p-5 shadow-2xl dark:bg-slate-950 sm:h-auto sm:max-h-[88vh] sm:w-full sm:max-w-2xl sm:rounded-[2rem] sm:p-6" onClick={event => event.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div><p className="eyebrow text-teal-700 dark:text-teal-300">Refine results</p><h2 className="mt-1 text-xl font-extrabold">Event filters</h2></div>
@@ -308,7 +308,7 @@ const EventsCalendar = ({ className = '' }) => {
       )}
 
       {selectedEventId && (
-        <div className="fixed inset-0 z-[100] flex items-end bg-slate-950/55 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4" onClick={() => setSelectedEventId(null)}>
+        <div className="app-modal-layer !p-0 flex items-end bg-slate-950/55 backdrop-blur-sm sm:items-center sm:justify-center sm:!p-4" onClick={() => setSelectedEventId(null)}>
           <div className="relative max-h-[94vh] w-full overflow-y-auto rounded-t-[2rem] bg-white shadow-2xl dark:bg-slate-950 sm:max-w-4xl sm:rounded-[2rem]" onClick={event => event.stopPropagation()}>
             <button type="button" onClick={() => setSelectedEventId(null)} className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-md backdrop-blur dark:bg-slate-900/90 dark:text-white" aria-label="Close registration"><X className="h-5 w-5" /></button>
             <EventRegistration eventId={selectedEventId} event={events.find(event => event.id === selectedEventId)} onClose={() => setSelectedEventId(null)} />

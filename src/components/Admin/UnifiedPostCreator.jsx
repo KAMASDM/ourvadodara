@@ -1642,7 +1642,7 @@ const UnifiedPostCreator = () => {
 
       {/* Upload Progress Overlay */}
       {loading && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="app-modal-layer flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-neutral-800 rounded-2xl p-8 max-w-md w-full shadow-2xl">
             <div className="text-center mb-6">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-50 dark:bg-primary-900/20 rounded-full mb-4">

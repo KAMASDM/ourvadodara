@@ -437,7 +437,7 @@ const BreakingNewsManager = () => {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+        <div className="app-modal-layer !p-0 flex items-end justify-center bg-slate-950/50 backdrop-blur-sm sm:items-center sm:!p-4">
           <div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-t-[2rem] bg-white shadow-2xl dark:bg-slate-950 sm:rounded-[2rem]">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:px-6">
               <h2 className="text-xl font-extrabold text-slate-950 dark:text-white">

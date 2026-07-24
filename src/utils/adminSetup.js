@@ -165,7 +165,7 @@ export const setUserRole = async (userUid, role, customPermissions = null) => {
         canManageUsers: false,
         canViewAnalytics: true,
         canManageComments: true,
-        canManageEvents: true,
+        canManageEvents: false,
         canSendNotifications: false
       },
       moderator: {

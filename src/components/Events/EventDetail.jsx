@@ -305,7 +305,7 @@ const EventDetail = ({ eventId, onBack }) => {
       </div>
 
       {showRegistration && (
-        <div className="fixed inset-0 z-[100] flex items-end bg-slate-950/60 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4" onClick={() => setShowRegistration(false)}>
+        <div className="app-modal-layer !p-0 flex items-end bg-slate-950/60 backdrop-blur-sm sm:items-center sm:justify-center sm:!p-4" onClick={() => setShowRegistration(false)}>
           <div className="relative max-h-[95vh] w-full overflow-y-auto rounded-t-[2rem] bg-white shadow-2xl dark:bg-slate-950 sm:max-w-4xl sm:rounded-[2rem]" onClick={clickEvent => clickEvent.stopPropagation()}>
             <button type="button" onClick={() => setShowRegistration(false)} className="absolute right-4 top-4 z-30 grid h-10 w-10 place-items-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur dark:bg-slate-900/90 dark:text-white" aria-label="Close registration"><X className="h-5 w-5" /></button>
             <EventRegistration eventId={event.id} event={event} onClose={() => setShowRegistration(false)} />
@@ -316,7 +316,7 @@ const EventDetail = ({ eventId, onBack }) => {
       <ShareSheet isOpen={shareOpen} onClose={() => setShareOpen(false)} shareData={{ title: detail.title, text: detail.description, url: `${window.location.origin}/events/${encodeURIComponent(eventId)}` }} />
 
       {selectedMedia && (
-        <div className="fixed inset-0 z-[110] grid place-items-center bg-slate-950/95 p-4" onClick={() => setSelectedMedia(null)}>
+        <div className="app-modal-layer grid place-items-center bg-slate-950/95" onClick={() => setSelectedMedia(null)}>
           <button type="button" onClick={() => setSelectedMedia(null)} className="absolute right-4 top-[calc(16px+env(safe-area-inset-top))] grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white" aria-label="Close media"><X className="h-6 w-6" /></button>
           <div className="w-full max-w-5xl" onClick={clickEvent => clickEvent.stopPropagation()}>{selectedMedia.type === 'image' ? <img src={selectedMedia.url} alt="Event media" className="mx-auto max-h-[86vh] max-w-full rounded-2xl object-contain" /> : <video src={selectedMedia.url} controls autoPlay playsInline className="mx-auto max-h-[86vh] w-full rounded-2xl" />}</div>
         </div>

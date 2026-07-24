@@ -13,6 +13,8 @@
 
 /* ─── Design tokens (CSS vars) ────────────────────────────── */
 :root {
+  --z-modal: 200;
+  --z-auth-modal: 300;
   --color-primary:       #0f766e;
   --color-primary-dark:  #115e59;
   --color-accent:        #e11d48;
@@ -48,6 +50,43 @@
 
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Shared modal contract. Popups sit above all application chrome (headers,
+   drawers and bottom navigation), respect notches/home indicators, and use
+   the dynamic viewport so their header/close control remains reachable when
+   mobile browser controls or the keyboard change the visible height. */
+.app-modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal) !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
+}
+
+.app-auth-modal-layer {
+  z-index: var(--z-auth-modal) !important;
+}
+
+.app-modal-panel {
+  max-height: calc(100dvh - max(2rem, calc(env(safe-area-inset-top) + env(safe-area-inset-bottom))));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Protect legacy dialogs while they are progressively moved to the shared
+   Modal component. */
+:where(.fixed.inset-0[role='dialog'][aria-modal='true']),
+:where(.fixed.inset-0:has(> [role='dialog'][aria-modal='true'])) {
+  z-index: var(--z-modal) !important;
+}
+
+:where([role='dialog'][aria-modal='true']) {
+  max-height: calc(100dvh - max(1rem, calc(env(safe-area-inset-top) + env(safe-area-inset-bottom))));
 }
 
 .dark {

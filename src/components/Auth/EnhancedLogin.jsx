@@ -518,12 +518,16 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+      className="app-modal-layer app-auth-modal-layer flex items-center justify-center bg-slate-950/55 backdrop-blur-sm"
       onClick={onClose}
+      role="presentation"
     >
       <div
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl"
+        className="app-modal-panel w-full max-w-md rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Sign in to Our Vadodara"
       >
         {/* Header */}
         <div className="border-b border-white/60 p-6">

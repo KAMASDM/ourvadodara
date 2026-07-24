@@ -114,10 +114,13 @@
       ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
     },
     
-    // Events - public read, authenticated write
+    // Events - public read. Editors are explicitly excluded from all event
+    // writes; existing customer registration/check-in flows remain available
+    // to the other authenticated account types until they are moved to
+    // server-side transactional functions.
     "events": {
       ".read": true,
-      ".write": "auth != null"
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'editor'"
     },
     
     // Polls - public read, authenticated write

@@ -232,7 +232,10 @@ const EnhancedReelsPage = ({ onBack, initialReelId = null }) => {
   };
 
   const handleLike = async (reel) => {
-    if (!user) return;
+    if (!user) {
+      document.dispatchEvent(new CustomEvent('showGuestPrompt'));
+      return;
+    }
 
     const isLiked = likedReels.has(reel.id);
     const newLikes = (reel.likes || 0) + (isLiked ? -1 : 1);
@@ -280,6 +283,10 @@ const EnhancedReelsPage = ({ onBack, initialReelId = null }) => {
   };
 
   const handleComment = (reel) => {
+    if (!user) {
+      document.dispatchEvent(new CustomEvent('showGuestPrompt'));
+      return;
+    }
     // Navigate to comments (implement as needed)
     console.log('Open comments for reel:', reel.id);
   };
