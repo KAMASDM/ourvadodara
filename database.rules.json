@@ -102,10 +102,33 @@
       ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
     },
     
-    // Cities - public read, admin write
+    // City-scoped content mirrors. Admins and active Editors may keep the
+    // same content types they can publish globally in sync here. There is no
+    // parent-level write grant, so other city children remain protected.
     "cities": {
       ".read": true,
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+      "$cityId": {
+        "posts": {
+          "$postId": {
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor') && (!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active')"
+          }
+        },
+        "stories": {
+          "$storyId": {
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor') && (!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active')"
+          }
+        },
+        "reels": {
+          "$reelId": {
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor') && (!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active')"
+          }
+        },
+        "carousels": {
+          "$carouselId": {
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor') && (!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active')"
+          }
+        }
+      }
     },
     
     // Cities Config - public read, admin write

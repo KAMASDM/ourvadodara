@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useCity } from '../../context/CityContext';
-import { ref, push, set } from 'firebase/database';
+import { ref, push, update } from 'firebase/database';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase-config';
 import RichTextEditor from '../Common/RichTextEditor';
@@ -602,7 +602,7 @@ const UnifiedPostCreator = () => {
     }
 
     if (!user?.uid) {
-      newErrors.auth = 'Please sign in as an admin before publishing';
+      newErrors.auth = 'Please sign in with an authorized Admin or Editor account before publishing';
     }
 
     if (postType === POST_TYPES.STANDARD) {
@@ -779,16 +779,21 @@ const UnifiedPostCreator = () => {
         ...postData,
         id: newPostRef.key
       };
-      await set(newPostRef, savedPostData);
 
-      const cityWrites = validSelectedCities.map(cityId =>
-        set(ref(db, `cities/${cityId}/${dbPath}/${newPostRef.key}`), {
+      // Publish the canonical content and all city mirrors atomically. This
+      // prevents a successful global post followed by a failed city mirror
+      // from leaving partially-published content behind.
+      const updates = {
+        [`${dbPath}/${newPostRef.key}`]: savedPostData
+      };
+      validSelectedCities.forEach(cityId => {
+        updates[`cities/${cityId}/${dbPath}/${newPostRef.key}`] = {
           ...savedPostData,
           cityId,
           mainPostId: newPostRef.key
-        })
-      );
-      await Promise.all(cityWrites);
+        };
+      });
+      await update(ref(db), updates);
       
       setSuccessMessage(
         `${postType.charAt(0) + postType.slice(1).toLowerCase()} ${status === 'scheduled' ? 'scheduled' : 'published'} successfully for ${selectedCityNames.join(', ')}.`
@@ -806,7 +811,7 @@ const UnifiedPostCreator = () => {
     } catch (error) {
       console.error('Post creation error:', error);
       const reason = error?.code === 'PERMISSION_DENIED'
-        ? 'Permission denied — make sure you are signed in with an admin account.'
+        ? 'Permission denied — your account must have an active Admin or Editor role.'
         : error?.message || 'Unknown error';
       setErrors(prev => ({ ...prev, submit: `Failed to create ${postType.toLowerCase()}: ${reason}` }));
       scrollToFeedback();
