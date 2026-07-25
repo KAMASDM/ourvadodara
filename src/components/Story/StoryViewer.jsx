@@ -7,6 +7,7 @@
 // and text colors, and hardware/browser back closes the viewer (no crash).
 // =============================================
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { getLocalizedText } from '../../utils/textUtils';
 
@@ -218,8 +219,8 @@ const StoryViewer = ({ stories, startIndex = 0, onClose }) => {
 
   if (!story) return null;
 
-  return (
-    <div className="fixed inset-0 z-[80] flex flex-col" style={{ backgroundColor: bgColor, color: textColor }}>
+  return createPortal(
+    <div className="app-modal-layer !p-0 flex flex-col" style={{ backgroundColor: bgColor, color: textColor }} role="dialog" aria-modal="true" aria-label="Story viewer">
       {/* Segmented progress bars */}
       <div className="absolute inset-x-0 top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 flex gap-1 px-3">
         {mediaItems.map((_, i) => (
@@ -331,7 +332,8 @@ const StoryViewer = ({ stories, startIndex = 0, onClose }) => {
           )}
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 };
 

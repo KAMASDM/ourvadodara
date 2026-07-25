@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CalendarDays, CheckCircle2, Clock3, Gift, MapPin, QrCode as QrCodeIcon,
   Search, ShieldCheck, Sparkles, Store, Tag, TicketCheck, X
@@ -99,10 +100,11 @@ const CouponPass = ({ coupon, onClose }) => {
   );
 };
 
-const CouponModal = ({ coupon, onClose }) => coupon ? (
-  <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/70 p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label="Coupon QR code" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-[2rem]"><CouponPass coupon={coupon} onClose={onClose} /></div>
-  </div>
+const CouponModal = ({ coupon, onClose }) => coupon ? createPortal(
+  <div className="app-modal-layer flex items-end justify-center bg-slate-950/70 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label="Coupon QR code" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="app-modal-panel w-full max-w-md rounded-[2rem]"><CouponPass coupon={coupon} onClose={onClose} /></div>
+  </div>,
+  document.body
 ) : null;
 
 const MyCoupons = ({ coupons }) => {

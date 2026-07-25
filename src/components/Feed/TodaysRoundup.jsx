@@ -3,6 +3,7 @@
 // Carousel Component for Displaying Daily News Roundup
 // =============================================
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ref, get, update, increment } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { getTodayRoundupId, formatDateForTitle, ROUNDUP_STATUS } from '../../utils/roundupSchema';
@@ -170,20 +171,21 @@ const TodaysRoundup = ({ onClose }) => {
   };
 
   if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center">
+    return createPortal(
+      <div className="app-modal-layer !p-0 flex items-center justify-center bg-black/90">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white text-lg">Loading today's roundup...</p>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
   if (error || !roundup) {
-    return (
-      <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full text-center">
+    return createPortal(
+      <div className="app-modal-layer flex items-center justify-center bg-black/90">
+        <div className="app-modal-panel bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full text-center" role="dialog" aria-modal="true" aria-label="Today's roundup status">
           <Newspaper className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
             {error || 'Roundup Not Available'}
@@ -198,17 +200,21 @@ const TodaysRoundup = ({ onClose }) => {
             Close
           </button>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
   const currentPost = roundup.postDetails[roundup.posts[currentIndex]];
 
-  return (
+  return createPortal(
     <div
       ref={containerRef}
-      className="fixed inset-0 bg-black z-[100] flex flex-col"
+      className="app-modal-layer !p-0 flex flex-col bg-black"
       style={{ touchAction: 'pan-y' }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Today's roundup"
     >
       {/* Header */}
       <div className="bg-gradient-to-b from-black/80 to-transparent p-4 absolute top-0 left-0 right-0 z-10">
@@ -361,7 +367,8 @@ const TodaysRoundup = ({ onClose }) => {
           Swipe or use arrow keys to navigate
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

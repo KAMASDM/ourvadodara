@@ -505,7 +505,7 @@ function AppContent() {
 
   return (
     <ResponsiveLayout currentView={currentView} onNavigate={handleNavigation} isDesktop={isDesktop}>
-      <div className="min-h-screen liquid-app-bg">
+      <div className="min-h-screen liquid-content-bg">
         <OfflineIndicator />
             
             {/* Only show mobile header on mobile or for full-width views */}

@@ -60,6 +60,9 @@
   position: fixed;
   inset: 0;
   z-index: var(--z-modal) !important;
+  width: 100vw;
+  min-height: 100dvh;
+  max-height: 100dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-top: max(1rem, env(safe-area-inset-top));
@@ -365,6 +368,19 @@ body {
 .liquid-app-bg {
   position: relative;
   isolation: isolate;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.16), transparent 34%),
+    radial-gradient(circle at 12% 8%, rgba(14,165,233,0.14), transparent 24%),
+    radial-gradient(circle at 94% 12%, rgba(225,29,72,0.10), transparent 26%),
+    radial-gradient(circle at 82% 82%, rgba(16,185,129,0.10), transparent 26%);
+}
+
+/* Content rendered inside DesktopLayout must not create another isolated
+   stacking context: doing so traps even high-z fixed dialogs below the
+   desktop header. This keeps the same wash without the isolation/pseudo
+   layer; DesktopLayout supplies the ambient grid itself. */
+.liquid-content-bg {
+  position: relative;
   background:
     linear-gradient(180deg, rgba(255,255,255,0.16), transparent 34%),
     radial-gradient(circle at 12% 8%, rgba(14,165,233,0.14), transparent 24%),
