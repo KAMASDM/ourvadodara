@@ -52,6 +52,7 @@ import { analytics } from './utils/analytics.js';
 import { performanceMonitor } from './utils/performance.js';
 import { initializeNotifications } from './utils/notificationManager.js';
 import { pushNotificationService } from './utils/pushNotifications.js';
+import { resolveAppRoute } from './utils/appRoutes.js';
 import './utils/i18n.js';
 
 function AppContent() {
@@ -78,168 +79,19 @@ function AppContent() {
 
   // Check for Firebase setup URL parameter and admin route
   const handlePathNavigation = useCallback(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const path = window.location.pathname;
+    const resolved = resolveAppRoute(window.location.pathname, window.location.search);
 
-    const postMatch = path.match(/^\/post\/([^/]+)$/);
-    if (postMatch) {
-      const newsId = decodeURIComponent(postMatch[1]);
-      window.history.replaceState({ view: 'news-detail', newsId }, '', `/post/${newsId}`);
-      setCurrentView({ type: 'news-detail', data: { newsId } });
-      setActiveTab('home');
-      return;
+    if (resolved.canonicalPath && resolved.canonicalPath !== window.location.pathname) {
+      window.history.replaceState(
+        { ...(window.history.state || {}), view: resolved.type },
+        '',
+        `${resolved.canonicalPath}${window.location.search}${window.location.hash}`
+      );
     }
 
-    // Check for QR scanner routes: /eventname/scanqr or /events/eventid/scanqr
-    const scannerMatch = path.match(/^\/events\/([^/]+)\/scanqr$/) || path.match(/^\/([^/]+)\/scanqr$/);
-    if (scannerMatch) {
-      const eventIdentifier = scannerMatch[1];
-      setCurrentView({ type: 'qr-scanner', data: { eventId: eventIdentifier } });
-      setActiveTab('qr-scanner');
-      return;
-    }
-
-    const eventMatch = path.match(/^\/events\/([^/]+)$/);
-    if (eventMatch) {
-      const eventId = decodeURIComponent(eventMatch[1]);
-      setCurrentView({ type: 'event-detail', data: { eventId } });
-      setActiveTab('explore');
-      return;
-    }
-
-    if (path === '/marketing') {
-      setCurrentView({ type: 'marketing', data: null });
-      setActiveTab('marketing');
-      return;
-    }
-
-    if (['/contact', '/terms', '/privacy'].includes(path)) {
-      setCurrentView({ type: 'legal', data: { page: path.slice(1) } });
-      setActiveTab('home');
-      return;
-    }
-
-    if (path === '/admin' || path.includes('/admin')) {
-      setCurrentView({ type: 'admin', data: null });
-      setActiveTab('admin');
-      return;
-    }
-
-    if (path === '/roundup') {
-      window.history.replaceState({ view: 'home' }, '', '/');
-      setCurrentView({ type: 'home', data: null });
-      setActiveTab('home');
-      return;
-    }
-
-    if (path === '/advertise' || path === '/enquiry' || path === '/brand-solutions') {
-      setCurrentView({ type: 'advertise', data: null });
-      setActiveTab('advertise');
-      return;
-    }
-    if (path === '/offers' || path === '/coupons') {
-      setCurrentView({ type: 'offers', data: null });
-      setActiveTab('explore');
-      return;
-    }
-
-    const exploreMatch = path.match(/^\/explore(?:\/([^/]+))?\/?$/);
-    if (exploreMatch) {
-      setCurrentView({ type: 'explore', data: { section: exploreMatch[1] || null } });
-      setActiveTab('explore');
-      return;
-    }
-
-    if (path === '/search') {
-      setCurrentView({ type: 'search', data: null });
-      setActiveTab('home');
-      return;
-    }
-
-    if (path.startsWith('/category/')) {
-      const category = decodeURIComponent(path.replace('/category/', ''));
-      setCurrentView({ type: 'category', data: { category } });
-      setActiveTab('home');
-      return;
-    }
-
-    const breakingMatch = path.match(/^\/breaking\/([^/]+)$/);
-    if (breakingMatch) {
-      setCurrentView({ type: 'breaking-detail', data: { newsId: decodeURIComponent(breakingMatch[1]) } });
-      setActiveTab('breaking');
-      return;
-    }
-
-    if (path === '/breaking') {
-      setCurrentView({ type: 'breaking', data: null });
-      setActiveTab('breaking');
-      return;
-    }
-
-    if (path === '/reels') {
-      setCurrentView({ type: 'reels', data: null });
-      setActiveTab('reels');
-      return;
-    }
-
-    if (path === '/events') {
-      setCurrentView({ type: 'events', data: null });
-      setActiveTab('explore');
-      return;
-    }
-
-    if (path === '/saved') {
-      setCurrentView({ type: 'saved', data: null });
-      setActiveTab('home');
-      return;
-    }
-
-    if (path === '/profile') {
-      setCurrentView({ type: 'profile', data: null });
-      setActiveTab('profile');
-      return;
-    }
-
-    if (path === '/settings' || path === '/notifications-settings' || path === '/notifications') {
-      const type = path === '/settings'
-        ? 'settings'
-        : path === '/notifications-settings'
-          ? 'notifications-settings'
-          : 'notifications';
-      setCurrentView({ type, data: null });
-      setActiveTab('home');
-      return;
-    }
-
-    if (path === '/activity') {
-      setCurrentView({ type: 'activity', data: null });
-      setActiveTab('profile');
-      return;
-    }
-
-    if (urlParams.get('setup') === 'firebase') {
-      setCurrentView({ type: 'firebase-setup', data: null });
-      setActiveTab('firebase-setup');
-      return;
-    }
-
-    if (urlParams.get('admin') === 'upgrade') {
-      setCurrentView({ type: 'admin-upgrade', data: null });
-      setActiveTab('admin-upgrade');
-      return;
-    }
-
-    // Brand partner portals intentionally use a short root URL such as
-    // domain.com/brand-name. All first-party routes above take precedence.
-    const brandPortalMatch = path.match(/^\/([a-z0-9][a-z0-9-]*)\/?$/i);
-    if (brandPortalMatch) {
-      setCurrentView({ type: 'brand-portal', data: { slug: brandPortalMatch[1].toLowerCase() } });
-      setActiveTab('brand-portal');
-      return;
-    }
-
-    setCurrentView((previous) => (previous.type === 'home' ? previous : { type: 'home', data: null }));
-    setActiveTab((previous) => (previous === 'home' ? previous : 'home'));
+    setShowLogin(Boolean(resolved.openLogin));
+    setCurrentView({ type: resolved.type, data: resolved.data });
+    setActiveTab(resolved.activeTab);
   }, []);
 
   useEffect(() => {
@@ -390,7 +242,12 @@ function AppContent() {
   };
 
   const handleShowReels = (reelId = null) => {
+    const reelPath = reelId ? `/reels/${encodeURIComponent(reelId)}` : '/reels';
+    if (window.location.pathname !== reelPath) {
+      window.history.pushState({ view: 'reels', reelId }, '', reelPath);
+    }
     setCurrentView({ type: 'reels', data: { reelId } });
+    setActiveTab('reels');
   };
 
   const handleTabChange = (tab) => {

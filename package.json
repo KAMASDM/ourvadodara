@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build && node scripts/write-firebase-messaging-sw.cjs",
     "lint": "eslint .",
+    "test:routes": "node scripts/test-app-routes.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
