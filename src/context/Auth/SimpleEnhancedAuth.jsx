@@ -2,11 +2,26 @@
 // src/context/Auth/SimpleEnhancedAuth.jsx
 // Simplified Enhanced Authentication Context for Testing
 // =============================================
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { runAnonymousRegistrationSecurityCheck, runRegistrationSecurityCheck } from '../../utils/registrationSecurity';
 
 const SimpleEnhancedAuthContext = createContext();
+
+const getPasswordResetErrorMessage = (error) => {
+  switch (error?.code) {
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/too-many-requests':
+      return 'Too many reset attempts. Please wait a few minutes and try again.';
+    case 'auth/network-request-failed':
+      return 'Unable to connect. Check your internet connection and try again.';
+    case 'auth/operation-not-allowed':
+      return 'Password reset is temporarily unavailable. Please contact support.';
+    default:
+      return 'We could not send the password reset email. Please try again.';
+  }
+};
 
 export const useEnhancedAuth = () => {
   const context = useContext(SimpleEnhancedAuthContext);
@@ -24,6 +39,7 @@ export const EnhancedAuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [loading, setLoading] = useState(false);
+  const clearError = useCallback(() => setAuthError(null), []);
 
   // Check if current user is anonymous
   useEffect(() => {
@@ -372,6 +388,34 @@ export const EnhancedAuthProvider = ({ children }) => {
     }
   };
 
+  // Password reset must live in this provider because it is the provider
+  // mounted by App.jsx and consumed by EnhancedLogin.
+  const resetPassword = async (email) => {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    setLoading(true);
+    setAuthError(null);
+
+    try {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+        const invalidEmailError = new Error('Please enter a valid email address.');
+        invalidEmailError.code = 'auth/invalid-email';
+        throw invalidEmailError;
+      }
+
+      const { sendPasswordResetEmail } = await import('firebase/auth');
+      const { firebaseAuth } = await import('../../firebase-config');
+      await sendPasswordResetEmail(firebaseAuth, normalizedEmail);
+      return { success: true };
+    } catch (error) {
+      console.error('Password reset error:', error);
+      const message = getPasswordResetErrorMessage(error);
+      setAuthError(message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const resendOTP = async (phoneNumber) => {
     if (recaptchaVerifier) {
       return await signInWithPhone(phoneNumber, recaptchaVerifier);
@@ -390,6 +434,7 @@ export const EnhancedAuthProvider = ({ children }) => {
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
+    resetPassword,
     signInAnonymouslyAsGuest,
     linkAnonymousWithEmail,
     linkAnonymousWithGoogle,
@@ -407,7 +452,7 @@ export const EnhancedAuthProvider = ({ children }) => {
     isEditor: regularAuth?.user?.role === 'editor' || regularAuth?.user?.role === 'admin',
     isModerator: regularAuth?.user?.role === 'moderator' || regularAuth?.user?.role === 'editor' || regularAuth?.user?.role === 'admin',
     
-    clearError: () => setAuthError(null)
+    clearError
   };
 
   return (

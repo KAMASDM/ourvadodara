@@ -91,6 +91,7 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (authError) clearError();
+    if (success) setSuccess('');
   };
 
   const validateForm = () => {
@@ -286,13 +287,12 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
   const handlePasswordReset = async (e) => {
     e.preventDefault();
     setIsProcessing(true);
+    setSuccess('');
+    clearError();
 
     try {
-      if (!formData.email.includes('@')) {
-        throw new Error('Please enter a valid email address');
-      }
       await resetPassword(formData.email);
-      setSuccess('Password reset email sent!');
+      setSuccess('If an account exists for this email, a password reset link has been sent. Please check your inbox and spam folder.');
     } catch (error) {
       console.error('Password reset error:', error);
     } finally {
@@ -301,7 +301,7 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
   };
 
   const renderEmailForm = () => (
-    <form onSubmit={handleEmailAuth} className="space-y-4">
+    <form onSubmit={mode === 'reset' ? handlePasswordReset : handleEmailAuth} className="space-y-4">
       {mode === 'signup' && (
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
