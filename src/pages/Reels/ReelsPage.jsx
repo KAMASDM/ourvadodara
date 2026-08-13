@@ -259,7 +259,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
         if (bookmarksSnapshot.exists()) {
           const bookmarksData = bookmarksSnapshot.val();
           const userSaves = new Set(
-            Object.keys(bookmarksData).filter(id => reelIds.includes(id))
+            Object.keys(bookmarksData).filter(id => reelIds.has(id))
           );
           setSavedReels(userSaves);
         }
