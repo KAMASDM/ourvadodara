@@ -72,7 +72,7 @@ const EventsCalendar = ({ className = '' }) => {
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [shareData, setShareData] = useState(null);
 
-  useEffect(() => onValue(ref(db, 'events'), snapshot => {
+  useEffect(() => onValue(ref(db, 'publicEvents'), snapshot => {
     const nextEvents = Object.entries(snapshot.val() || {})
       .map(([id, event]) => normalizeEvent(event, id))
       .filter(isPublishedEvent);

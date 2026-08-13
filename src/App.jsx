@@ -36,8 +36,6 @@ const ExplorePage = React.lazy(() => import('./pages/Explore/ExplorePage.jsx'));
 const AdvertisePage = React.lazy(() => import('./pages/Advertise/AdvertisePage.jsx'));
 const EventsCalendar = React.lazy(() => import('./components/Events/EventsCalendar.jsx'));
 const EventDetail = React.lazy(() => import('./components/Events/EventDetail.jsx'));
-const FirebaseSetup = React.lazy(() => import('./components/Admin/FirebaseSetup.jsx'));
-const AdminUpgrade = React.lazy(() => import('./components/Admin/AdminUpgrade.jsx'));
 const EventQRScanner = React.lazy(() => import('./components/Admin/EventQRScanner.jsx'));
 const BreakingNewsManager = React.lazy(() => import('./components/Breaking/BreakingNewsManager.jsx'));
 const BreakingNewsView = React.lazy(() => import('./components/Breaking/BreakingNewsView.jsx'));
@@ -186,7 +184,7 @@ function AppContent() {
   useEffect(() => {
     if (user && !user.isAnonymous) {
       console.log('Initializing push notifications for user:', user.uid);
-      pushNotificationService.init(user.uid, user.role === 'admin' ? ['admin-leads'] : [])
+      pushNotificationService.init(user.uid)
         .then(success => {
           if (success) {
             console.log('Push notifications initialized successfully');
@@ -213,8 +211,6 @@ function AppContent() {
   const isFullWidthView = [
     'admin',
     'marketing',
-    'firebase-setup',
-    'admin-upgrade',
     'qr-scanner',
     'brand-portal',
     'advertise',
@@ -464,10 +460,6 @@ function AppContent() {
             }}
           />
         );
-      case 'firebase-setup':
-        return <FirebaseSetup />;
-      case 'admin-upgrade':
-        return <AdminUpgrade />;
       case 'saved':
         return (
           <SavedPosts
@@ -540,7 +532,7 @@ function AppContent() {
             )}
 
           {/* PWA Install Prompt */}
-          <InstallPrompt />
+          {isDesktop && <InstallPrompt />}
 
           {/* Modals */}
           {showLogin && (

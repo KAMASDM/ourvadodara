@@ -2,11 +2,11 @@
 // src/utils/notificationManager.js
 // Centralized notification and badge management
 // =============================================
-import { fcmMessaging, firebaseAuth, db } from '../firebase-config';
+import { fcmMessaging, firebaseAuth } from '../firebase-config';
 import { getToken, onMessage } from 'firebase/messaging';
-import { ref, set, update, serverTimestamp } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase-config';
+import { getFirebaseMessagingRegistration } from './firebaseMessagingRegistration';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
@@ -105,7 +105,7 @@ class NotificationManager {
 
     try {
       // Wait for service worker to be ready before getting token
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await getFirebaseMessagingRegistration();
       if (!registration || !registration.active) {
         console.log('No active service worker');
         return null;
@@ -117,14 +117,7 @@ class NotificationManager {
       });
 
       if (currentToken) {
-        console.log('FCM Token:', currentToken);
         this.token = currentToken;
-
-        // Save token to database if user is logged in
-        const user = firebaseAuth.currentUser;
-        if (user) {
-          await this.saveTokenToDatabase(user.uid, currentToken);
-        }
 
         return currentToken;
       } else {
@@ -134,22 +127,6 @@ class NotificationManager {
     } catch (error) {
       // Silent fail - notifications are optional feature
       return null;
-    }
-  }
-
-  // Save token to Firebase database
-  async saveTokenToDatabase(userId, token) {
-    try {
-      const tokenRef = ref(db, `fcmTokens/${userId}`);
-      await set(tokenRef, {
-        token: token,
-        createdAt: serverTimestamp(),
-        lastUsed: serverTimestamp(),
-        device: this.getDeviceInfo()
-      });
-      console.log('Token saved to database');
-    } catch (error) {
-      console.error('Error saving token:', error);
     }
   }
 

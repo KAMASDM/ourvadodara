@@ -164,7 +164,7 @@ const DesktopNewsFeed = ({ feedType = 'all', category = null, onPostClick }) => 
 
   // Desktop home intentionally shows standard posts only. Carousels and reels
   // have dedicated, touch-friendly views and made the desktop grid inconsistent.
-  const { data: postsData, loading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
+  const { data: postsData, isLoading: postsLoading } = useRealtimeData('publicPosts', { scope: 'global', orderByField: 'timestamp', limitLast: 120 });
   const { data: reelsData } = useRealtimeData(null); // Disabled for performance
 
   // Combine and filter posts

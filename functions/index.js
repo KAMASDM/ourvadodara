@@ -555,7 +555,7 @@ function getTemplateButtons(template) {
     .slice(0, 3);
 }
 
-exports.createPublicLead = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data) => {
+exports.createPublicLead = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
   const contactName = requirePublicLeadString(data, 'contactName', 'Name');
   const companyName = requirePublicLeadString(data, 'companyName', 'Brand name');
   const city = requirePublicLeadString(data, 'city', 'City');
@@ -568,6 +568,11 @@ exports.createPublicLead = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).ht
 
   const businessCategory = cleanOptionalString(data?.businessCategory, 120);
   const now = new Date().toISOString();
+  const ownerToken = crypto.randomBytes(32).toString('base64url');
+  const rateLimitKey = `${context.rawRequest?.ip || 'unknown'}:${email || phone}`;
+  if (await consumeRateLimit(admin.database(), 'public-lead', rateLimitKey, 5)) {
+    throw new functions.https.HttpsError('resource-exhausted', 'Too many enquiries. Please try again later.');
+  }
 
   try {
     const leadRef = admin.database().ref(PUBLIC_LEAD_PATH).push();
@@ -598,6 +603,7 @@ exports.createPublicLead = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).ht
       updatedBy: 'public-enquiry',
       updatedByName: 'Campaign Assistant',
       lastActivityAt: now,
+      publicOwnerTokenHash: hashValue(ownerToken),
       activityLog: [
         publicLeadActivity('Lead captured before bot conversation', `${companyName} from ${city}`)
       ]
@@ -624,7 +630,7 @@ exports.createPublicLead = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).ht
       });
     }
 
-    return { success: true, leadId: leadRef.key };
+    return { success: true, leadId: leadRef.key, ownerToken };
   } catch (error) {
     console.error('Error creating public lead:', error);
     throw new functions.https.HttpsError('internal', 'Unable to create lead');
@@ -633,6 +639,7 @@ exports.createPublicLead = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).ht
 
 exports.updatePublicLead = functions.https.onCall(async (data) => {
   const leadId = cleanString(data?.leadId, 120);
+  const ownerToken = cleanString(data?.ownerToken, 180);
   if (!leadId || !/^[A-Za-z0-9_-]+$/.test(leadId)) {
     throw new functions.https.HttpsError('invalid-argument', 'Valid lead id is required');
   }
@@ -653,6 +660,12 @@ exports.updatePublicLead = functions.https.onCall(async (data) => {
     }
 
     const lead = snapshot.val() || {};
+    if (!ownerToken || !lead.publicOwnerTokenHash || hashValue(ownerToken) !== lead.publicOwnerTokenHash) {
+      throw new functions.https.HttpsError('permission-denied', 'This enquiry session is no longer authorized');
+    }
+    if (await consumeRateLimit(admin.database(), 'public-lead-update', leadId, 30)) {
+      throw new functions.https.HttpsError('resource-exhausted', 'Too many updates. Please try again later.');
+    }
     const currentLog = Array.isArray(lead.activityLog) ? lead.activityLog : [];
     await leadRef.update({
       serviceType,
@@ -1227,11 +1240,6 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
       notificationTopics: uniqueTopics
     });
 
-    // Increment badge count for all relevant topics
-    for (const topic of uniqueTopics) {
-      await incrementBadgeCount(topic);
-    }
-
     return responses;
   } catch (error) {
     console.error('Error sending notification:', error);
@@ -1375,9 +1383,6 @@ exports.sendBreakingNewsNotification = functions.runWith({ secrets: EMAIL_SECRET
 
       console.log('Successfully sent breaking news notification:', newsId, response);
 
-      // Increment badge count
-      await incrementBadgeCount('breaking-news');
-
       const subscribers = await getEmailSubscribers('breakingNews');
       if (subscribers.length) {
         const emailResult = await sendBulkTemplatedEmail({
@@ -1401,34 +1406,6 @@ exports.sendBreakingNewsNotification = functions.runWith({ secrets: EMAIL_SECRET
       return null;
     }
   });
-
-// Helper function to increment badge count for users
-async function incrementBadgeCount(topic) {
-  try {
-    // Get all FCM tokens subscribed to the topic
-    const tokensSnapshot = await admin.database().ref('/fcmTokens').once('value');
-    const tokens = tokensSnapshot.val() || {};
-
-    const updates = {};
-    Object.keys(tokens).forEach(userId => {
-      const userToken = tokens[userId];
-      const userTopics = normalizeTopicList(userToken.topics);
-      if (userTopics.includes(topic)) {
-        updates[`/users/${userId}/unreadNotifications`] = admin.database.ServerValue.increment(1);
-      }
-    });
-
-    if (Object.keys(updates).length > 0) {
-      await admin.database().ref().update(updates);
-      console.log(`Updated badge count for ${Object.keys(updates).length} users`);
-    }
-
-    return updates;
-  } catch (error) {
-    console.error('Error incrementing badge count:', error);
-    return null;
-  }
-}
 
 function normalizeTopicList(topics) {
   if (Array.isArray(topics)) {
@@ -1637,17 +1614,22 @@ exports.subscribeToTopics = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
   }
 
-  const { token, topics = [] } = data;
+  const { token, topics = [] } = data || {};
   const userId = context.auth.uid;
 
-  if (!token) {
+  if (!token || typeof token !== 'string' || token.length > 4096) {
     throw new functions.https.HttpsError('invalid-argument', 'FCM token is required');
   }
 
   try {
-    // Default topics everyone should be subscribed to
+    const profile = (await admin.database().ref(`/users/${userId}`).once('value')).val() || {};
     const defaultTopics = ['all-news', 'breaking-news'];
-    const allTopics = [...new Set([...defaultTopics, ...topics])];
+    const requestedTopics = Array.isArray(topics) ? topics.map(topic => cleanOptionalString(topic, 80)) : [];
+    const allowedTopics = requestedTopics.filter(topic => (
+      defaultTopics.includes(topic) || /^city-[a-z0-9_-]{1,50}$/i.test(topic)
+    ));
+    if (profile.role === 'admin' && requestedTopics.includes('admin-leads')) allowedTopics.push('admin-leads');
+    const allTopics = [...new Set([...defaultTopics, ...allowedTopics])];
 
     // Subscribe to each topic
     const subscriptionPromises = allTopics.map(topic =>
@@ -1683,7 +1665,7 @@ exports.unsubscribeFromTopics = functions.https.onCall(async (data, context) => 
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
   }
 
-  const { token, topics = [] } = data;
+  const { token, topics = [] } = data || {};
   const userId = context.auth.uid;
 
   if (!token) {
@@ -1691,19 +1673,24 @@ exports.unsubscribeFromTopics = functions.https.onCall(async (data, context) => 
   }
 
   try {
-    const unsubscriptionPromises = topics.map(topic =>
+    const requestedTopics = Array.isArray(topics)
+      ? topics.map(topic => cleanOptionalString(topic, 80)).filter(topic => ['all-news', 'breaking-news', 'admin-leads'].includes(topic) || /^city-[a-z0-9_-]{1,50}$/i.test(topic))
+      : [];
+    const tokenRef = admin.database().ref(`/fcmTokens/${userId}`);
+    const tokenSnapshot = await tokenRef.once('value');
+    const tokenData = tokenSnapshot.val();
+    if (!tokenData || tokenData.token !== token) {
+      throw new functions.https.HttpsError('permission-denied', 'Token does not belong to this account');
+    }
+    const unsubscriptionPromises = requestedTopics.map(topic =>
       admin.messaging().unsubscribeFromTopic(token, topic)
     );
 
     await Promise.all(unsubscriptionPromises);
 
     // Update database
-    const tokenRef = admin.database().ref(`/fcmTokens/${userId}`);
-    const tokenSnapshot = await tokenRef.once('value');
-    const tokenData = tokenSnapshot.val();
-
     if (tokenData) {
-      const updatedTopics = tokenData.topics.filter(t => !topics.includes(t));
+      const updatedTopics = normalizeTopicList(tokenData.topics).filter(t => !requestedTopics.includes(t));
       await tokenRef.update({
         topics: updatedTopics,
         lastUpdated: admin.database.ServerValue.TIMESTAMP
@@ -1722,6 +1709,380 @@ exports.unsubscribeFromTopics = functions.https.onCall(async (data, context) => 
   }
 });
 
+const privateEventFields = new Set([
+  'registrations', 'checkedInUsers', 'scanHistory', 'promoCodes',
+  'registrationRequests', 'internalNotes', 'createdBy'
+]);
+
+function buildPublicEvent(event, eventId) {
+  if (!event || event.status !== 'published' || event.isPublished === false) return null;
+  const publicEvent = Object.fromEntries(
+    Object.entries(event).filter(([key]) => !privateEventFields.has(key))
+  );
+  publicEvent.id = eventId;
+  publicEvent.analytics = {
+    views: Number(event.analytics?.views || 0),
+    registrations: Number(event.analytics?.registrations || 0),
+    checkins: Number(event.analytics?.checkins || 0)
+  };
+  return publicEvent;
+}
+
+exports.syncPublicEvent = functions.database.ref('/events/{eventId}').onWrite(async (change, context) => {
+  const publicEvent = buildPublicEvent(change.after.val(), context.params.eventId);
+  const publicRef = admin.database().ref(`/publicEvents/${context.params.eventId}`);
+  return publicEvent ? publicRef.set(publicEvent) : publicRef.remove();
+});
+
+exports.backfillPublicEvents = functions.https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  const events = (await admin.database().ref('/events').once('value')).val() || {};
+  const publicEvents = {};
+  Object.entries(events).forEach(([eventId, event]) => {
+    const projected = buildPublicEvent(event, eventId);
+    if (projected) publicEvents[eventId] = projected;
+  });
+  await admin.database().ref('/publicEvents').set(publicEvents);
+  return { success: true, count: Object.keys(publicEvents).length };
+});
+
+const privateOfferFields = new Set([
+  'reviewNote', 'rejectionReason', 'createdBy', 'updatedBy', 'approvalHistory',
+  'internalNotes', 'audit', 'brandAuthUid'
+]);
+
+function buildPublicOffer(offer, offerId) {
+  const published = offer && offer.active !== false && offer.brandActive !== false
+    && offer.status === 'published'
+    && (!offer.workflowStatus || offer.workflowStatus === 'published');
+  if (!published) return null;
+  return {
+    ...Object.fromEntries(Object.entries(offer).filter(([key]) => !privateOfferFields.has(key))),
+    id: offerId
+  };
+}
+
+exports.syncPublicOffer = functions.database.ref('/offers/{offerId}').onWrite(async (change, context) => {
+  const publicOffer = buildPublicOffer(change.after.val(), context.params.offerId);
+  const publicRef = admin.database().ref(`/publicOffers/${context.params.offerId}`);
+  return publicOffer ? publicRef.set(publicOffer) : publicRef.remove();
+});
+
+exports.backfillPublicOffers = functions.https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  const offers = (await admin.database().ref('/offers').once('value')).val() || {};
+  const publicOffers = {};
+  Object.entries(offers).forEach(([offerId, offer]) => {
+    const projected = buildPublicOffer(offer, offerId);
+    if (projected) publicOffers[offerId] = projected;
+  });
+  await admin.database().ref('/publicOffers').set(publicOffers);
+  return { success: true, count: Object.keys(publicOffers).length };
+});
+
+const publicContentPaths = {
+  posts: 'publicPosts', stories: 'publicStories', reels: 'publicReels', carousels: 'publicCarousels'
+};
+const privateContentFields = new Set([
+  'createdBy', 'createdByName', 'updatedBy', 'updatedByName', 'authorId',
+  'editorNotes', 'internalNotes', 'reviewNotes', 'moderationNotes',
+  'approvalHistory', 'audit'
+]);
+
+function buildPublicContentItem(item, itemId, contentType) {
+  if (!item) return null;
+  const now = Date.now();
+  const publishAt = Date.parse(item.publishedAt || item.scheduledFor || item.createdAt || 0);
+  const notFuture = !Number.isFinite(publishAt) || publishAt <= now;
+  const status = item.status || 'published';
+  const published = contentType === 'posts'
+    ? !['draft', 'scheduled', 'archived', 'rejected'].includes(status) && item.isPublished !== false && notFuture
+    : contentType === 'stories'
+      ? status === 'published' && item.isPublished !== false && item.isActive !== false && notFuture
+      : item.isPublished === true && status !== 'draft' && status !== 'scheduled' && notFuture;
+  if (!published) return null;
+  const publicItem = {
+    ...Object.fromEntries(Object.entries(item).filter(([key]) => !privateContentFields.has(key))),
+    id: itemId
+  };
+  if (publicItem.author && typeof publicItem.author === 'object') {
+    publicItem.author = { name: cleanOptionalString(publicItem.author.name, 120) || 'Our Vadodara' };
+  }
+  return publicItem;
+}
+
+Object.entries(publicContentPaths).forEach(([sourcePath, publicPath]) => {
+  exports[`syncPublic${sourcePath[0].toUpperCase()}${sourcePath.slice(1)}`] = functions.database
+    .ref(`/${sourcePath}/{itemId}`)
+    .onWrite(async (change, context) => {
+      const publicItem = buildPublicContentItem(change.after.val(), context.params.itemId, sourcePath);
+      const publicRef = admin.database().ref(`/${publicPath}/${context.params.itemId}`);
+      return publicItem ? publicRef.set(publicItem) : publicRef.remove();
+    });
+});
+
+exports.backfillPublicContent = functions.https.onCall(async (data, context) => {
+  await assertAdmin(context);
+  const updates = {};
+  let count = 0;
+  for (const [sourcePath, publicPath] of Object.entries(publicContentPaths)) {
+    const items = (await admin.database().ref(`/${sourcePath}`).once('value')).val() || {};
+    const projected = {};
+    Object.entries(items).forEach(([itemId, item]) => {
+      const publicItem = buildPublicContentItem(item, itemId, sourcePath);
+      if (publicItem) { projected[itemId] = publicItem; count += 1; }
+    });
+    updates[publicPath] = projected;
+  }
+  await admin.database().ref().update(updates);
+  return { success: true, count };
+});
+
+function quoteEvent(event, selectedTickets = {}, promoCode = '') {
+  const tickets = Array.isArray(event.ticketTypes) ? event.ticketTypes : Object.values(event.ticketTypes || {});
+  const quantities = {};
+  let total = 0;
+  let quantity = 0;
+  for (const [ticketId, rawQty] of Object.entries(selectedTickets || {})) {
+    const qty = Math.max(0, Math.floor(Number(rawQty) || 0));
+    if (!qty) continue;
+    const ticket = tickets.find(item => String(item.id) === String(ticketId));
+    if (!ticket || qty > Number(ticket.availableSeats || 0)) {
+      throw new functions.https.HttpsError('failed-precondition', 'Selected tickets are no longer available');
+    }
+    quantities[String(ticketId)] = qty;
+    total += Number(ticket.price || 0) * qty;
+    quantity += qty;
+  }
+  if (!quantity || quantity > Number(event.maxTicketsPerUser || 10)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid ticket quantity');
+  }
+  let discount = 0;
+  const normalizedPromoCode = cleanOptionalString(promoCode, 40).toUpperCase();
+  if (normalizedPromoCode) {
+    const promo = event.promoCodes?.[normalizedPromoCode];
+    const valid = promo?.active !== false
+      && (!promo?.expiresAt || new Date(promo.expiresAt) >= new Date())
+      && (!Number(promo?.maxUses) || Number(promo.usedCount || 0) < Number(promo.maxUses));
+    if (!valid) throw new functions.https.HttpsError('failed-precondition', 'Promo code is not valid');
+    discount = promo.type === 'fixed'
+      ? Number(promo.value || 0)
+      : total * Number(promo.value || 0) / 100;
+    discount = Math.min(total, Math.max(0, discount));
+  }
+  const finalAmount = Math.max(0, total - discount);
+  return { quantities, quantity, total, discount, finalAmount, normalizedPromoCode, tickets };
+}
+
+async function getPublishedEvent(eventId) {
+  const eventSnapshot = await admin.database().ref(`events/${eventId}`).once('value');
+  const event = eventSnapshot.val();
+  if (!event || event.status !== 'published' || event.isPublished === false) {
+    throw new functions.https.HttpsError('not-found', 'Published event not found');
+  }
+  return event;
+}
+
+exports.quoteEventRegistration = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Please sign in to register');
+  const eventId = cleanOptionalString(data?.eventId, 160);
+  if (!eventId) throw new functions.https.HttpsError('invalid-argument', 'Event is required');
+  const quote = quoteEvent(await getPublishedEvent(eventId), data?.selectedTickets, data?.promoCode);
+  return { total: quote.total, discount: quote.discount, finalAmount: quote.finalAmount, quantity: quote.quantity };
+});
+
+exports.trackEventView = functions.https.onCall(async (data, context) => {
+  const eventId = cleanOptionalString(data?.eventId, 160);
+  if (!eventId) throw new functions.https.HttpsError('invalid-argument', 'Event is required');
+  const clientViewerId = cleanOptionalString(data?.viewerId, 100).replace(/[^a-zA-Z0-9_-]/g, '');
+  const requestIp = context.rawRequest?.ip || context.rawRequest?.headers?.['x-forwarded-for'] || 'unknown';
+  const viewer = context.auth?.uid || `${requestIp}:${clientViewerId || 'unknown'}`;
+  if (await consumeRateLimit(admin.database(), `event-view-${hashValue(eventId)}`, viewer, 60)) {
+    throw new functions.https.HttpsError('resource-exhausted', 'Too many view requests');
+  }
+  const publicSnapshot = await admin.database().ref(`publicEvents/${eventId}`).once('value');
+  if (!publicSnapshot.exists()) throw new functions.https.HttpsError('not-found', 'Event not found');
+  await admin.database().ref(`events/${eventId}/analytics/views`).transaction(value => Math.max(0, Number(value) || 0) + 1);
+  return { success: true };
+});
+
+exports.trackContentView = functions.https.onCall(async (data, context) => {
+  const contentId = cleanOptionalString(data?.contentId, 160);
+  const contentType = cleanOptionalString(data?.contentType, 30);
+  const allowedTypes = { posts: 'publicPosts', reels: 'publicReels', carousels: 'publicCarousels', stories: 'publicStories' };
+  const publicPath = allowedTypes[contentType];
+  if (!contentId || !publicPath) throw new functions.https.HttpsError('invalid-argument', 'Valid content is required');
+  const clientViewerId = cleanOptionalString(data?.viewerId, 100).replace(/[^a-zA-Z0-9_-]/g, '');
+  const requestIp = context.rawRequest?.ip || context.rawRequest?.headers?.['x-forwarded-for'] || 'unknown';
+  const viewer = context.auth?.uid || `${requestIp}:${clientViewerId || 'unknown'}`;
+  if (await consumeRateLimit(admin.database(), `content-view-${hashValue(`${contentType}:${contentId}`)}`, viewer, 10)) {
+    return { success: true, counted: false };
+  }
+  const published = await admin.database().ref(`${publicPath}/${contentId}`).once('value');
+  if (!published.exists()) throw new functions.https.HttpsError('not-found', 'Content not found');
+  await admin.database().ref(`${contentType}/${contentId}/analytics`).update({
+    views: admin.database.ServerValue.increment(1),
+    lastViewedAt: admin.database.ServerValue.TIMESTAMP
+  });
+  return { success: true, counted: true };
+});
+
+exports.voteInPoll = functions.https.onCall(async (data, context) => {
+  if (!context.auth || context.auth.token.firebase?.sign_in_provider === 'anonymous') {
+    throw new functions.https.HttpsError('unauthenticated', 'Please sign in to vote');
+  }
+  const pollId = cleanOptionalString(data?.pollId, 160);
+  const optionId = cleanOptionalString(data?.optionId, 160);
+  if (!pollId || !optionId) throw new functions.https.HttpsError('invalid-argument', 'Poll and option are required');
+  const voteRef = admin.database().ref(`pollVotes/${pollId}/${context.auth.uid}`);
+  let alreadyVoted = false;
+  const voteClaim = await voteRef.transaction(current => {
+    if (current) { alreadyVoted = true; return; }
+    return { optionId, votedAt: admin.database.ServerValue.TIMESTAMP };
+  });
+  if (alreadyVoted || !voteClaim.committed) {
+    throw new functions.https.HttpsError('already-exists', 'You have already voted in this poll');
+  }
+  let failure = '';
+  const pollResult = await admin.database().ref(`polls/${pollId}`).transaction(poll => {
+    if (!poll?.settings?.isActive || poll.isPublished === false) { failure = 'This poll is closed'; return; }
+    const options = Array.isArray(poll.options) ? poll.options : Object.values(poll.options || {});
+    const optionIndex = options.findIndex(option => String(option.id) === optionId);
+    if (optionIndex < 0) { failure = 'Poll option was not found'; return; }
+    options.forEach(option => { delete option.voters; });
+    options[optionIndex] = { ...options[optionIndex], votes: Number(options[optionIndex].votes || 0) + 1 };
+    const totalVotes = Number(poll.totalVotes || 0) + 1;
+    return { ...poll, options, totalVotes, analytics: { ...(poll.analytics || {}), totalVotes } };
+  });
+  if (!pollResult.committed) {
+    await voteRef.remove();
+    throw new functions.https.HttpsError('failed-precondition', failure || 'Vote could not be recorded');
+  }
+  return { success: true };
+});
+
+const countCommentTree = comment => {
+  if (!comment) return 0;
+  return 1 + Object.values(comment.replies || {}).reduce((total, reply) => total + countCommentTree(reply), 0);
+};
+
+exports.updateCommentCounters = functions.database.ref('/comments/{postId}/{commentId}').onWrite(async (change, context) => {
+  const delta = countCommentTree(change.after.val()) - countCommentTree(change.before.val());
+  if (!delta) return null;
+  const postId = context.params.postId;
+  const root = admin.database().ref();
+  const snapshots = await Promise.all(['posts', 'reels', 'carousels'].map(path => root.child(`${path}/${postId}`).once('value')));
+  const index = snapshots.findIndex(snapshot => snapshot.exists());
+  if (index < 0) return null;
+  const contentPath = ['posts', 'reels', 'carousels'][index];
+  await Promise.all([
+    root.child(`${contentPath}/${postId}/comments`).transaction(value => Math.max(0, Number(value || 0) + delta)),
+    root.child(`${contentPath}/${postId}/analytics/comments`).transaction(value => Math.max(0, Number(value || 0) + delta))
+  ]);
+  return null;
+});
+
+exports.registerForEvent = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Please sign in to register');
+  const eventId = cleanOptionalString(data?.eventId, 160);
+  const requestId = cleanOptionalString(data?.requestId, 180).replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!eventId || !requestId) throw new functions.https.HttpsError('invalid-argument', 'Event and request ID are required');
+
+  const attendees = (Array.isArray(data?.attendees) ? data.attendees : []).slice(0, 10).map(attendee => ({
+    name: cleanOptionalString(attendee?.name, 120),
+    email: cleanOptionalString(attendee?.email, 180).toLowerCase(),
+    phone: cleanOptionalString(attendee?.phone, 20).replace(/\D/g, ''),
+    age: cleanOptionalString(attendee?.age, 3),
+    dietary: cleanOptionalString(attendee?.dietary, 200)
+  }));
+  if (!attendees.length || attendees.some(attendee => !attendee.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(attendee.email) || !/^\d{10}$/.test(attendee.phone))) {
+    throw new functions.https.HttpsError('invalid-argument', 'Valid attendee name, email, and phone are required');
+  }
+
+  const initialEvent = await getPublishedEvent(eventId);
+  const initialQuote = quoteEvent(initialEvent, data?.selectedTickets, data?.promoCode);
+  const requiredAttendees = initialEvent.requireAttendeeDetails === false ? 1 : initialQuote.quantity;
+  if (attendees.length < requiredAttendees) throw new functions.https.HttpsError('invalid-argument', 'Attendee details are incomplete');
+
+  const paymentOrderId = cleanOptionalString(data?.paymentOrderId, 180);
+  const paymentId = cleanOptionalString(data?.paymentId, 180);
+  let paymentRef = null;
+  if (initialQuote.finalAmount > 0) {
+    if (!paymentOrderId || !paymentId) throw new functions.https.HttpsError('failed-precondition', 'Verified payment is required');
+    paymentRef = admin.database().ref(`eventPayments/${paymentOrderId}`);
+    const existingPayment = (await paymentRef.once('value')).val();
+    if (existingPayment?.status === 'registered'
+      && existingPayment.userId === context.auth.uid
+      && existingPayment.eventId === eventId
+      && existingPayment.paymentId === paymentId
+      && existingPayment.registrationRequestId === requestId
+      && existingPayment.registrationId) {
+      return { success: true, registrationId: existingPayment.registrationId, finalAmount: initialQuote.finalAmount };
+    }
+    const claimed = await paymentRef.transaction(payment => {
+      const claimable = payment?.status === 'verified'
+        || (payment?.status === 'registering' && payment.registrationRequestId === requestId);
+      if (!payment || payment.userId !== context.auth.uid || payment.eventId !== eventId || !claimable || payment.paymentId !== paymentId || Number(payment.amount) !== Math.round(initialQuote.finalAmount * 100)) return;
+      return { ...payment, status: 'registering', registrationRequestId: requestId, registeringAt: admin.database.ServerValue.TIMESTAMP };
+    });
+    if (!claimed.committed) throw new functions.https.HttpsError('failed-precondition', 'Payment is invalid or has already been used');
+  }
+
+  const registrationId = admin.database().ref(`events/${eventId}/registrations`).push().key;
+  let failure = null;
+  const eventRef = admin.database().ref(`events/${eventId}`);
+  const transaction = await eventRef.transaction(event => {
+    if (!event || event.status !== 'published' || event.isPublished === false) { failure = 'Event is no longer available'; return; }
+    if (event.registrationRequests?.[context.auth.uid]?.[requestId]) return event;
+    let quote;
+    try { quote = quoteEvent(event, data?.selectedTickets, data?.promoCode); }
+    catch (error) { failure = error.message; return; }
+    if (Math.round(quote.finalAmount * 100) !== Math.round(initialQuote.finalAmount * 100)) { failure = 'Event pricing changed. Please try again'; return; }
+    const ticketTypes = Array.isArray(event.ticketTypes) ? [...event.ticketTypes] : Object.values(event.ticketTypes || {});
+    for (const [ticketId, qty] of Object.entries(quote.quantities)) {
+      const index = ticketTypes.findIndex(ticket => String(ticket.id) === ticketId);
+      if (index < 0 || Number(ticketTypes[index].availableSeats || 0) < qty) { failure = 'Selected tickets are no longer available'; return; }
+      ticketTypes[index] = { ...ticketTypes[index], availableSeats: Number(ticketTypes[index].availableSeats || 0) - qty };
+    }
+    const registration = {
+      eventId,
+      userId: context.auth.uid,
+      userName: cleanOptionalString(context.auth.token.name || '', 120),
+      userEmail: cleanOptionalString(context.auth.token.email || '', 180).toLowerCase(),
+      attendees: attendees.slice(0, requiredAttendees),
+      tickets: quote.quantities,
+      totalAmount: quote.total,
+      discount: quote.discount,
+      finalAmount: quote.finalAmount,
+      promoCode: quote.normalizedPromoCode,
+      paymentMethod: cleanOptionalString(data?.paymentMethod, 30),
+      emergencyContact: {
+        name: cleanOptionalString(data?.emergencyContact?.name, 120),
+        phone: cleanOptionalString(data?.emergencyContact?.phone, 20).replace(/\D/g, ''),
+        relationship: cleanOptionalString(data?.emergencyContact?.relationship, 80)
+      },
+      specialRequests: cleanOptionalString(data?.specialRequests, 500),
+      registeredAt: new Date().toISOString(), status: 'confirmed', checkedIn: false,
+      paymentStatus: quote.finalAmount === 0 ? 'free' : 'paid',
+      paymentOrderId: paymentOrderId || null, paymentId: paymentId || null
+    };
+    event.ticketTypes = ticketTypes;
+    event.registrations = { ...(event.registrations || {}), [registrationId]: registration };
+    event.registrationRequests = { ...(event.registrationRequests || {}), [context.auth.uid]: { ...(event.registrationRequests?.[context.auth.uid] || {}), [requestId]: registrationId } };
+    event.analytics = { ...(event.analytics || {}), registrations: Number(event.analytics?.registrations || 0) + 1, revenue: Number(event.analytics?.revenue || 0) + quote.finalAmount };
+    if (quote.normalizedPromoCode) event.promoCodes[quote.normalizedPromoCode].usedCount = Number(event.promoCodes[quote.normalizedPromoCode].usedCount || 0) + 1;
+    return event;
+  });
+
+  if (!transaction.committed || failure) {
+    if (paymentRef) await paymentRef.update({ status: 'verified', registrationRequestId: null, registeringAt: null });
+    throw new functions.https.HttpsError('failed-precondition', failure || 'Registration could not be completed');
+  }
+  const savedRegistrationId = transaction.snapshot.child(`registrationRequests/${context.auth.uid}/${requestId}`).val() || registrationId;
+  if (paymentRef) await paymentRef.update({ status: 'registered', registrationId: savedRegistrationId, registeredAt: admin.database.ServerValue.TIMESTAMP });
+  return { success: true, registrationId: savedRegistrationId, finalAmount: initialQuote.finalAmount };
+});
+
 // Create a Razorpay order using server-side event pricing. Configure
 // RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the Functions environment.
 exports.createEventPaymentOrder = functions.runWith({ secrets: ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET'] }).https.onCall(async (data, context) => {
@@ -1729,30 +2090,8 @@ exports.createEventPaymentOrder = functions.runWith({ secrets: ['RAZORPAY_KEY_ID
   const { eventId, selectedTickets = {}, promoCode = '' } = data || {};
   if (!eventId) throw new functions.https.HttpsError('invalid-argument', 'Event is required');
 
-  const eventSnapshot = await admin.database().ref(`events/${eventId}`).once('value');
-  const event = eventSnapshot.val();
-  if (!event || event.status !== 'published') throw new functions.https.HttpsError('not-found', 'Published event not found');
-  const tickets = Array.isArray(event.ticketTypes) ? event.ticketTypes : Object.values(event.ticketTypes || {});
-  let total = 0;
-  let quantity = 0;
-  for (const [ticketId, rawQty] of Object.entries(selectedTickets)) {
-    const qty = Math.max(0, Math.floor(Number(rawQty) || 0));
-    if (!qty) continue;
-    const ticket = tickets.find(item => String(item.id) === String(ticketId));
-    if (!ticket || qty > Number(ticket.availableSeats || 0)) throw new functions.https.HttpsError('failed-precondition', 'Selected tickets are no longer available');
-    total += Number(ticket.price || 0) * qty;
-    quantity += qty;
-  }
-  if (!quantity || quantity > Number(event.maxTicketsPerUser || 10)) throw new functions.https.HttpsError('invalid-argument', 'Invalid ticket quantity');
-
-  if (promoCode) {
-    const promo = event.promoCodes?.[String(promoCode).toUpperCase()];
-    const valid = promo?.active !== false && (!promo?.expiresAt || new Date(promo.expiresAt) >= new Date()) && (!Number(promo?.maxUses) || Number(promo.usedCount || 0) < Number(promo.maxUses));
-    if (!valid) throw new functions.https.HttpsError('failed-precondition', 'Promo code is not valid');
-    total = promo.type === 'fixed' ? Math.max(0, total - Number(promo.value || 0)) : Math.max(0, total - total * Number(promo.value || 0) / 100);
-  }
-
-  const amount = Math.round(total * 100);
+  const quote = quoteEvent(await getPublishedEvent(eventId), selectedTickets, promoCode);
+  const amount = Math.round(quote.finalAmount * 100);
   if (amount < 100) throw new functions.https.HttpsError('failed-precondition', 'No online payment is required');
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;

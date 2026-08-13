@@ -124,7 +124,8 @@ const ExpandableReelDescription = ({ text, reelId }) => {
 
 const ReelsPage = ({ onBack, initialReelId = null }) => {
   const { user } = useAuth();
-  const { data: reelsData, isLoading } = useRealtimeData('reels', { scope: 'global' });
+  const { data: reelsData, isLoading } = useRealtimeData('publicReels', { scope: 'global', orderByField: 'timestamp', limitLast: 100 });
+  const { data: initialReelData } = useRealtimeData(initialReelId ? `publicReels/${initialReelId}` : null, { scope: 'global' });
   const { checkProfileComplete, showModal, closeModal, profileCompletion } = useProfileCompletionGuard();
   
   const [currentFeedIndex, setCurrentFeedIndex] = useState(0);
@@ -162,12 +163,13 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
   // Process reels data - memoized for performance
   const reels = useMemo(() => {
-    if (!reelsData) return [];
-    return Object.entries(reelsData)
+    const mergedReelsData = initialReelData ? { ...(reelsData || {}), [initialReelId]: initialReelData } : reelsData;
+    if (!mergedReelsData) return [];
+    return Object.entries(mergedReelsData)
       .map(([id, reel]) => ({ id, ...reel }))
       .filter(reel => reel.isPublished && reel.type === POST_TYPES.REEL)
       .sort((a, b) => new Date(b.publishedAt || b.createdAt || 0) - new Date(a.publishedAt || a.createdAt || 0));
-  }, [reelsData]);
+  }, [reelsData, initialReelData, initialReelId]);
 
   // Discovery breaks rotate between local offers, a community poll, tomorrow's
   // weather, and suggested reels without interrupting consecutive videos too often.

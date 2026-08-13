@@ -5,6 +5,7 @@
 import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { runAnonymousRegistrationSecurityCheck, runRegistrationSecurityCheck } from '../../utils/registrationSecurity';
+import { loadRecaptchaEnterprise } from '../../utils/recaptchaEnterprise';
 
 const SimpleEnhancedAuthContext = createContext();
 
@@ -179,18 +180,13 @@ export const EnhancedAuthProvider = ({ children }) => {
 
   const setupRecaptcha = async () => {
     try {
-      // Wait for reCAPTCHA Enterprise to be ready
+      const enterprise = await loadRecaptchaEnterprise();
       return new Promise((resolve, reject) => {
-        if (typeof window === 'undefined' || !window.grecaptcha) {
-          reject(new Error('reCAPTCHA Enterprise not loaded'));
-          return;
-        }
-
-        window.grecaptcha.enterprise.ready(async () => {
+        enterprise.ready(async () => {
           try {
             console.log('🔒 reCAPTCHA Enterprise ready');
             setRecaptchaReady(true);
-            resolve(window.grecaptcha.enterprise);
+            resolve(enterprise);
           } catch (error) {
             console.error('reCAPTCHA Enterprise setup error:', error);
             setRecaptchaReady(false);

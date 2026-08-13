@@ -23,9 +23,9 @@ const SavedPosts = ({ onPostClick, onEventClick }) => {
   const [contentType, setContentType] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: postsData } = useRealtimeData('posts', { scope: 'global' });
-  const { data: reelsData } = useRealtimeData('reels', { scope: 'global' });
-  const { data: carouselsData } = useRealtimeData('carousels', { scope: 'global' });
+  const { data: postsData } = useRealtimeData('publicPosts', { scope: 'global' });
+  const { data: reelsData } = useRealtimeData('publicReels', { scope: 'global' });
+  const { data: carouselsData } = useRealtimeData('publicCarousels', { scope: 'global' });
   const { data: eventsData } = useRealtimeData('events', { scope: 'global' });
 
   // The user's bookmark index: bookmarks/{uid}/{postId} -> { timestamp, source }

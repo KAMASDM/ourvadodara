@@ -2,7 +2,7 @@
 // src/components/Events/EventRegistration.jsx
 // Event Registration System for Users
 // =============================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { 
   Calendar, 
@@ -23,7 +23,7 @@ import {
   Gift,
   Shield
 } from 'lucide-react';
-import { ref, onValue, push, update, get } from 'firebase/database';
+import { ref, onValue } from 'firebase/database';
 import { db, functions, httpsCallable } from '../../firebase-config';
 import QRCode from 'qrcode';
 import {
@@ -45,6 +45,9 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
   const [success, setSuccess] = useState(false);
   const [registrationId, setRegistrationId] = useState(null);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const registrationRequestId = useRef(
+    globalThis.crypto?.randomUUID?.() || `registration-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
 
   // Registration form data
   const [registrationData, setRegistrationData] = useState({
@@ -78,7 +81,7 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
     }
 
     if (eventId) {
-      const eventRef = ref(db, `events/${eventId}`);
+      const eventRef = ref(db, `publicEvents/${eventId}`);
       const unsubscribe = onValue(eventRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -214,38 +217,11 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
     if (!registrationData.promoCode) return;
 
     try {
-      // Promo codes are stored keyed by the uppercased code, so normalize.
       const code = registrationData.promoCode.trim().toUpperCase();
-      const promoCodesRef = ref(db, `events/${eventId}/promoCodes/${code}`);
-      const snapshot = await get(promoCodesRef);
-
-      if (snapshot.exists()) {
-        const promoData = snapshot.val();
-        // A blank/missing expiresAt means "no expiry" — do not treat it as
-        // expired (new Date('') is Invalid Date, which broke this before).
-        const notExpired = !promoData.expiresAt || new Date(promoData.expiresAt) > new Date();
-        const isActive = promoData.active !== false;
-        const underLimit = !promoData.maxUses || Number(promoData.maxUses) === 0
-          || Number(promoData.usedCount || 0) < Number(promoData.maxUses);
-
-        if (isActive && notExpired && underLimit) {
-          const discount = promoData.type === 'percentage'
-            ? (registrationData.totalAmount * Number(promoData.value)) / 100
-            : Number(promoData.value);
-
-          setRegistrationData(prev => ({
-            ...prev,
-            discount: Math.min(discount, prev.totalAmount)
-          }));
-          setError('');
-        } else if (!underLimit) {
-          setError('Promo code usage limit reached');
-        } else {
-          setError('Promo code is expired or inactive');
-        }
-      } else {
-        setError('Invalid promo code');
-      }
+      const quote = httpsCallable(functions, 'quoteEventRegistration');
+      const result = await quote({ eventId, selectedTickets: registrationData.selectedTickets, promoCode: code });
+      setRegistrationData(prev => ({ ...prev, discount: Number(result.data?.discount || 0) }));
+      setError('');
     } catch (err) {
       setError('Failed to apply promo code');
     }
@@ -316,75 +292,21 @@ const EventRegistration = ({ eventId, onClose, event: initialEvent = null }) => 
         throw new Error('Payment must be verified before registration is confirmed');
       }
 
-      // Create registration record
-      const registrationRecord = {
-        eventId: event.id,
-        userId: user.uid,
-        userName: user.displayName,
-        userEmail: user.email,
+      const register = httpsCallable(functions, 'registerForEvent');
+      const result = await register({
+        eventId,
         attendees: attendeesToSave,
-        tickets: registrationData.selectedTickets,
-        totalAmount: registrationData.totalAmount,
-        discount: registrationData.discount,
-        finalAmount: registrationData.finalAmount,
+        selectedTickets: registrationData.selectedTickets,
         promoCode: registrationData.promoCode,
         paymentMethod: registrationData.paymentMethod,
         emergencyContact: registrationData.emergencyContact,
         specialRequests: registrationData.specialRequests,
-        registeredAt: new Date().toISOString(),
-        status: 'confirmed',
-        checkedIn: false,
-        paymentStatus: registrationData.finalAmount === 0 ? 'free' : 'paid',
         paymentOrderId: verifiedPayment?.orderId || null,
-        paymentId: verifiedPayment?.paymentId || null
-      };
-
-      // Save to database
-      const registrationRef = await push(ref(db, `events/${eventId}/registrations`), registrationRecord);
-      const newRegistrationId = registrationRef.key;
-      setRegistrationId(newRegistrationId);
-
-      // Update ticket availability
-      for (const [ticketTypeId, quantity] of Object.entries(registrationData.selectedTickets)) {
-        if (quantity > 0) {
-          const ticketRef = ref(db, `events/${eventId}/ticketTypes`);
-          const ticketSnapshot = await get(ticketRef);
-          const tickets = ticketSnapshot.val();
-          
-          if (tickets) {
-            const ticketArray = Array.isArray(tickets) ? tickets : Object.values(tickets);
-            const ticketIndex = ticketArray.findIndex(t => t.id.toString() === ticketTypeId);
-            
-            if (ticketIndex !== -1) {
-              const updatedTickets = [...ticketArray];
-              updatedTickets[ticketIndex] = {
-                ...updatedTickets[ticketIndex],
-                availableSeats: updatedTickets[ticketIndex].availableSeats - quantity
-              };
-              
-              await update(ref(db, `events/${eventId}`), {
-                ticketTypes: updatedTickets
-              });
-            }
-          }
-        }
-      }
-
-      // Update analytics
-      const analyticsRef = ref(db, `events/${eventId}/analytics`);
-      const analyticsSnapshot = await get(analyticsRef);
-      const currentAnalytics = analyticsSnapshot.val() || {};
-      
-      await update(analyticsRef, {
-        registrations: (currentAnalytics.registrations || 0) + 1,
-        revenue: (currentAnalytics.revenue || 0) + registrationData.finalAmount
+        paymentId: verifiedPayment?.paymentId || null,
+        requestId: verifiedPayment?.orderId || registrationRequestId.current
       });
-
-      if (registrationData.promoCode) {
-        const promoRef = ref(db, `events/${eventId}/promoCodes/${registrationData.promoCode.toUpperCase()}`);
-        const promoSnapshot = await get(promoRef);
-        if (promoSnapshot.exists()) await update(promoRef, { usedCount: Number(promoSnapshot.val()?.usedCount || 0) + 1 });
-      }
+      const newRegistrationId = result.data?.registrationId;
+      setRegistrationId(newRegistrationId);
 
       // Generate QR Code
       await generateQRCode(newRegistrationId);

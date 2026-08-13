@@ -28,9 +28,9 @@ const normalizeDate = (post) => new Date(post.publishedAt || post.createdAt || p
 
 const SearchPage = ({ onPostClick, onShowReels = () => {}, embedded = false }) => {
   const { currentLanguage } = useLanguage();
-  const { data: postsData, isLoading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
-  const { data: reelsData, isLoading: reelsLoading } = useRealtimeData('reels', { scope: 'global' });
-  const { data: carouselsData, isLoading: carouselsLoading } = useRealtimeData('carousels', { scope: 'global' });
+  const { data: postsData, isLoading: postsLoading } = useRealtimeData('publicPosts', { scope: 'global' });
+  const { data: reelsData, isLoading: reelsLoading } = useRealtimeData('publicReels', { scope: 'global' });
+  const { data: carouselsData, isLoading: carouselsLoading } = useRealtimeData('publicCarousels', { scope: 'global' });
 
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');

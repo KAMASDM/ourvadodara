@@ -89,7 +89,7 @@ const EnhancedStorySection = memo(function EnhancedStorySection({
   // Legacy props (no-op, kept for backward compat)
   onStoryOpen, onStoryCreate, onViewStory,
 }) {
-  const { data: storiesData } = useRealtimeData('stories');
+  const { data: storiesData } = useRealtimeData('publicStories', { scope: 'global', orderByField: 'timestamp', limitLast: 30 });
   const [selectedIndex, setSelectedIndex] = useState(null);
 
   const firebaseStories = useMemo(() => {

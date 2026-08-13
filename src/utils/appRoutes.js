@@ -13,6 +13,7 @@ const FIRST_PARTY_ROOTS = new Set([
   'firebase-setup',
   'headlines',
   'home',
+  'admin-upgrade',
   'login',
   'marketing',
   'notifications',
@@ -63,15 +64,7 @@ const safeDecode = value => {
 export const resolveAppRoute = (rawPath, rawSearch = '') => {
   const path = normalizeAppPath(rawPath);
   const lowerPath = path.toLowerCase();
-  const searchParams = new URLSearchParams(String(rawSearch || '').replace(/^\?/, ''));
   const canonicalPath = path !== rawPath ? path : null;
-
-  if (searchParams.get('setup') === 'firebase') {
-    return route('firebase-setup', 'firebase-setup', null, { canonicalPath });
-  }
-  if (searchParams.get('admin') === 'upgrade') {
-    return route('admin-upgrade', 'admin-upgrade', null, { canonicalPath });
-  }
 
   if (lowerPath === '/' || lowerPath === '/home') {
     return route('home', 'home', null, {
@@ -136,8 +129,6 @@ export const resolveAppRoute = (rawPath, rawSearch = '') => {
   }
 
   if (/^\/admin(?:\/.*)?$/i.test(path)) return route('admin', 'admin', null, { canonicalPath });
-  if (lowerPath === '/firebase-setup') return route('firebase-setup', 'firebase-setup', null, { canonicalPath });
-  if (lowerPath === '/admin-upgrade') return route('admin-upgrade', 'admin-upgrade', null, { canonicalPath });
   if (lowerPath === '/marketing') return route('marketing', 'marketing', null, { canonicalPath });
   if (['/contact', '/terms', '/privacy'].includes(lowerPath)) {
     return route('legal', 'home', { page: lowerPath.slice(1) }, { canonicalPath });

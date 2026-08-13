@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
-import { ref, push, update, serverTimestamp, increment } from '../../firebase-config';
+import { ref, push, set, remove, serverTimestamp } from '../../firebase-config';
 import { runTransaction } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { Send, Heart, LogIn } from 'lucide-react';
@@ -39,31 +39,16 @@ const CommentSection = ({ postId }) => {
       likes: 0,
     });
     
-    // Increment comments count on the post
-    const postRef = ref(db, `posts/${postId}`);
-    update(postRef, {
-        comments: increment(1)
-    });
-
     setNewComment('');
   };
 
   const handleLikeComment = async (commentId) => {
       if (!user) return; // or prompt to login
-      const commentRef = ref(db, `comments/${postId}/${commentId}`);
       try {
-        await runTransaction(commentRef, current => {
-          if (!current) return current;
-          const likedBy = { ...(current.likedBy || {}) };
-          const wasLiked = Boolean(likedBy[user.uid]);
-          if (wasLiked) delete likedBy[user.uid];
-          else likedBy[user.uid] = true;
-          return {
-            ...current,
-            likedBy,
-            likes: Math.max(0, Number(current.likes || 0) + (wasLiked ? -1 : 1))
-          };
-        });
+        const wasLiked = Boolean(comments.find(comment => comment.id === commentId)?.likedBy?.[user.uid]);
+        const likeRef = ref(db, `comments/${postId}/${commentId}/likedBy/${user.uid}`);
+        if (wasLiked) await remove(likeRef); else await set(likeRef, true);
+        await runTransaction(ref(db, `comments/${postId}/${commentId}/likes`), value => Math.max(0, Number(value || 0) + (wasLiked ? -1 : 1)));
       } catch (error) {
         console.error('Error toggling comment like:', error);
       }

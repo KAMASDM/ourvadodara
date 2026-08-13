@@ -36,6 +36,7 @@ import LoadingSpinner from '../../components/Common/LoadingSpinner';
 import { getRecommendedArticles, buildUserInteractionProfile } from '../../utils/recommendationEngine';
 import { getLocalizedText } from '../../utils/textUtils';
 import { POST_TYPES } from '../../utils/mediaSchema';
+import DOMPurify from 'dompurify';
 
 const LEGACY_CITY_ID = 'vadodara';
 
@@ -83,8 +84,10 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
   const { user } = useAuth();
   const { success } = useToast();
   
-  // Fetch real-time data from Firebase
-  const { data: postsObject, isLoading, error } = useRealtimeData('posts', { scope: 'global' });
+  // Fetch the requested article directly so old deep links remain valid, plus
+  // a bounded recent window for recommendations.
+  const { data: postData, isLoading, error } = useRealtimeData(newsId ? `publicPosts/${newsId}` : null, { scope: 'global' });
+  const { data: recentPostsObject } = useRealtimeData('publicPosts', { scope: 'global', orderByField: 'timestamp', limitLast: 120 });
   const { data: userLikesData } = useRealtimeData(`users/${user?.uid}/likes`);
   const { data: userReadsData } = useRealtimeData(`users/${user?.uid}/reads`);
   const { data: userSharesData } = useRealtimeData(`users/${user?.uid}/shares`);
@@ -112,14 +115,13 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
   const [viewCount, setViewCount] = useState(0);
 
   useEffect(() => {
-    if (postsObject && newsId) {
-      // Convert Firebase object to array and find the specific post
-      const postsArray = Object.keys(postsObject).map(key => ({
+    if (postData && newsId) {
+      const postsArray = Object.keys(recentPostsObject || {}).map(key => ({
         id: key,
-        ...postsObject[key]
+        ...recentPostsObject[key]
       }));
-      
-      const newsItem = postsArray.find(item => item.id === newsId);
+      const newsItem = { id: newsId, ...postData };
+      if (!postsArray.some(item => item.id === newsId)) postsArray.push(newsItem);
       
       if (newsItem) {
         console.log('Post loaded:', newsItem);
@@ -171,12 +173,12 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
         loadComments();
       }
     }
-  }, [postsObject, newsId, userLikesData, userReadsData, userSharesData, user]);
+  }, [postData, recentPostsObject, newsId, userLikesData, userReadsData, userSharesData, user]);
 
   // Store a user-scoped read record after a meaningful view so future
   // recommendations can learn from reading history, not only likes/shares.
   useEffect(() => {
-    const articleForRead = postsObject?.[newsId];
+    const articleForRead = postData;
     if (!user?.uid || !newsId || !articleForRead) return undefined;
     const timer = window.setTimeout(() => {
       set(ref(db, `users/${user.uid}/reads/${newsId}`), {
@@ -190,7 +192,7 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
       }).catch(readError => console.error('Error recording article read:', readError));
     }, 4000);
     return () => window.clearTimeout(timer);
-  }, [user?.uid, newsId, postsObject]);
+  }, [user?.uid, newsId, postData]);
 
   const loadComments = () => {
     // Mock comments data
@@ -368,7 +370,7 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
               Unable to Load Post
             </h3>
             <p className="text-red-600 dark:text-red-300 mb-4">
-              Please check your Firebase setup or try again later.
+              Please check your connection or try again later.
             </p>
             <button
               onClick={onBack}
@@ -385,7 +387,7 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
   // Show loading state while finding specific post
   if (!news && !isLoading) {
     // If we have loaded posts but didn't find the specific post
-    if (postsObject) {
+    if (!postData) {
       return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 flex items-center justify-center">
           <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 max-w-md mx-4">
@@ -726,7 +728,13 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
               }} />
               <div 
                 className="prose prose-lg dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 rich-text-content"
-                dangerouslySetInnerHTML={{ __html: getContentText() }}
+                dangerouslySetInnerHTML={{
+                  __html: DOMPurify.sanitize(getContentText(), {
+                    USE_PROFILES: { html: true },
+                    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+                    FORBID_ATTR: ['style']
+                  })
+                }}
               />
             </div>
           </div>

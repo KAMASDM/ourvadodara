@@ -21,10 +21,12 @@ import {
   Check
 } from 'lucide-react';
 import { adminStyles } from './adminStyles';
+import { useAuth } from '../../context/Auth/AuthContext';
 
 const FALLBACK_CITY_LOGO = '/logo.png';
 
 const CityManagement = () => {
+  const { user } = useAuth();
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -83,7 +85,7 @@ const CityManagement = () => {
     try {
       setUploadingLogo(true);
       const timestamp = Date.now();
-      const fileName = `city-logos/${formData.id || generateCityId(formData.name)}-${timestamp}.${file.name.split('.').pop()}`;
+      const fileName = `city-logos/${user.uid}/${formData.id || generateCityId(formData.name)}-${timestamp}.${file.name.split('.').pop()}`;
       const logoRef = storageRef(storage, fileName);
       
       await uploadBytes(logoRef, file);

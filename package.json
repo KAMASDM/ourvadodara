@@ -8,6 +8,7 @@
     "build": "vite build && node scripts/write-firebase-messaging-sw.cjs",
     "lint": "eslint .",
     "test:routes": "node scripts/test-app-routes.mjs",
+    "test:rules": "firebase emulators:exec --only database,storage --project ourvadodara-a4002 'node scripts/test-firebase-rules.mjs'",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -20,8 +21,8 @@
     "@tiptap/starter-kit": "^3.10.7",
     "axios": "^1.12.2",
     "date-fns": "^4.1.0",
+    "dompurify": "^3.2.7",
     "firebase": "^10.14.1",
-    "firebase-admin": "^10.3.0",
     "i18next": "^25.5.2",
     "i18next-browser-languagedetector": "^8.2.0",
     "lucide-react": "^0.544.0",
@@ -30,7 +31,6 @@
     "react-dom": "19.2.0",
     "react-i18next": "^16.0.0",
     "react-icons": "^5.5.0",
-    "react-router-dom": "^7.9.3",
     "vite-plugin-pwa": "^1.0.3",
     "workbox-sw": "^7.3.0",
     "workbox-webpack-plugin": "^7.3.0"
@@ -39,6 +39,7 @@
     "@eslint/js": "^9.36.0",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
+    "@firebase/rules-unit-testing": "^3.0.4",
     "@vitejs/plugin-react": "^5.0.3",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.36.0",

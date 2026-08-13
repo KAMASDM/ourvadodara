@@ -2,55 +2,76 @@
   "rules": {
     // Public read for published content
     "posts": {
-      ".read": true,
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor')",
       ".indexOn": ["status"],
       "$postId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor') && (!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active')",
         "analytics": {
           ".read": true,
-          ".write": true
+          ".write": "auth != null"
         }
       }
     },
     
     "stories": {
-      ".read": true,
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor')",
       "$storyId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor') && (!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active')",
         "analytics": {
           ".read": true,
-          ".write": true
+          ".write": "auth != null"
         }
       }
     },
     
     "reels": {
-      ".read": true,
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor')",
       "$reelId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor') && (!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active')",
         "analytics": {
           ".read": true,
-          ".write": true
+          ".write": "auth != null"
         }
       }
     },
     
     "carousels": {
-      ".read": true,
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor')",
       "$carouselId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor') && (!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active')",
         "analytics": {
           ".read": true,
-          ".write": true
+          ".write": "auth != null"
         }
       }
     },
     
-    // Comments - authenticated users can read and write
+    // Comments are public to read; authors own their text and every user owns
+    // only their own like marker. Moderators/admins can manage all comments.
     "comments": {
       ".read": true,
       "$postId": {
-        ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'moderator') || ((!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active') && ((root.child('posts').child($postId).exists() && root.child('posts').child($postId).child('commentsEnabled').val() != false) || (root.child('reels').child($postId).exists() && root.child('reels').child($postId).child('commentsEnabled').val() != false && root.child('reels').child($postId).child('reelSettings').child('allowComments').val() != false) || (root.child('carousels').child($postId).exists() && (root.child('carousels').child($postId).child('commentsEnabled').val() == true || root.child('carousels').child($postId).child('carouselSettings').child('allowComments').val() == true)) || root.child('polls').child($postId).exists())))"
+        "$commentId": {
+          ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'moderator') || ((!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active') && ((!data.exists() && newData.child('authorId').val() === auth.uid) || (data.exists() && data.child('authorId').val() === auth.uid && (!newData.exists() || newData.child('authorId').val() === auth.uid)))))",
+          "likedBy": {
+            "$uid": { ".write": "auth != null && auth.uid === $uid" }
+          },
+          "likes": { ".write": "auth != null" },
+          "replies": {
+            "$replyId": {
+              ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'moderator') || ((!data.exists() && newData.child('authorId').val() === auth.uid) || (data.exists() && data.child('authorId').val() === auth.uid && (!newData.exists() || newData.child('authorId').val() === auth.uid))))",
+              "likedBy": { "$uid": { ".write": "auth != null && auth.uid === $uid" } },
+              "likes": { ".write": "auth != null" },
+              "replies": {
+                "$nestedReplyId": {
+                  ".write": "auth != null && ((root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'moderator') || ((!data.exists() && newData.child('authorId').val() === auth.uid) || (data.exists() && data.child('authorId').val() === auth.uid && (!newData.exists() || newData.child('authorId').val() === auth.uid))))",
+                  "likedBy": { "$uid": { ".write": "auth != null && auth.uid === $uid" } },
+                  "likes": { ".write": "auth != null" }
+                }
+              }
+            }
+          }
+        }
       }
     },
     
@@ -76,17 +97,15 @@
     "notifications": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null"
+        ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
       }
     },
 
-    // FCM push tokens - each user reads/writes only their own token. Without
-    // this rule the client's token write was denied, so push registration
-    // failed silently.
+    // FCM push tokens are written only by the topic-subscription callables.
     "fcmTokens": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid"
+        ".write": false
       }
     },
     
@@ -106,7 +125,7 @@
     // same content types they can publish globally in sync here. There is no
     // parent-level write grant, so other city children remain protected.
     "cities": {
-      ".read": true,
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor')",
       "$cityId": {
         "posts": {
           "$postId": {
@@ -136,20 +155,38 @@
       ".read": true,
       ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
     },
+
+    "publicPosts": { ".read": true, ".write": false, ".indexOn": ["timestamp", "publishedAt"] },
+    "publicStories": { ".read": true, ".write": false, ".indexOn": ["timestamp", "publishedAt"] },
+    "publicReels": { ".read": true, ".write": false, ".indexOn": ["timestamp", "publishedAt"] },
+    "publicCarousels": { ".read": true, ".write": false, ".indexOn": ["timestamp", "publishedAt"] },
     
-    // Events - public read. Editors are explicitly excluded from all event
-    // writes; existing customer registration/check-in flows remain available
-    // to the other authenticated account types until they are moved to
-    // server-side transactional functions.
+    // Private event operations and registration details are admin-only.
+    // Guests use the privacy-filtered publicEvents projection.
     "events": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+
+    "publicEvents": {
       ".read": true,
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() !== 'editor'"
+      ".write": false,
+      ".indexOn": ["status", "startDate"]
     },
     
-    // Polls - public read, authenticated write
+    // Poll definitions are public; votes are accepted only by the callable.
     "polls": {
       ".read": true,
-      ".write": "auth != null"
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+
+    "pollVotes": {
+      "$pollId": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": false
+        }
+      }
     },
     
     // Breaking News - public read, admin write
@@ -185,7 +222,9 @@
     // User interactions (for recommendations) - authenticated write
     "userInteractions": {
       ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
-      ".write": "auth != null"
+      "$interactionId": {
+        ".write": "auth != null && !data.exists() && newData.child('userId').val() === auth.uid"
+      }
     },
 
     // Content reports - authenticated users can create one immutable report
@@ -256,7 +295,9 @@
     "blood-sos": {
       ".read": true,
       "$city": {
-        ".write": "auth != null"
+        "$requestId": {
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (!data.exists() && newData.child('createdBy').val() === auth.uid) || (data.exists() && data.child('createdBy').val() === auth.uid && (!newData.exists() || newData.child('createdBy').val() === auth.uid)))"
+        }
       }
     },
     
@@ -311,9 +352,15 @@
     },
 
     "offers": {
-      ".read": true,
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'brand' && query.orderByChild === 'brandId' && query.equalTo === root.child('users').child(auth.uid).child('brandId').val()))",
       ".write": false,
       ".indexOn": ["brandId", "categoryId", "status", "endsAt"]
+    },
+
+    "publicOffers": {
+      ".read": true,
+      ".write": false,
+      ".indexOn": ["brandId", "categoryId", "endsAt"]
     },
 
     "brandRedemptionFeed": {
@@ -388,7 +435,7 @@
     // Views/Analytics tracking
     "views": {
       ".read": true,
-      ".write": true
+      ".write": false
     }
   }
 }

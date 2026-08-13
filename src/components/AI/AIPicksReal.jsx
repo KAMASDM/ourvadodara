@@ -41,7 +41,7 @@ const AIPicksReal = ({ onPostClick }) => {
 
   useEffect(() => {
     // Listen to posts and generate AI picks from actual data
-    const postsRef = ref(db, 'posts');
+    const postsRef = ref(db, 'publicPosts');
     const unsubscribe = onValue(postsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {

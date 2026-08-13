@@ -9,7 +9,7 @@ import React, { useState, useEffect, useMemo, Suspense } from 'react';
 const DesktopLayout = React.lazy(() => import('./DesktopLayout'));
 
 const MOBILE_ONLY = new Set([
-  'admin', 'login', 'signup', 'admin-upgrade', 'firebase-setup', 'qr-scanner',
+  'admin', 'login', 'signup', 'qr-scanner',
   'marketing',
   'advertise',
   'brand-portal',

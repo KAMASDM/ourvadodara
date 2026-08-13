@@ -32,9 +32,9 @@ const useActivityHistory = (userId, language = 'en') => {
   const { data: userData, isLoading: loadingUser } = useRealtimeData(userPath, { scope: 'global' });
   const { data: bookmarks, isLoading: loadingBookmarks } = useRealtimeData(bookmarksPath, { scope: 'global' });
   const { data: eventBookmarks, isLoading: loadingEventBookmarks } = useRealtimeData(eventBookmarksPath, { scope: 'global' });
-  const { data: posts, isLoading: loadingPosts } = useRealtimeData('posts', { scope: 'global' });
-  const { data: reels } = useRealtimeData('reels', { scope: 'global' });
-  const { data: carousels } = useRealtimeData('carousels', { scope: 'global' });
+  const { data: posts, isLoading: loadingPosts } = useRealtimeData('publicPosts', { scope: 'global' });
+  const { data: reels } = useRealtimeData('publicReels', { scope: 'global' });
+  const { data: carousels } = useRealtimeData('publicCarousels', { scope: 'global' });
   const { data: comments, isLoading: loadingComments } = useRealtimeData('comments', { scope: 'global' });
   const { data: events, isLoading: loadingEvents } = useRealtimeData('events', { scope: 'global' });
 

@@ -132,6 +132,7 @@ const CampaignAssistantChat = ({
   const [open, setOpen] = useState(defaultOpen);
   const [leadCaptured, setLeadCaptured] = useState(false);
   const [leadId, setLeadId] = useState(null);
+  const [leadOwnerToken, setLeadOwnerToken] = useState(null);
   const [messages, setMessages] = useState([
     {
       sender: 'bot',
@@ -176,10 +177,11 @@ const CampaignAssistantChat = ({
   };
 
   const appendLeadActivity = async (message, note = '', service = selectedService) => {
-    if (!leadId) return;
+    if (!leadId || !leadOwnerToken) return;
     const updatePublicLead = httpsCallable(functions, 'updatePublicLead');
     await updatePublicLead({
       leadId,
+      ownerToken: leadOwnerToken,
       message,
       note,
       serviceType: service?.serviceType || 'combined',
@@ -244,11 +246,13 @@ const CampaignAssistantChat = ({
       });
 
       const nextLeadId = result.data?.leadId;
-      if (!nextLeadId) {
+      const nextOwnerToken = result.data?.ownerToken;
+      if (!nextLeadId || !nextOwnerToken) {
         throw new Error('Lead id missing from createPublicLead response');
       }
 
       setLeadId(nextLeadId);
+      setLeadOwnerToken(nextOwnerToken);
       setLeadCaptured(true);
       setMessages(prev => [
         ...prev,

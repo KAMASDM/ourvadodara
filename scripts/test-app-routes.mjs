@@ -37,8 +37,8 @@ const cases = [
   ['/terms/', 'legal', { canonicalPath: '/terms' }],
   ['/privacy/', 'legal', { canonicalPath: '/privacy' }],
   ['/polls/', 'explore', { canonicalPath: '/polls' }],
-  ['/firebase-setup/', 'firebase-setup', { canonicalPath: '/firebase-setup' }],
-  ['/admin-upgrade/', 'admin-upgrade', { canonicalPath: '/admin-upgrade' }],
+  ['/firebase-setup/', 'home'],
+  ['/admin-upgrade/', 'home'],
   ['/my-local-brand', 'brand-portal'],
   ['/my-local-brand/', 'brand-portal', { canonicalPath: '/my-local-brand' }],
   ['/unknown/nested/path', 'home']
@@ -60,7 +60,7 @@ for (const reservedPath of ['/home', '/signin', '/signup', '/polls', '/trending'
   );
 }
 
-assert.equal(resolveAppRoute('/anything', '?setup=firebase').type, 'firebase-setup');
-assert.equal(resolveAppRoute('/anything', '?admin=upgrade').type, 'admin-upgrade');
+assert.equal(resolveAppRoute('/anything', '?setup=firebase').type, 'brand-portal');
+assert.equal(resolveAppRoute('/anything', '?admin=upgrade').type, 'brand-portal');
 
 console.log(`Route refresh checks passed (${cases.length + 8} route cases).`);

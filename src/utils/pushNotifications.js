@@ -2,7 +2,8 @@
 // src/utils/pushNotifications.js
 // Firebase Cloud Messaging (FCM) Push Notifications
 // =============================================
-import { fcmMessaging, getToken, onMessage } from '../firebase-config';
+import { fcmMessaging, functions, getToken, httpsCallable, onMessage } from '../firebase-config';
+import { getFirebaseMessagingRegistration } from './firebaseMessagingRegistration';
 
 // FCM Vapid Key - Add your Firebase Project's Vapid Key
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
@@ -45,7 +46,8 @@ class PushNotificationService {
 
     try {
       const token = await getToken(fcmMessaging, {
-        vapidKey: VAPID_KEY
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: await getFirebaseMessagingRegistration()
       });
 
       if (token) {
@@ -78,21 +80,12 @@ class PushNotificationService {
 
       const allTopics = [...new Set([...defaultTopics, ...topics])];
 
-      // Store FCM token in Firebase Database with user info
-      const { db } = await import('../firebase-config');
-      const { ref, set } = await import('firebase/database');
-      
-      await set(ref(db, `fcmTokens/${userId}`), {
-        token: token,
-        topics: allTopics,
-        userId: userId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        platform: 'web'
-      });
+      // Topic authorization and token ownership are enforced server-side.
+      const subscribe = httpsCallable(functions, 'subscribeToTopics');
+      const result = await subscribe({ token, topics: allTopics });
 
-      console.log('Successfully stored FCM token with topics:', allTopics);
-      return allTopics;
+      console.log('Successfully stored FCM token with topics:', result.data?.topics || allTopics);
+      return result.data?.topics || allTopics;
     } catch (error) {
       console.error('Error subscribing to topics:', error);
       throw error;
@@ -107,33 +100,9 @@ class PushNotificationService {
         return false;
       }
 
-      const { db } = await import('../firebase-config');
-      const { ref, get, update } = await import('firebase/database');
-      const { getAuth } = await import('firebase/auth');
-      
-      const auth = getAuth();
-      const userId = auth.currentUser?.uid;
-      
-      if (!userId) {
-        console.warn('User not authenticated');
-        return false;
-      }
-
-      // Add city topic to user's subscriptions
       const cityTopic = `city-${cityId}`;
-      const tokenRef = ref(db, `fcmTokens/${userId}`);
-      const snapshot = await get(tokenRef);
-      const tokenData = snapshot.val() || {};
-      const currentTopics = Array.isArray(tokenData.topics)
-        ? tokenData.topics
-        : Object.entries(tokenData.topics || {})
-            .map(([topic, value]) => value === true ? topic : (typeof value === 'string' ? value : null))
-            .filter(Boolean);
-      
-      await update(tokenRef, {
-        topics: [...new Set([...currentTopics, cityTopic])],
-        updatedAt: new Date().toISOString()
-      });
+      const subscribe = httpsCallable(functions, 'subscribeToTopics');
+      await subscribe({ token, topics: [cityTopic] });
 
       console.log('Successfully subscribed to city topic:', cityTopic);
       return true;

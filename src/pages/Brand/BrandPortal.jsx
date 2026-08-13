@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { onValue, ref } from 'firebase/database';
+import { equalTo, onValue, orderByChild, query, ref } from 'firebase/database';
 import { updatePassword } from 'firebase/auth';
 import {
   BarChart3, Camera, CheckCircle2, Clock3, LogIn, LogOut, Plus, QrCode,
@@ -382,8 +382,9 @@ const BrandPortal = ({ slug }) => {
 
   useEffect(() => {
     if (!brand?.id || user?.brandId !== brand.id) return undefined;
-    const unsubscribeOffers = onValue(ref(db, 'offers'), snapshot => {
-      setOffers(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value })).filter(offer => offer.brandId === brand.id).sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0)));
+    const brandOffersQuery = query(ref(db, 'offers'), orderByChild('brandId'), equalTo(brand.id));
+    const unsubscribeOffers = onValue(brandOffersQuery, snapshot => {
+      setOffers(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value })).sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0)));
     });
     const unsubscribeRedemptions = onValue(ref(db, `brandRedemptionFeed/${brand.id}`), snapshot => {
       setRedemptions(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value })).sort((a, b) => Number(b.redeemedAt || 0) - Number(a.redeemedAt || 0)));

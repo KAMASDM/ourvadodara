@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 
-const APP_URL = 'https://ourvadodara.com';
+const APP_URL = String(process.env.APP_URL || 'https://ourcitymedia.in').replace(/\/+$/, '');
 const BRAND_NAME = 'Our Vadodara';
 const EMAIL_SECRET_NAMES = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD'];
 

@@ -173,6 +173,8 @@ const BreakingNews = ({ onOpenBreaking }) => {
                   <button
                     key={index}
                     onClick={() => setCurrentIndex(index)}
+                    aria-label={`Show breaking news item ${index + 1}`}
+                    aria-current={index === currentIndex ? 'true' : undefined}
                     className={`w-2 h-2 rounded-full transition-all ${
                       index === currentIndex 
                         ? 'bg-white' 
@@ -186,8 +188,9 @@ const BreakingNews = ({ onOpenBreaking }) => {
             {/* Close Button */}
             <button
               onClick={() => setIsVisible(false)}
-              className="p-1 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+              className="grid h-11 w-11 place-items-center hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
               title="Close breaking news"
+              aria-label="Close breaking news"
             >
               <X className="h-4 w-4" />
             </button>

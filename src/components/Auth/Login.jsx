@@ -5,8 +5,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/Auth/AuthContext';
-import { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD } from '../../utils/adminSetup';
-import { Eye, EyeOff, Mail, Lock, User, Shield } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
 import { FirebaseError } from 'firebase/app';
 
@@ -24,15 +23,6 @@ const Login = ({ onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-
-  const handleAdminLogin = () => {
-    setFormData({
-      ...formData,
-      email: DEFAULT_ADMIN_EMAIL,
-      password: DEFAULT_ADMIN_PASSWORD
-    });
-    setIsLogin(true);
-  };
 
   const handleFirebaseError = (err) => {
     if (err instanceof FirebaseError) {
@@ -130,25 +120,6 @@ const Login = ({ onClose }) => {
           </div>
         </div>
         
-                {/* Admin Quick Login */}
-        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center">
-            <Shield className="w-4 h-4 mr-2" />
-            Admin Access
-          </h4>
-          <p className="text-xs text-blue-600 dark:text-blue-300 mb-3">
-            Quick login with default admin credentials to access post management features.
-          </p>
-          <button
-            type="button"
-            onClick={handleAdminLogin}
-            className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
-          >
-            <Shield className="w-4 h-4 mr-2" />
-            Fill Admin Credentials
-          </button>
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">{error}</div>}
           {info && <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 px-4 py-3 rounded-lg text-sm">{info}</div>}

@@ -16,7 +16,7 @@ const AdminSettings = () => {
   const [settings, setSettings] = useState({
     siteName: 'Our Vadodara News',
     siteDescription: 'Local news and updates for Vadodara',
-    contactEmail: 'admin@ourvadodara.com',
+    contactEmail: 'contact@ourcitymedia.in',
     notifications: {
       emailNotifications: true,
       pushNotifications: true,

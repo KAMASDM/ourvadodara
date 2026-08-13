@@ -6,6 +6,7 @@ import { useLanguage } from '../../context/Language/LanguageContext';
 import { getLocalizedText } from '../../utils/textUtils';
 import ShareSheet from '../Common/ShareSheet';
 import BreakingNewsGallery from './BreakingNewsGallery';
+import DOMPurify from 'dompurify';
 
 const BreakingNewsDetail = ({ newsId, onBack, onNavigate }) => {
   const { currentLanguage } = useLanguage();
@@ -63,7 +64,7 @@ const BreakingNewsDetail = ({ newsId, onBack, onNavigate }) => {
           </div>
         <BreakingNewsGallery key={item.id} media={media} title={title} />
         <div className="p-4 sm:p-7">
-        <div className="prose prose-lg max-w-none whitespace-pre-line text-slate-700 dark:prose-invert dark:text-slate-200" dangerouslySetInnerHTML={{ __html: content }} />
+        <div className="prose prose-lg max-w-none whitespace-pre-line text-slate-700 dark:prose-invert dark:text-slate-200" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content, { USE_PROFILES: { html: true }, FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'], FORBID_ATTR: ['style'] }) }} />
         {item.externalLink && <a href={item.externalLink} target="_blank" rel="noreferrer" className="mt-7 inline-flex rounded-2xl bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800">Open source</a>}
         <nav className="mt-10 grid grid-cols-2 gap-3 border-t border-slate-200 pt-5 dark:border-slate-700">
           <button disabled={!items[index - 1]} onClick={() => navigateTo(items[index - 1])} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/60 px-4 py-3 font-semibold text-slate-700 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900/60 dark:text-white"><ChevronLeft className="h-5 w-5" /> Newer</button>

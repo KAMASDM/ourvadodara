@@ -26,7 +26,8 @@ import ShareSheet from '../../components/Common/ShareSheet';
 
 const EnhancedReelsPage = ({ onBack, initialReelId = null }) => {
   const { user } = useAuth();
-  const { data: reelsData, isLoading } = useRealtimeData('reels', { scope: 'global' });
+  const { data: reelsData, isLoading } = useRealtimeData('publicReels', { scope: 'global', orderByField: 'timestamp', limitLast: 100 });
+  const { data: initialReelData } = useRealtimeData(initialReelId ? `publicReels/${initialReelId}` : null, { scope: 'global' });
   
   const [currentReelIndex, setCurrentReelIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
@@ -43,8 +44,9 @@ const EnhancedReelsPage = ({ onBack, initialReelId = null }) => {
   const touchStartTime = useRef(0);
   
   // Process reels data
-  const reels = reelsData 
-    ? Object.entries(reelsData)
+  const mergedReelsData = initialReelData ? { ...(reelsData || {}), [initialReelId]: initialReelData } : reelsData;
+  const reels = mergedReelsData
+    ? Object.entries(mergedReelsData)
         .map(([id, reel]) => ({ id, ...reel }))
         .filter(reel => reel.isPublished && reel.type === POST_TYPES.REEL)
         .sort((a, b) => new Date(b.publishedAt || b.createdAt || 0) - new Date(a.publishedAt || a.createdAt || 0))

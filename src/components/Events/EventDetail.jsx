@@ -20,8 +20,8 @@ import {
   Users,
   X
 } from 'lucide-react';
-import { onValue, ref, remove, runTransaction, set } from 'firebase/database';
-import { db } from '../../firebase-config';
+import { onValue, ref, remove, set } from 'firebase/database';
+import { db, functions, httpsCallable } from '../../firebase-config';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useLanguage } from '../../context/Language/LanguageContext';
 import { getLocalizedText } from '../../utils/textUtils';
@@ -84,7 +84,7 @@ const EventDetail = ({ eventId, onBack }) => {
       setLoading(false);
       return undefined;
     }
-    return onValue(ref(db, `events/${eventId}`), snapshot => {
+    return onValue(ref(db, `publicEvents/${eventId}`), snapshot => {
       setEvent(snapshot.exists() ? normalizeEvent(snapshot.val(), eventId) : null);
       setLoading(false);
     });
@@ -95,7 +95,7 @@ const EventDetail = ({ eventId, onBack }) => {
     const viewKey = `ov-event-viewed-${eventId}`;
     if (sessionStorage.getItem(viewKey)) return;
     sessionStorage.setItem(viewKey, '1');
-    runTransaction(ref(db, `events/${eventId}/analytics/views`), value => Math.max(0, Number(value) || 0) + 1)
+    httpsCallable(functions, 'trackEventView')({ eventId })
       .catch(() => sessionStorage.removeItem(viewKey));
   }, [eventId, user?.uid]);
 

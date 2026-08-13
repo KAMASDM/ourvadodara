@@ -180,7 +180,7 @@ const CouponMarketplace = ({ profileOnly = false }) => {
       setCoupons(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value })).sort((a, b) => Number(b.issuedAt || 0) - Number(a.issuedAt || 0)));
     }));
     if (!profileOnly) {
-      unsubscribers.push(onValue(ref(db, 'offers'), snapshot => {
+      unsubscribers.push(onValue(ref(db, 'publicOffers'), snapshot => {
         setOffers(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value, source: 'offers' })));
       }));
       unsubscribers.push(onValue(ref(db, 'couponBrands'), snapshot => {

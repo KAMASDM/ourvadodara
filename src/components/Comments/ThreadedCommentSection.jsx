@@ -5,18 +5,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { useRealtimeData } from '../../hooks/useRealtimeData';
-import { ref, push, update, remove, serverTimestamp, increment } from '../../firebase-config';
+import { ref, push, update, remove, set, get, serverTimestamp } from '../../firebase-config';
 import { runTransaction } from 'firebase/database';
 import { db } from '../../firebase-config';
 import { Send, Heart, MessageCircle, LogIn, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { CommentSkeleton } from '../Common/SkeletonLoader';
 import EnhancedLogin from '../Auth/EnhancedLogin';
-
-const countCommentBranch = comment => 1 + Object.values(comment?.replies || {}).reduce(
-  (total, reply) => total + countCommentBranch(reply),
-  0
-);
 
 const Comment = ({
   comment,
@@ -57,12 +52,6 @@ const Comment = ({
     if (!window.confirm('Delete this comment? This cannot be undone.')) return;
     try {
       await remove(ref(db, commentPath));
-      const removedCount = countCommentBranch(comment);
-      await update(ref(db), {
-        [`${contentPath}/${postId}/comments`]: increment(-removedCount),
-        [`${contentPath}/${postId}/analytics/comments`]: increment(-removedCount)
-      });
-      await update(ref(db, `users/${user.uid}`), { totalComments: increment(-1) });
     } catch (error) {
       console.error('Error deleting comment:', error);
       alert('Failed to delete comment. Please try again.');
@@ -260,11 +249,6 @@ const ThreadedCommentSection = ({ postId, contentPath = 'posts', commentsEnabled
           parentId: replyingTo.id
         });
 
-        await update(ref(db), {
-          [`${parentCommentPath}/replyCount`]: increment(1),
-          [`${contentPath}/${postId}/comments`]: increment(1),
-          [`${contentPath}/${postId}/analytics/comments`]: increment(1)
-        });
       } else {
         // Submit as top-level comment
         const commentsRef = ref(db, `comments/${postId}`);
@@ -276,13 +260,7 @@ const ThreadedCommentSection = ({ postId, contentPath = 'posts', commentsEnabled
           likes: 0,
           replyCount: 0
         });
-        await update(ref(db), {
-          [`${contentPath}/${postId}/comments`]: increment(1),
-          [`${contentPath}/${postId}/analytics/comments`]: increment(1)
-        });
       }
-
-      await update(ref(db, `users/${user.uid}`), { totalComments: increment(1) });
 
       setNewComment('');
       setReplyingTo(null);
@@ -295,18 +273,11 @@ const ThreadedCommentSection = ({ postId, contentPath = 'posts', commentsEnabled
   const handleLikeComment = async (commentPath) => {
     if (!user) return;
     try {
-      await runTransaction(ref(db, commentPath), current => {
-        if (!current) return current;
-        const likedBy = { ...(current.likedBy || {}) };
-        const wasLiked = Boolean(likedBy[user.uid]);
-        if (wasLiked) delete likedBy[user.uid];
-        else likedBy[user.uid] = true;
-        return {
-          ...current,
-          likedBy,
-          likes: Math.max(0, Number(current.likes || 0) + (wasLiked ? -1 : 1))
-        };
-      });
+      const snapshot = await get(ref(db, `${commentPath}/likedBy/${user.uid}`));
+      const wasLiked = snapshot.exists();
+      if (wasLiked) await remove(ref(db, `${commentPath}/likedBy/${user.uid}`));
+      else await set(ref(db, `${commentPath}/likedBy/${user.uid}`), true);
+      await runTransaction(ref(db, `${commentPath}/likes`), value => Math.max(0, Number(value || 0) + (wasLiked ? -1 : 1)));
     } catch (error) {
       console.error('Error toggling comment like:', error);
     }

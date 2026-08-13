@@ -1,3 +1,5 @@
+import { loadRecaptchaEnterprise, RECAPTCHA_ENTERPRISE_SITE_KEY } from './recaptchaEnterprise';
+
 const DISPOSABLE_DOMAINS = new Set([
   '10minutemail.com', '10minutemail.net', '20minutemail.com', '33mail.com',
   'dispostable.com', 'emailondeck.com', 'fakeinbox.com', 'getairmail.com',
@@ -36,14 +38,10 @@ export const enforceRegistrationRateLimit = () => {
 
 const requestRegistrationChallenge = async ({ email, registrationType }) => {
   enforceRegistrationRateLimit();
-  if (!window.grecaptcha?.enterprise) {
-    throw new Error('Security verification is still loading. Please wait a moment and try again.');
-  }
-
-  const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeXXPsrAAAAAJEpQ2J-1TPTTmNvE5G8U1GSWsVQ';
+  const enterprise = await loadRecaptchaEnterprise();
   const captchaToken = await new Promise((resolve, reject) => {
-    window.grecaptcha.enterprise.ready(() => {
-      window.grecaptcha.enterprise.execute(siteKey, { action: 'REGISTER' }).then(resolve).catch(reject);
+    enterprise.ready(() => {
+      enterprise.execute(RECAPTCHA_ENTERPRISE_SITE_KEY, { action: 'REGISTER' }).then(resolve).catch(reject);
     });
   });
   const { functions, httpsCallable } = await import('../firebase-config');

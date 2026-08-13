@@ -3,8 +3,8 @@ import {
   ArrowDown, CalendarDays, CheckCircle2, CloudSun, Droplets, Gift, Moon, Sparkles,
   Store, TicketCheck, Users, Vote, Wind
 } from 'lucide-react';
-import { onValue, ref, runTransaction } from 'firebase/database';
-import { db } from '../../firebase-config';
+import { onValue, ref } from 'firebase/database';
+import { db, functions, httpsCallable } from '../../firebase-config';
 import { useAuth } from '../../context/Auth/AuthContext';
 import { getLocalizedText } from '../../utils/textUtils';
 import { describeWeather, getMoonPhase, useVadodaraWeather } from '../../utils/weather';
@@ -58,7 +58,7 @@ export const ReelsOfferPanel = ({ onContinue }) => {
   const [coupons, setCoupons] = useState([]);
 
   useEffect(() => {
-    const unsubscribers = [onValue(ref(db, 'offers'), snapshot => setOffers(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value }))))];
+    const unsubscribers = [onValue(ref(db, 'publicOffers'), snapshot => setOffers(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value }))))];
     if (user?.uid) unsubscribers.push(onValue(ref(db, `userCoupons/${user.uid}`), snapshot => setCoupons(Object.values(snapshot.val() || {}))));
     return () => unsubscribers.forEach(unsubscribe => unsubscribe());
   }, [user?.uid]);
@@ -99,6 +99,7 @@ export const ReelsPollPanel = ({ onContinue }) => {
   const [poll, setPoll] = useState(null);
   const [voting, setVoting] = useState('');
   const [message, setMessage] = useState('');
+  const [recordedVote, setRecordedVote] = useState(false);
 
   useEffect(() => onValue(ref(db, 'polls'), snapshot => {
     const active = Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value }))
@@ -107,8 +108,13 @@ export const ReelsPollPanel = ({ onContinue }) => {
     setPoll(active[0] || null);
   }), []);
 
+  useEffect(() => {
+    if (!user?.uid || !poll?.id) { setRecordedVote(false); return undefined; }
+    return onValue(ref(db, `pollVotes/${poll.id}/${user.uid}`), snapshot => setRecordedVote(snapshot.exists()));
+  }, [poll?.id, user?.uid]);
+
   const options = normalizeOptions(poll?.options);
-  const hasVoted = Boolean(user?.uid && options.some(option => (option.voters || []).includes(user.uid)));
+  const hasVoted = recordedVote || Boolean(user?.uid && options.some(option => (option.voters || []).includes(user.uid)));
   const showResults = hasVoted || poll?.settings?.showResults === 'always' || poll?.settings?.showResults === 'before_vote';
 
   const vote = async optionId => {
@@ -119,15 +125,9 @@ export const ReelsPollPanel = ({ onContinue }) => {
     setVoting(optionId);
     setMessage('');
     try {
-      const result = await runTransaction(ref(db, `polls/${poll.id}`), current => {
-        if (!current?.settings?.isActive) return;
-        const currentOptions = normalizeOptions(current.options);
-        if (currentOptions.some(option => (option.voters || []).includes(user.uid))) return;
-        const updatedOptions = currentOptions.map(option => option.id === optionId ? { ...option, votes: Number(option.votes || 0) + 1, voters: [...(option.voters || []), user.uid] } : option);
-        const totalVotes = Number(current.totalVotes || 0) + 1;
-        return { ...current, options: updatedOptions, totalVotes, analytics: { ...(current.analytics || {}), totalVotes } };
-      });
-      setMessage(result.committed ? 'Your vote is in!' : 'You have already voted in this poll.');
+      await httpsCallable(functions, 'voteInPoll')({ pollId: poll.id, optionId });
+      setRecordedVote(true);
+      setMessage('Your vote is in!');
     } catch {
       setMessage('Could not submit your vote. Please try again.');
     } finally { setVoting(''); }

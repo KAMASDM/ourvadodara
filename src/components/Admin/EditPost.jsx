@@ -188,7 +188,7 @@ const EditPost = ({ postId, basePath = 'posts', onClose, onSave, isEmbedded = fa
                         file.type.startsWith('video/') ? 'video' : 'file';
         
         const fileName = `${Date.now()}_${file.name}`;
-        const fileRef = storageRef(storage, `posts/${fileName}`);
+        const fileRef = storageRef(storage, `posts/${user.uid}/${fileName}`);
         
         const snapshot = await uploadBytes(fileRef, file);
         const downloadURL = await getDownloadURL(snapshot.ref);

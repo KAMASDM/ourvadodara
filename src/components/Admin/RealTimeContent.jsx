@@ -129,7 +129,7 @@ const RealTimeContent = () => {
       for (const file of Array.from(files)) {
         const fileType = file.type.startsWith('image/') ? 'image' :
                          file.type.startsWith('video/') ? 'video' : 'file';
-        const fileName = `breaking_news/${Date.now()}_${file.name}`;
+        const fileName = `breaking_news/${user.uid}/${Date.now()}_${file.name}`;
         const fileRef = storageRef(storage, fileName);
         const snapshot = await uploadBytes(fileRef, file);
         const downloadURL = await getDownloadURL(snapshot.ref);

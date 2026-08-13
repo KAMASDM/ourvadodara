@@ -17,7 +17,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 
-const SUPPORT_EMAIL = 'contact@ourvadodara.com';
+const SUPPORT_EMAIL = 'contact@ourcitymedia.in';
 const UPDATED_ON = '19 July 2026';
 
 const legalPages = {

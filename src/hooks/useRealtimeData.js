@@ -5,6 +5,7 @@
 // =============================================
 import { useState, useEffect } from 'react';
 import { ref, onValue } from '../firebase-config';
+import { limitToLast, orderByChild, query } from 'firebase/database';
 import { db } from '../firebase-config';
 import { useCity } from '../context/CityContext';
 
@@ -21,6 +22,8 @@ export const useRealtimeData = (collectionName, options = {}) => {
     scope = 'auto', // 'auto' | 'city' | 'global'
     fallbackToGlobal = true,
     cityId: overrideCityId = null,
+    orderByField = null,
+    limitLast = null,
     debug = false // Changed from isDevEnv to reduce console noise
   } = options;
 
@@ -73,7 +76,11 @@ export const useRealtimeData = (collectionName, options = {}) => {
       if (debug) {
         console.log(`useRealtimeData: Listening to ${path}${isFallback ? ' (fallback)' : ''}`);
       }
-      const dbRef = ref(db, path);
+      const baseRef = ref(db, path);
+      const queryConstraints = [];
+      if (orderByField) queryConstraints.push(orderByChild(orderByField));
+      if (Number(limitLast) > 0) queryConstraints.push(limitToLast(Number(limitLast)));
+      const dbRef = queryConstraints.length ? query(baseRef, ...queryConstraints) : baseRef;
       const unsubscribe = onValue(dbRef, (snapshot) => {
         if (!isMounted) return;
 
@@ -125,7 +132,7 @@ export const useRealtimeData = (collectionName, options = {}) => {
       isMounted = false;
       subscriptions.forEach(unsub => unsub && unsub());
     };
-  }, [collectionName, currentCity?.id, overrideCityId, scope, fallbackToGlobal, debug]);
+  }, [collectionName, currentCity?.id, overrideCityId, scope, fallbackToGlobal, orderByField, limitLast, debug]);
 
   return { data, isLoading, error, source };
 };

@@ -3,8 +3,8 @@
 // Hook for tracking post views
 // =============================================
 import { useEffect, useRef } from 'react';
-import { ref, update, increment } from 'firebase/database';
-import { db } from '../firebase-config';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase-config';
 
 const useViewTracking = (postId, postType = 'posts') => {
   const hasTrackedView = useRef(false);
@@ -20,15 +20,15 @@ const useViewTracking = (postId, postType = 'posts') => {
 
     const trackView = async () => {
       try {
-        const analyticsRef = ref(db, `${postType}/${postId}/analytics`);
-        
-        await update(analyticsRef, {
-          views: increment(1),
-          lastViewedAt: new Date().toISOString()
-        });
+        const storageKey = 'ovViewerId';
+        let viewerId = localStorage.getItem(storageKey);
+        if (!viewerId) {
+          viewerId = globalThis.crypto?.randomUUID?.() || `viewer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          localStorage.setItem(storageKey, viewerId);
+        }
+        await httpsCallable(functions, 'trackContentView')({ contentId: postId, contentType: postType, viewerId });
 
         hasTrackedView.current = true;
-        console.log(`View tracked for ${postType}/${postId}`);
       } catch (error) {
         console.error('Error tracking view:', error);
       }

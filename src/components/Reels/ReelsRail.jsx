@@ -11,7 +11,7 @@ import { getLocalizedText } from '../../utils/textUtils';
 
 const ReelsRail = ({ onSelectReel }) => {
   const { t } = useTranslation();
-  const { data: reelsData, isLoading } = useRealtimeData('reels');
+  const { data: reelsData, isLoading } = useRealtimeData('publicReels', { scope: 'global', orderByField: 'timestamp', limitLast: 24 });
 
   const reels = useMemo(() => {
     if (!reelsData) return [];

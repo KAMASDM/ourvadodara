@@ -756,7 +756,7 @@ const CreatePost = () => {
       // Clean filename to avoid issues
       const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const timestamp = Date.now();
-      const filePath = `posts/${type}s/${timestamp}_${cleanFileName}`;
+      const filePath = `posts/${user.uid}/${type}s/${timestamp}_${cleanFileName}`;
       
       console.log(`Uploading ${type} to:`, filePath);
       

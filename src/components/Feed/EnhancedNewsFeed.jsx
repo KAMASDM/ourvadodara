@@ -36,7 +36,6 @@ import ThreadedCommentSection from '../Comments/ThreadedCommentSection';
 import { FeedSkeleton, ReelsGridSkeleton } from '../Common/SkeletonLoader';
 import { POST_TYPES } from '../../utils/mediaSchema';
 import { getLocalizedText } from '../../utils/textUtils';
-import { sampleNews } from '../../data/newsData';
 
 const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {}, feedType = 'all' }) => {
   const { t } = useTranslation();
@@ -48,9 +47,10 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
   // Read the global collections: they hold ALL posts (old posts predate the
   // per-city mirrors, which only contain recent writes). City relevance is
   // applied client-side via belongsToCurrentCity below.
-  const { data: postsData, isLoading: postsLoading } = useRealtimeData('posts', { scope: 'global' });
-  const { data: reelsData, isLoading: reelsLoading } = useRealtimeData('reels', { scope: 'global' });
-  const { data: carouselsData, isLoading: carouselsLoading } = useRealtimeData('carousels', { scope: 'global' });
+  const recentQuery = { scope: 'global', orderByField: 'timestamp' };
+  const { data: postsData, isLoading: postsLoading } = useRealtimeData('publicPosts', { ...recentQuery, limitLast: 120 });
+  const { data: reelsData, isLoading: reelsLoading } = useRealtimeData('publicReels', { ...recentQuery, limitLast: 60 });
+  const { data: carouselsData, isLoading: carouselsLoading } = useRealtimeData('publicCarousels', { ...recentQuery, limitLast: 40 });
 
   const [likedPosts, setLikedPosts] = useState(new Set());
   const [savedPosts, setSavedPosts] = useState(new Set());
@@ -155,24 +155,6 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
 
     // Keep only content targeted at the selected city (legacy items count as Vadodara)
     allPosts = allPosts.filter(belongsToCurrentCity);
-
-    // Only show sample data if we're still loading or explicitly have no data at all
-    if (allPosts.length === 0 && !postsLoading && !reelsLoading && !carouselsLoading) {
-      allPosts = sampleNews.map(post => ({
-        ...post,
-        type: POST_TYPES.STANDARD,
-        source: 'sample',
-        mediaContent: post.image ? {
-          type: 'single_image',
-          items: [{
-            id: '1',
-            type: 'image',
-            url: post.image,
-            caption: { en: post.title.en, hi: post.title.hi, gu: post.title.gu }
-          }]
-        } : null
-      }));
-    }
 
     // Convert legacy posts to new format
     allPosts = allPosts.map(post => {
@@ -413,7 +395,7 @@ const EnhancedNewsFeed = ({ activeCategory, onPostClick, onShowReels = () => {},
           <ReelCard 
             key={post.id || `reel-post-${index}`} 
             post={post} 
-            onLike={() => handleLike(post.id)}
+            onLike={() => handleLike(post)}
             onSave={() => handleSave(post)}
             onShare={() => handleShare(post)}
             isLiked={likedPosts.has(post.id)}

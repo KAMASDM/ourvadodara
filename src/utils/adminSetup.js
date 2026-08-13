@@ -274,26 +274,3 @@ export const trackAuthEvent = async (userUid, eventType, metadata = {}) => {
     console.error('Error tracking auth event:', error);
   }
 };
-
-// Default admin credentials for initial setup
-export const DEFAULT_ADMIN_EMAIL = 'admin@ourvadodara.com';
-export const DEFAULT_ADMIN_PASSWORD = 'admin123456';
-
-// Setup function to create the initial admin account
-export const setupInitialAdmin = async () => {
-  try {
-    // This function should be called from the Firebase setup helper
-    return {
-      email: DEFAULT_ADMIN_EMAIL,
-      password: DEFAULT_ADMIN_PASSWORD,
-      setupInstructions: [
-        'Use the Firebase setup helper to create the admin account',
-        'Login with the default credentials',
-        'Change the password after first login'
-      ]
-    };
-  } catch (error) {
-    console.error('Error in admin setup:', error);
-    throw error;
-  }
-};
