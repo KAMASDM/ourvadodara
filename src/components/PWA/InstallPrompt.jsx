@@ -101,8 +101,10 @@ const InstallPrompt = () => {
     setIsUpdating(true);
     try {
       if (updateRegistration?.waiting) {
-        updateRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        // Attach first: a fast worker can otherwise claim the page before the
+        // controllerchange listener exists, leaving the button spinning.
         navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), { once: true });
+        updateRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
       } else {
         await clearAllCaches();
         window.__ourVadodaraUpdateRegistration = null;

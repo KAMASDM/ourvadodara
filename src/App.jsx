@@ -531,8 +531,8 @@ function AppContent() {
               />
             )}
 
-          {/* PWA Install Prompt */}
-          {isDesktop && <InstallPrompt />}
+          {/* Installation and version updates must be available on every device. */}
+          <InstallPrompt />
 
           {/* Modals */}
           {showLogin && (

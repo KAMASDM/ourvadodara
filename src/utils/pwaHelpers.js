@@ -52,42 +52,71 @@ export const registerServiceWorker = async () => {
     return;
   }
 
-  {
-    try {
-      const registration = await navigator.serviceWorker.register('/sw.js');
-      console.log('SW registered: ', registration);
+  try {
+    const registration = await navigator.serviceWorker.register('/sw.js', {
+      scope: '/',
+      updateViaCache: 'none'
+    });
+    console.log('SW registered: ', registration);
 
+    const announceWaitingUpdate = () => {
       if (registration.waiting && navigator.serviceWorker.controller) {
         showUpdateAvailable(registration);
+        return true;
       }
-      
-      // Check for updates immediately
-      await registration.update();
+      return false;
+    };
 
-      if (registration.waiting && navigator.serviceWorker.controller) {
-        showUpdateAvailable(registration);
-      }
-      
-      // Listen for updates
-      registration.addEventListener('updatefound', () => {
-        const newWorker = registration.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // Skip intermediate versions and update directly to latest
-            showUpdateAvailable(registration);
-          }
-        });
+    // Subscribe before the first explicit update check so a fast install
+    // cannot complete between registration.update() and listener setup.
+    registration.addEventListener('updatefound', () => {
+      const newWorker = registration.installing;
+      if (!newWorker) return;
+
+      newWorker.addEventListener('statechange', () => {
+        if (newWorker.state === 'installed') announceWaitingUpdate();
       });
+    });
 
-      // Also check periodically for updates
-      setInterval(() => {
-        registration.update();
-      }, 60000); // Check every minute
-      
-    } catch (error) {
-      console.log('SW registration failed: ', error);
-    }
+    let updateCheckInProgress = false;
+    const checkForUpdate = async () => {
+      if (updateCheckInProgress || !navigator.onLine) return;
+      updateCheckInProgress = true;
+      try {
+        if (!announceWaitingUpdate()) {
+          await registration.update();
+          announceWaitingUpdate();
+        }
+      } catch (error) {
+        console.debug('SW update check failed:', error);
+      } finally {
+        updateCheckInProgress = false;
+      }
+    };
+
+    announceWaitingUpdate();
+    await checkForUpdate();
+
+    // There is no browser deployment push event. Check frequently while the
+    // app is open, and immediately whenever it returns to the foreground or
+    // reconnects, which covers installed PWAs as well as browser tabs.
+    const updateInterval = window.setInterval(checkForUpdate, 15000);
+    const checkWhenVisible = () => {
+      if (document.visibilityState === 'visible') checkForUpdate();
+    };
+
+    window.addEventListener('focus', checkForUpdate);
+    window.addEventListener('online', checkForUpdate);
+    document.addEventListener('visibilitychange', checkWhenVisible);
+
+    window.addEventListener('pagehide', () => {
+      window.clearInterval(updateInterval);
+      window.removeEventListener('focus', checkForUpdate);
+      window.removeEventListener('online', checkForUpdate);
+      document.removeEventListener('visibilitychange', checkWhenVisible);
+    }, { once: true });
+  } catch (error) {
+    console.log('SW registration failed: ', error);
   }
 };
 

@@ -9,16 +9,15 @@ export default defineConfig({
       include: "**/*.{jsx,tsx}"
     }),
     VitePWA({
-      // autoUpdate (not 'prompt'): installed PWAs were stranded on an old
-      // precached index.html + old JS bundles because the update prompt was
-      // never surfaced, so deployed fixes never reached them. Auto-activate
-      // each new build and reload so users always run the latest code.
-      registerType: 'autoUpdate',
+      // React owns registration and the update UI. Keep a newly deployed
+      // worker waiting until the user accepts the visible update prompt.
+      injectRegister: false,
+      registerType: 'prompt',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
-        skipWaiting: true
+        skipWaiting: false
       },
       // The complete, hand-maintained manifest lives at public/manifest.json
       // (linked from index.html). Disable VitePWA's own manifest so we don't
