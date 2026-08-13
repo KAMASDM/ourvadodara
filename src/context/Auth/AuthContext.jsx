@@ -199,15 +199,25 @@ export const AuthProvider = ({ children }) => {
       
       const result = await signInWithPopup(firebaseAuth, provider);
       
-      // Create or update user profile
+      // Create new profiles, but never replace an existing profile during
+      // sign-in: doing so can erase roles, permissions, and user preferences.
       if (result.user) {
-        const { createUserProfile } = await import('../../utils/adminSetup');
-        await createUserProfile(result.user.uid, {
-          email: result.user.email,
-          displayName: result.user.displayName,
-          photoURL: result.user.photoURL,
-          provider: 'google'
-        });
+        const existingProfile = await getUserProfile(result.user.uid);
+        const { createUserProfile, updateUserProfile } = await import('../../utils/adminSetup');
+        const googleProfile = {
+          email: result.user.email || '',
+          displayName: result.user.displayName || existingProfile?.displayName || 'User',
+          photoURL: result.user.photoURL || existingProfile?.photoURL || '',
+          provider: 'google',
+          authMethod: 'google',
+          authEmail: result.user.email || ''
+        };
+
+        if (existingProfile) {
+          await updateUserProfile(result.user.uid, googleProfile);
+        } else {
+          await createUserProfile(result.user.uid, googleProfile);
+        }
       }
       
       return { user: result.user };

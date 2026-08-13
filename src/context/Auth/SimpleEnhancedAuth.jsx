@@ -3,7 +3,9 @@
 // Simplified Enhanced Authentication Context for Testing
 // =============================================
 import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
+import { GoogleAuthProvider, linkWithPopup, signInWithPopup } from 'firebase/auth';
 import { useAuth } from './AuthContext';
+import { firebaseAuth } from '../../firebase-config';
 import { runAnonymousRegistrationSecurityCheck, runRegistrationSecurityCheck } from '../../utils/registrationSecurity';
 import { loadRecaptchaEnterprise } from '../../utils/recaptchaEnterprise';
 
@@ -54,13 +56,13 @@ export const EnhancedAuthProvider = ({ children }) => {
     setLoading(true);
     setAuthError(null);
     try {
-      const { signInWithPopup, GoogleAuthProvider } = await import('firebase/auth');
-      const { firebaseAuth } = await import('../../firebase-config');
-      
+      // Invoke the statically loaded provider directly. The old dynamic
+      // imports yielded before opening the popup, which consumes the trusted
+      // tap gesture on iOS and makes the first attempt appear stuck.
       const provider = new GoogleAuthProvider();
       provider.addScope('email');
       provider.addScope('profile');
-      
+
       const result = await signInWithPopup(firebaseAuth, provider);
       const user = result.user;
       
@@ -153,9 +155,6 @@ export const EnhancedAuthProvider = ({ children }) => {
     setLoading(true);
     setAuthError(null);
     try {
-      const { linkWithPopup, GoogleAuthProvider } = await import('firebase/auth');
-      const { firebaseAuth } = await import('../../firebase-config');
-      
       const provider = new GoogleAuthProvider();
       provider.addScope('email');
       provider.addScope('profile');
