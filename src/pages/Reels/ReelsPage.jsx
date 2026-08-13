@@ -154,6 +154,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const soundPreferenceSetRef = useRef(false);
   const touchGestureRef = useRef(null);
   const suppressTouchClickRef = useRef(false);
+  const positionedInitialReelRef = useRef(null);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1024px)');
@@ -354,18 +355,24 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   }, [isMuted, currentReel]);
 
   useEffect(() => {
-    if (!initialReelId || reels.length === 0) {
-      return;
-    }
+    if (!initialReelId || reels.length === 0 || positionedInitialReelRef.current === initialReelId) return undefined;
 
     const initialIndex = feedItems.findIndex(item => item.type === 'reel' && item.reel.id === initialReelId);
     if (initialIndex >= 0) {
+      // Mark this before updating state. Viewing a reel updates its analytics,
+      // which refreshes feedItems in real time; rerunning this positioning on
+      // every refresh pulled users back to the deep-linked reel after a swipe.
+      positionedInitialReelRef.current = initialReelId;
       setCurrentFeedIndex(initialIndex);
-      requestAnimationFrame(() => {
+      const frame = requestAnimationFrame(() => {
         const container = containerRef.current;
-        if (container) container.scrollTop = initialIndex * container.clientHeight;
+        const targetPanel = container?.children?.[initialIndex];
+        if (container && targetPanel) container.scrollTop = targetPanel.offsetTop;
       });
+      return () => cancelAnimationFrame(frame);
     }
+
+    return undefined;
   }, [initialReelId, feedItems, reels.length]);
 
   // Hide hints after 3 seconds
