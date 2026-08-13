@@ -3,11 +3,16 @@
 // Simplified Enhanced Authentication Context for Testing
 // =============================================
 import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
-import { GoogleAuthProvider, linkWithPopup, signInWithPopup } from 'firebase/auth';
+import {
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  linkWithPopup,
+  signInWithPhoneNumber,
+  signInWithPopup
+} from 'firebase/auth';
 import { useAuth } from './AuthContext';
 import { firebaseAuth } from '../../firebase-config';
 import { runAnonymousRegistrationSecurityCheck, runRegistrationSecurityCheck } from '../../utils/registrationSecurity';
-import { loadRecaptchaEnterprise } from '../../utils/recaptchaEnterprise';
 
 const SimpleEnhancedAuthContext = createContext();
 
@@ -173,31 +178,28 @@ export const EnhancedAuthProvider = ({ children }) => {
   };
 
   // Phone authentication functions
-  const [recaptchaVerifier, setRecaptchaVerifier] = useState(null);
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
 
   const setupRecaptcha = async () => {
-    try {
-      const enterprise = await loadRecaptchaEnterprise();
-      return new Promise((resolve, reject) => {
-        enterprise.ready(async () => {
-          try {
-            console.log('🔒 reCAPTCHA Enterprise ready');
-            setRecaptchaReady(true);
-            resolve(enterprise);
-          } catch (error) {
-            console.error('reCAPTCHA Enterprise setup error:', error);
-            setRecaptchaReady(false);
-            reject(error);
-          }
-        });
-      });
-    } catch (error) {
-      console.error('reCAPTCHA setup error:', error);
-      setAuthError('Failed to setup phone verification. Please try again.');
-      throw error;
+    // Firebase provisions and manages the reCAPTCHA keys required for Phone
+    // Auth. A separate Enterprise script must not gate the OTP button.
+    if (!document.getElementById('recaptcha-container')) {
+      setRecaptchaReady(false);
+      throw new Error('Phone verification is still loading. Please try again.');
     }
+    setRecaptchaReady(true);
+    return true;
+  };
+
+  const clearPhoneRecaptcha = () => {
+    if (!window.__ovRecaptchaVerifier) return;
+    try {
+      window.__ovRecaptchaVerifier.clear();
+    } catch (clearError) {
+      console.warn('Error clearing phone reCAPTCHA verifier:', clearError);
+    }
+    window.__ovRecaptchaVerifier = null;
   };
 
   const signInWithPhone = async (phoneNumber) => {
@@ -205,44 +207,38 @@ export const EnhancedAuthProvider = ({ children }) => {
     setAuthError(null);
 
     try {
-      // Best-effort reCAPTCHA Enterprise readiness signal. Firebase's own
-      // RecaptchaVerifier below is what actually protects the SMS request,
-      // so a blocked/unloaded Enterprise script must not abort the flow.
-      try {
-        await setupRecaptcha();
-      } catch (enterpriseError) {
-        console.warn('reCAPTCHA Enterprise unavailable, continuing with Firebase verifier:', enterpriseError?.message);
+      const digits = String(phoneNumber || '').replace(/\D/g, '');
+      const formattedPhone = digits.length === 12 && digits.startsWith('91')
+        ? `+${digits}`
+        : digits.length === 10
+          ? `+91${digits}`
+          : '';
+      if (!/^\+91[6-9]\d{9}$/.test(formattedPhone)) {
+        const invalidPhoneError = new Error('Please enter a valid 10-digit Indian mobile number.');
+        invalidPhoneError.code = 'auth/invalid-phone-number';
+        throw invalidPhoneError;
       }
 
-      const { RecaptchaVerifier, signInWithPhoneNumber } = await import('firebase/auth');
-      const { firebaseAuth } = await import('../../firebase-config');
+      await setupRecaptcha();
 
       // A RecaptchaVerifier can only be rendered once per element — clear
       // any previous instance or every retry fails with
       // "reCAPTCHA has already been rendered in this element".
-      if (window.__ovRecaptchaVerifier) {
-        try {
-          window.__ovRecaptchaVerifier.clear();
-        } catch (clearError) {
-          console.warn('Error clearing previous reCAPTCHA verifier:', clearError);
-        }
-        window.__ovRecaptchaVerifier = null;
-      }
+      clearPhoneRecaptcha();
 
       const verifier = new RecaptchaVerifier(firebaseAuth, 'recaptcha-container', {
-        size: 'invisible'
+        size: 'invisible',
+        'expired-callback': clearPhoneRecaptcha
       });
       window.__ovRecaptchaVerifier = verifier;
 
-      // Format phone number (ensure it starts with country code)
-      let formattedPhone = phoneNumber.trim();
-      if (!formattedPhone.startsWith('+')) {
-        // Assume Indian number if no country code
-        formattedPhone = '+91' + formattedPhone.replace(/^0/, '');
-      }
+      // Pre-rendering surfaces domain/configuration failures immediately and
+      // avoids losing the initiating tap while the verifier initializes.
+      await verifier.render();
 
       const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone, verifier);
       setConfirmationResult(confirmation);
+      clearPhoneRecaptcha();
 
       console.log('📱 OTP sent successfully');
       return { success: true, confirmationResult: confirmation };
@@ -251,25 +247,20 @@ export const EnhancedAuthProvider = ({ children }) => {
 
       // A failed attempt leaves the verifier in an unusable state — clear it
       // so the user can retry without reloading the page.
-      if (window.__ovRecaptchaVerifier) {
-        try {
-          window.__ovRecaptchaVerifier.clear();
-        } catch (clearError) {
-          console.warn('Error clearing reCAPTCHA verifier after failure:', clearError);
-        }
-        window.__ovRecaptchaVerifier = null;
-      }
+      clearPhoneRecaptcha();
 
       let errorMessage = 'Failed to send OTP. Please try again.';
 
-      if (error.code === 'auth/invalid-phone-number') {
-        errorMessage = 'Invalid phone number format. Please use format: +91XXXXXXXXXX';
-      } else if (error.code === 'auth/too-many-requests') {
+      if (error.code === 'auth/invalid-phone-number' || error.code === 'auth/missing-phone-number') {
+        errorMessage = 'Please enter a valid 10-digit Indian mobile number.';
+      } else if (error.code === 'auth/too-many-requests' || error.code === 'auth/quota-exceeded') {
         errorMessage = 'Too many requests. Please try again later.';
-      } else if (error.code === 'auth/captcha-check-failed') {
+      } else if (error.code === 'auth/captcha-check-failed' || error.code === 'auth/missing-recaptcha-token') {
         errorMessage = 'reCAPTCHA verification failed. Please try again.';
       } else if (error.code === 'auth/billing-not-enabled') {
         errorMessage = 'Phone sign-in requires the Firebase Blaze plan (SMS billing). Please enable billing in the Firebase Console.';
+      } else if (error.code === 'auth/unauthorized-domain') {
+        errorMessage = 'Phone sign-in is not authorized for this domain. Please contact support.';
       } else if (error.code === 'auth/invalid-app-credential') {
         errorMessage = 'Phone authentication is not properly configured. Please check Firebase setup.';
         
@@ -412,11 +403,7 @@ export const EnhancedAuthProvider = ({ children }) => {
   };
 
   const resendOTP = async (phoneNumber) => {
-    if (recaptchaVerifier) {
-      return await signInWithPhone(phoneNumber, recaptchaVerifier);
-    } else {
-      throw new Error('Please setup reCAPTCHA first');
-    }
+    return signInWithPhone(phoneNumber);
   };
 
   const value = {

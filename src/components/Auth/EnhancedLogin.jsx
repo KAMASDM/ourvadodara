@@ -455,13 +455,13 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
           <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <p className="text-xs text-blue-800 dark:text-blue-200 flex items-center gap-1">
               {recaptchaReady ? (
-                <>🔒 <strong>Secured by reCAPTCHA Enterprise:</strong> Security system ready</>
+                <>🔒 <strong>Secure verification ready.</strong> Firebase may show a quick security check.</>
               ) : (
-                <>⏳ <strong>Loading security system...</strong> Please wait</>
+                <>⏳ <strong>Preparing secure verification…</strong></>
               )}
             </p>
           </div>
-          <div id="recaptcha-container" className="hidden"></div>
+          <div id="recaptcha-container"></div>
         </>
       ) : (
         <div>
@@ -498,8 +498,9 @@ const EnhancedLogin = ({ onClose, defaultMode = 'signin' }) => {
       )}
 
       <button
+        id="phone-otp-submit"
         type="submit"
-        disabled={isProcessing || (phoneStep === 'number' && !recaptchaReady)}
+        disabled={isProcessing}
         className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white py-2 px-4 rounded-lg font-medium flex items-center justify-center space-x-2 transition-colors"
       >
         {isProcessing ? (

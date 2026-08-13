@@ -412,25 +412,57 @@ export const uploadMultipleMedia = async (files, folder = 'media', userId) => {
 // =============================================
 
 export const generateVideoThumbnail = (videoFile) => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const video = document.createElement('video');
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
+    const objectUrl = URL.createObjectURL(videoFile);
+    let settled = false;
+    const cleanup = () => {
+      video.onerror = null;
+      video.removeAttribute('src');
+      video.load();
+      URL.revokeObjectURL(objectUrl);
+    };
+
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
     
     video.addEventListener('loadedmetadata', () => {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
-      video.currentTime = 1; // Capture at 1 second
+
+      if (!canvas.width || !canvas.height) {
+        settled = true;
+        cleanup();
+        reject(new Error('Video dimensions are unavailable'));
+        return;
+      }
+      video.currentTime = Math.min(1, Math.max(0, (video.duration || 1) / 2));
     });
     
     video.addEventListener('seeked', () => {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-      resolve(thumbnailDataUrl);
+      canvas.toBlob(blob => {
+        settled = true;
+        cleanup();
+        if (!blob?.size) {
+          reject(new Error('Video thumbnail generation produced an empty image'));
+          return;
+        }
+        resolve(URL.createObjectURL(blob));
+      }, 'image/jpeg', 0.8);
     });
+
+    video.onerror = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error('This browser could not decode the video for thumbnail generation'));
+    };
     
-    video.src = URL.createObjectURL(videoFile);
+    video.src = objectUrl;
   });
 };
 

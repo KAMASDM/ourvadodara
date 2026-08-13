@@ -550,13 +550,17 @@ const UnifiedPostCreator = () => {
               let thumbnailURL = null;
               if (mediaFile.type === 'video' && mediaFile.thumbnailUrl) {
                 const thumbnailBlob = await fetch(mediaFile.thumbnailUrl).then(r => r.blob());
-                const thumbnailRef = storageRef(storage, `${path}/${user.uid}/thumbnails/${fileName}_thumb.jpg`);
-                const thumbnailTask = uploadBytesResumable(thumbnailRef, thumbnailBlob, {
-                  contentType: 'image/jpeg',
-                  cacheControl: 'public,max-age=31536000,immutable'
-                });
-                const thumbnailSnapshot = await thumbnailTask;
-                thumbnailURL = await getDownloadURL(thumbnailSnapshot.ref);
+                // Do not persist empty canvas captures. An empty Storage URL
+                // looks valid in the database but renders as a blank poster.
+                if (thumbnailBlob.size > 0) {
+                  const thumbnailRef = storageRef(storage, `${path}/${user.uid}/thumbnails/${fileName}_thumb.jpg`);
+                  const thumbnailTask = uploadBytesResumable(thumbnailRef, thumbnailBlob, {
+                    contentType: 'image/jpeg',
+                    cacheControl: 'public,max-age=31536000,immutable'
+                  });
+                  const thumbnailSnapshot = await thumbnailTask;
+                  thumbnailURL = await getDownloadURL(thumbnailSnapshot.ref);
+                }
               }
               
               // Realtime Database rejects the whole write if any value is

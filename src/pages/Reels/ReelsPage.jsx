@@ -47,6 +47,12 @@ const countVisibleComments = collection => Object.values(collection || {}).reduc
   return total + 1 + countVisibleComments(comment.replies);
 }, 0);
 
+const isIOSDevice = () => {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
 const ExpandableReelDescription = ({ text, reelId }) => {
   const paragraphRef = useRef(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -144,6 +150,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const [buffered, setBuffered] = useState(0);
   const [isBuffering, setIsBuffering] = useState(true);
   const [playbackError, setPlaybackError] = useState('');
+  const [readyVideoIds, setReadyVideoIds] = useState(() => new Set());
   const [isDesktop, setIsDesktop] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
   );
@@ -212,7 +219,12 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const currentReel = currentFeedItem?.type === 'reel' ? currentFeedItem.reel : null;
   const activeVideoIndexes = useMemo(() => {
     const connection = typeof navigator !== 'undefined' ? navigator.connection : null;
-    const constrainedNetwork = connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || '');
+    // iOS Home Screen apps are particularly sensitive to concurrent range
+    // requests for MP4s whose metadata is at the end of the file. Load only
+    // the visible reel there; desktop/Android can keep one neighbour warm.
+    const constrainedNetwork = isIOSDevice()
+      || connection?.saveData
+      || /(^|-)2g$/.test(connection?.effectiveType || '');
     return new Set(feedItems
       .map((item, index) => item.type === 'reel' ? index : -1)
       .filter(index => index >= 0)
@@ -785,6 +797,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           const shouldAttachVideo = activeVideoIndexes.has(index);
           const videoUrl = getReelVideoUrl(item.reel);
           const thumbnailUrl = item.reel.mediaContent?.items?.[0]?.thumbnailUrl || item.reel.thumbnail || '';
+          const videoIsReady = readyVideoIds.has(item.reel.id);
           return (
           <section
             key={item.reel.id}
@@ -792,6 +805,11 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
             aria-label={`Reel ${reels.findIndex(reel => reel.id === item.reel.id) + 1} of ${reels.length}`}
           >
             <div className={`relative h-full w-full ${isDesktop ? 'max-w-md' : ''}`}>
+              {shouldAttachVideo && !videoIsReady && (
+                <div className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center bg-gradient-to-br from-slate-950 via-black to-slate-900">
+                  <img src={logoImage} alt="" className="h-20 w-20 object-contain opacity-70" />
+                </div>
+              )}
               <div className={`h-full w-full ${item.reel.duetSourceVideoUrl ? 'grid grid-cols-2 gap-0.5' : ''}`}>
               {item.reel.duetSourceVideoUrl && shouldAttachVideo && (
                 <video src={item.reel.duetSourceVideoUrl} className="h-full w-full object-contain" loop playsInline muted preload={index === currentFeedIndex ? 'auto' : 'metadata'} aria-label="Original reel" />
@@ -811,8 +829,20 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
                 fetchPriority={index === currentFeedIndex ? 'high' : 'low'}
                 muted={isMuted}
                 controlsList={item.reel.reelSettings?.allowDownload === true ? undefined : 'nodownload'}
-                onLoadStart={() => index === currentFeedIndex && setIsBuffering(true)}
+                onLoadStart={() => {
+                  setReadyVideoIds(previous => {
+                    if (!previous.has(item.reel.id)) return previous;
+                    const next = new Set(previous);
+                    next.delete(item.reel.id);
+                    return next;
+                  });
+                  if (index === currentFeedIndex) setIsBuffering(true);
+                }}
                 onWaiting={() => index === currentFeedIndex && setIsBuffering(true)}
+                onLoadedData={() => setReadyVideoIds(previous => {
+                  if (previous.has(item.reel.id)) return previous;
+                  return new Set(previous).add(item.reel.id);
+                })}
                 onCanPlay={() => index === currentFeedIndex && setIsBuffering(false)}
                 onPlaying={() => index === currentFeedIndex && setIsBuffering(false)}
                 onError={() => index === currentFeedIndex && setPlaybackError('This video could not be loaded. Check your connection and try again.')}
