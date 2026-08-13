@@ -248,15 +248,29 @@ const initialForm = {
 
 const fieldClass = 'mt-2 w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 dark:border-white/10 dark:bg-slate-900/70 dark:text-white';
 
+const createContactMailto = (form) => {
+  const subject = encodeURIComponent(`[${form.topic}] Message from ${form.name.trim()}`);
+  const body = encodeURIComponent([
+    `Name: ${form.name.trim()}`,
+    `Email: ${form.email.trim()}`,
+    `Phone: ${form.phone || 'Not provided'}`,
+    `Topic: ${form.topic}`,
+    '',
+    form.message.trim()
+  ].join('\r\n'));
+
+  return `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
+};
+
 const ContactPage = () => {
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
-  const [submitted, setSubmitted] = useState(false);
+  const [preparedEmail, setPreparedEmail] = useState('');
 
   const updateField = (field, value) => {
     setForm(current => ({ ...current, [field]: value }));
     setErrors(current => ({ ...current, [field]: '' }));
-    setSubmitted(false);
+    setPreparedEmail('');
   };
 
   const submitContact = (event) => {
@@ -272,17 +286,17 @@ const ContactPage = () => {
       return;
     }
 
-    const subject = encodeURIComponent(`[${form.topic}] Message from ${form.name.trim()}`);
-    const body = encodeURIComponent([
-      `Name: ${form.name.trim()}`,
-      `Email: ${form.email.trim()}`,
-      `Phone: ${form.phone || 'Not provided'}`,
-      `Topic: ${form.topic}`,
-      '',
-      form.message.trim()
-    ].join('\n'));
-    setSubmitted(true);
-    window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
+    const mailto = createContactMailto(form);
+    setPreparedEmail(mailto);
+
+    // A native link hands external protocols to the browser more reliably than
+    // assigning a mailto URL to the SPA's current location, especially in PWAs.
+    const emailLink = document.createElement('a');
+    emailLink.href = mailto;
+    emailLink.hidden = true;
+    document.body.appendChild(emailLink);
+    emailLink.click();
+    emailLink.remove();
   };
 
   return (
@@ -319,7 +333,7 @@ const ContactPage = () => {
             <label className="text-sm font-bold text-slate-700 dark:text-slate-300">How can we help?<select value={form.topic} onChange={event => updateField('topic', event.target.value)} className={fieldClass}>{['General support', 'Report a correction', 'Event or registration', 'Advertising enquiry', 'Account or privacy', 'Technical issue'].map(topic => <option key={topic}>{topic}</option>)}</select></label>
           </div>
           <label className="mt-5 block text-sm font-bold text-slate-700 dark:text-slate-300">Message <span className="text-rose-500">*</span><textarea value={form.message} onChange={event => updateField('message', event.target.value.slice(0, 2000))} rows="6" className={`${fieldClass} resize-y`} placeholder="Tell us what happened and include any useful link or reference…" /><span className="mt-1.5 flex justify-between text-xs"><span className="font-semibold text-rose-600">{errors.message}</span><span className="text-slate-400">{form.message.length}/2000</span></span></label>
-          {submitted && <p role="status" className="mt-4 flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"><CheckCircle2 className="h-5 w-5 shrink-0" />Your email application has been opened with the message prepared. Send it from there to complete your request.</p>}
+          {preparedEmail && <p role="status" className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"><span className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><span>Your message is prepared. If your email application did not open, <a href={preparedEmail} className="underline underline-offset-2">open the prepared email</a>.</span></span></p>}
           <button type="submit" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-600 to-blue-600 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 sm:w-auto"><Send className="h-4 w-4" />Prepare email</button>
           <p className="mt-3 text-xs leading-5 text-slate-400">This form prepares an email in your device’s email application. It does not submit information until you send that email.</p>
         </form>

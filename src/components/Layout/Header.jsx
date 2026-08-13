@@ -72,6 +72,8 @@ const Header = memo(function Header({ onNotificationClick, onNotifClick, onProfi
 
           {/* Right — action icons */}
           <div className="flex items-center gap-0.5">
+            <PWAInstallButton showLabel />
+
             <button
               type="button"
               onClick={onSearchClick}

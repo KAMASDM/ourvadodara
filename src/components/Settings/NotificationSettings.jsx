@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Bell, BellOff, Smartphone, Mail, MessageSquare, AlertCircle, CheckCircle, Send } from 'lucide-react';
 import notificationManager, { initializeNotifications } from '../../utils/notificationManager.js';
 import { onValue, ref, set } from 'firebase/database';
-import { db } from '../../firebase-config';
+import { db, functions, httpsCallable } from '../../firebase-config';
 import { useAuth } from '../../context/Auth/AuthContext';
 
 const getPermission = () =>
@@ -30,6 +30,8 @@ const NotificationSettings = () => {
   const [enabling, setEnabling] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const [testMessage, setTestMessage] = useState('');
+  const [sendingEmailTest, setSendingEmailTest] = useState(false);
+  const [emailTestMessage, setEmailTestMessage] = useState('');
   const [savedSettings, setSavedSettings] = useState(null);
   const [saveMessage, setSaveMessage] = useState('');
 
@@ -129,11 +131,26 @@ const NotificationSettings = () => {
     }
   };
 
+  const handleSendTestEmail = async () => {
+    if (sendingEmailTest) return;
+    setSendingEmailTest(true);
+    setEmailTestMessage('');
+    try {
+      const sendTestEmail = httpsCallable(functions, 'sendTestEmail');
+      await sendTestEmail();
+      setEmailTestMessage('Test email sent. Check your inbox and spam folder.');
+    } catch (error) {
+      setEmailTestMessage(error?.message || 'We could not send the test email. Please try again.');
+    } finally {
+      setSendingEmailTest(false);
+    }
+  };
+
   const NotificationToggle = ({ id, title, description, icon: Icon, enabled }) => (
     <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
       <div className="flex items-center space-x-3">
         <div className={`p-2 rounded-lg ${enabled ? 'bg-primary-100 dark:bg-primary-900' : 'bg-gray-100 dark:bg-gray-700'}`}>
-          <Icon className={`w-5 h-5 ${enabled ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'}`} />
+          {React.createElement(Icon, { className: `w-5 h-5 ${enabled ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'}` })}
         </div>
         <div>
           <h3 className="font-medium text-gray-900 dark:text-white">{title}</h3>
@@ -210,6 +227,15 @@ const NotificationSettings = () => {
           icon={Mail}
           enabled={settings.emailNotifications}
         />
+
+        {settings.emailNotifications && (
+          <div className="-mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200">
+            <button type="button" onClick={handleSendTestEmail} disabled={sendingEmailTest} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">
+              <Send className="h-4 w-4" /> {sendingEmailTest ? 'Sending…' : 'Send me a test email'}
+            </button>
+            {emailTestMessage && <p className="mt-2 text-xs">{emailTestMessage}</p>}
+          </div>
+        )}
 
         <NotificationToggle
           id="smsNotifications"

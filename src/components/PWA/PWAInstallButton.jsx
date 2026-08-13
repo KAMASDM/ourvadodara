@@ -5,9 +5,8 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Smartphone } from 'lucide-react';
 
-const PWAInstallButton = ({ expanded = false }) => {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [canInstall, setCanInstall] = useState(false);
+const PWAInstallButton = ({ expanded = false, showLabel = false }) => {
+  const [deferredPrompt, setDeferredPrompt] = useState(() => window.deferredInstallPrompt || null);
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
@@ -26,19 +25,24 @@ const PWAInstallButton = ({ expanded = false }) => {
     const handleBeforeInstallPrompt = (e) => {
       console.log('PWA Button: beforeinstallprompt event fired');
       e.preventDefault();
+      window.deferredInstallPrompt = e;
       setDeferredPrompt(e);
-      setCanInstall(true);
+    };
+
+    const handleInstallAvailable = () => {
+      if (window.deferredInstallPrompt) setDeferredPrompt(window.deferredInstallPrompt);
     };
 
     // Listen for app installed event
     const handleAppInstalled = () => {
       console.log('PWA Button: App installed');
-      setCanInstall(false);
+      window.deferredInstallPrompt = null;
       setDeferredPrompt(null);
       setIsInstalled(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('pwa-install-available', handleInstallAvailable);
     window.addEventListener('appinstalled', handleAppInstalled);
 
     // Check if we're in a PWA-capable environment
@@ -49,29 +53,31 @@ const PWAInstallButton = ({ expanded = false }) => {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('pwa-install-available', handleInstallAvailable);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) {
+    const promptEvent = deferredPrompt || window.deferredInstallPrompt;
+    if (!promptEvent) {
       // Show manual instructions for browsers that don't support the API
       alert('To install this app:\n\n• Chrome: Click the install button in the address bar\n• Safari (iOS): Tap Share > Add to Home Screen\n• Firefox: Check browser menu for Install option');
       return;
     }
 
     try {
-      const promptResult = await deferredPrompt.prompt();
+      const promptResult = await promptEvent.prompt();
       console.log('PWA Button: Install prompt result:', promptResult);
       
-      const choiceResult = await deferredPrompt.userChoice;
+      const choiceResult = await promptEvent.userChoice;
       console.log('PWA Button: User choice:', choiceResult.outcome);
       
       if (choiceResult.outcome === 'accepted') {
         console.log('User accepted the install prompt');
-        setCanInstall(false);
       }
       
+      window.deferredInstallPrompt = null;
       setDeferredPrompt(null);
     } catch (error) {
       console.error('PWA Button: Install error:', error);
@@ -106,11 +112,14 @@ const PWAInstallButton = ({ expanded = false }) => {
 
   return (
     <button
+      type="button"
       onClick={handleInstall}
-      className="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent bg-ivory-100 text-warmBrown-900 shadow-sm transition-colors duration-200 hover:border-warmBrown-300 hover:text-warmBrown-700 dark:bg-gray-900/70 dark:text-text-light dark:hover:border-gray-700"
+      className={`flex h-9 items-center justify-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2.5 text-teal-800 shadow-sm transition-colors duration-200 hover:border-teal-300 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/50 dark:text-teal-200 ${showLabel ? '' : 'w-9 px-0'}`}
       title="Install Our Vadodara App"
+      aria-label="Install Our Vadodara App"
     >
       <Download className="w-4 h-4" />
+      {showLabel && <span className="text-[11px] font-extrabold">Install</span>}
     </button>
   );
 };

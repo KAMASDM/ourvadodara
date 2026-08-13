@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onValue, ref } from 'firebase/database';
 import { updatePassword } from 'firebase/auth';
 import {
   BarChart3, Camera, CheckCircle2, Clock3, LogIn, LogOut, Plus, QrCode,
-  Save, ScanLine, Store, Tag, TicketCheck, XCircle, KeyRound
+  Save, ScanLine, Store, Tag, TicketCheck, XCircle, KeyRound, Download,
+  FileSpreadsheet, MapPin, RefreshCw
 } from 'lucide-react';
 import { db, firebaseAuth, functions, httpsCallable } from '../../firebase-config';
 import { useAuth } from '../../context/Auth/AuthContext';
@@ -264,6 +265,102 @@ const BrandSecurity = () => {
   return <form onSubmit={submit} className="mx-auto max-w-xl rounded-3xl border bg-white p-6 shadow-sm dark:bg-slate-900"><KeyRound className="h-8 w-8 text-emerald-600" /><h1 className="mt-3 text-2xl font-black">Change password</h1><p className="mt-1 text-sm text-slate-500">Replace the temporary password issued by Our Vadodara.</p>{message && <p className="mt-4 rounded-xl bg-slate-100 px-3 py-2 text-sm dark:bg-slate-800">{message}</p>}<label className="mt-5 block text-sm font-semibold">New password<input required minLength="8" type="password" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-slate-950" /></label><label className="mt-4 block text-sm font-semibold">Confirm password<input required minLength="8" type="password" autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2.5 dark:bg-slate-950" /></label><button disabled={saving} className="mt-5 rounded-xl bg-slate-950 px-5 py-2.5 font-bold text-white disabled:opacity-50 dark:bg-emerald-600">{saving ? 'Updating…' : 'Update password'}</button></form>;
 };
 
+const csvCell = value => {
+  let text = value === null || value === undefined ? '' : String(value);
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+};
+
+const BrandReports = ({ brand }) => {
+  const [periodDays, setPeriodDays] = useState(90);
+  const [report, setReport] = useState(null);
+  const [loadingReport, setLoadingReport] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadReport = useCallback(async () => {
+    setLoadingReport(true);
+    setError('');
+    try {
+      const getAnalytics = httpsCallable(functions, 'getBrandCouponAnalytics');
+      const response = await getAnalytics({ periodDays });
+      setReport(response.data);
+    } catch (reportError) {
+      setError(cleanFunctionError(reportError));
+    } finally { setLoadingReport(false); }
+  }, [periodDays]);
+
+  useEffect(() => { loadReport(); }, [loadReport]);
+
+  const exportCsv = () => {
+    if (!report) return;
+    const rows = [
+      ['PRIVACY-SAFE COUPON ANALYTICS'],
+      ['Brand', report.brand?.name || brand.name],
+      ['Period', report.periodDays ? `Last ${report.periodDays} days` : 'All time'],
+      ['Generated at', new Date(report.generatedAt).toLocaleString('en-IN')],
+      ['Privacy notice', report.privacy?.notice],
+      [],
+      ['SUMMARY'],
+      ['Offers', 'Active offers', 'Claims', 'Redemptions', 'Redemption rate'],
+      [report.summary.offers, report.summary.activeOffers, report.summary.claims, report.summary.redemptions, `${report.summary.redemptionRate}%`],
+      [],
+      ['OFFER PERFORMANCE'],
+      ['Offer', 'Status', 'Starts', 'Ends', 'Coupon limit', 'Claims', 'Redemptions', 'Redemption rate'],
+      ...report.offers.map(offer => [offer.title, offer.status, offer.startsAt || '', offer.endsAt || '', offer.totalCouponLimit || 'Unlimited', offer.claims, offer.redemptions, `${offer.redemptionRate}%`]),
+      [],
+      ['DAILY ACTIVITY'],
+      ['Date', 'Claims', 'Redemptions'],
+      ...report.daily.map(day => [day.date, day.claims, day.redemptions]),
+      [],
+      ['CITY DISTRIBUTION (AGGREGATED CLAIMS)'],
+      ['City', 'Claims'],
+      ...report.locations.cities.map(item => [item.location, item.count]),
+      [],
+      ['POSTAL AREA DISTRIBUTION (FIRST 3 DIGITS ONLY)'],
+      ['Postal area', 'Claims'],
+      ...report.locations.postalAreas.map(item => [item.location, item.count])
+    ];
+    const csv = `\uFEFF${rows.map(row => row.map(csvCell).join(',')).join('\r\n')}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    const safeBrandName = String(report.brand?.name || brand.name || 'brand').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+    link.href = url;
+    link.download = `${safeBrandName || 'brand'}-coupon-analytics-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const LocationTable = ({ title, items, description }) => (
+    <section className="rounded-3xl border bg-white p-5 dark:bg-slate-900">
+      <div className="flex items-start gap-3"><MapPin className="mt-0.5 h-5 w-5 text-emerald-600" /><div><h2 className="font-bold">{title}</h2><p className="text-xs text-slate-500">{description}</p></div></div>
+      <div className="mt-4 divide-y dark:divide-slate-800">{items.map(item => <div key={item.location} className="flex items-center justify-between gap-4 py-2.5 text-sm"><span>{item.location}</span><strong>{item.count.toLocaleString('en-IN')}</strong></div>)}{!items.length && <p className="py-6 text-center text-sm text-slate-500">No location data is available for this period.</p>}</div>
+    </section>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div><h1 className="text-3xl font-black">Coupon reports</h1><p className="mt-1 text-slate-500">Offer performance and privacy-protected location analytics.</p></div>
+        <div className="flex flex-wrap gap-2">
+          <select aria-label="Report period" value={periodDays} onChange={event => setPeriodDays(Number(event.target.value))} className="rounded-xl border bg-white px-3 py-2.5 text-sm font-semibold dark:bg-slate-900"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 12 months</option><option value="0">All time</option></select>
+          <button type="button" onClick={loadReport} disabled={loadingReport} className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2.5 text-sm font-semibold disabled:opacity-50 dark:bg-slate-900"><RefreshCw className={`h-4 w-4 ${loadingReport ? 'animate-spin' : ''}`} /> Refresh</button>
+          <button type="button" onClick={exportCsv} disabled={!report || loadingReport} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"><Download className="h-4 w-4" /> Export CSV</button>
+        </div>
+      </div>
+
+      {error && <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {loadingReport && !report ? <div className="grid min-h-64 place-items-center rounded-3xl border bg-white text-slate-500 dark:bg-slate-900"><RefreshCw className="h-7 w-7 animate-spin" /><span className="sr-only">Loading report</span></div> : report && <>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[['Offers', report.summary.offers], ['Coupons claimed', report.summary.claims], ['Redemptions', report.summary.redemptions], ['Redemption rate', `${report.summary.redemptionRate}%`]].map(([label, value]) => <div key={label} className="rounded-3xl border bg-white p-5 shadow-sm dark:bg-slate-900"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-3xl font-black">{value}</p></div>)}</div>
+        <section className="overflow-hidden rounded-3xl border bg-white dark:bg-slate-900"><div className="border-b px-5 py-4 dark:border-slate-800"><h2 className="font-bold">Performance by offer</h2><p className="text-xs text-slate-500">Metrics reflect the selected reporting period.</p></div><div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800"><tr><th className="px-5 py-3">Offer</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Claims</th><th className="px-4 py-3 text-right">Redemptions</th><th className="px-5 py-3 text-right">Rate</th></tr></thead><tbody className="divide-y dark:divide-slate-800">{report.offers.map(offer => <tr key={offer.offerId}><td className="px-5 py-3 font-semibold">{offer.title}</td><td className="px-4 py-3 capitalize text-slate-500">{offer.status.replaceAll('_', ' ')}</td><td className="px-4 py-3 text-right">{offer.claims}</td><td className="px-4 py-3 text-right">{offer.redemptions}</td><td className="px-5 py-3 text-right font-bold">{offer.redemptionRate}%</td></tr>)}{!report.offers.length && <tr><td colSpan="5" className="px-5 py-10 text-center text-slate-500">No offers yet.</td></tr>}</tbody></table></div></section>
+        <div className="grid gap-5 lg:grid-cols-2"><LocationTable title="Claims by city" items={report.locations.cities} description="City counts from coupon claimants, grouped at a minimum of 5." /><LocationTable title="Claims by postal area" items={report.locations.postalAreas} description="Only the first 3 postal-code digits are used; small groups are combined." /></div>
+        <section className="overflow-hidden rounded-3xl border bg-white dark:bg-slate-900"><div className="border-b px-5 py-4 dark:border-slate-800"><h2 className="font-bold">Daily activity</h2></div><div className="max-h-96 overflow-auto"><table className="w-full text-left text-sm"><thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800"><tr><th className="px-5 py-3">Date</th><th className="px-4 py-3 text-right">Claims</th><th className="px-5 py-3 text-right">Redemptions</th></tr></thead><tbody className="divide-y dark:divide-slate-800">{[...report.daily].reverse().map(day => <tr key={day.date}><td className="px-5 py-3">{new Date(`${day.date}T00:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td><td className="px-4 py-3 text-right">{day.claims}</td><td className="px-5 py-3 text-right">{day.redemptions}</td></tr>)}{!report.daily.length && <tr><td colSpan="3" className="px-5 py-10 text-center text-slate-500">No coupon activity in this period.</td></tr>}</tbody></table></div></section>
+      </>}
+    </div>
+  );
+};
+
 const BrandPortal = ({ slug }) => {
   const { user, loading, signIn, logout } = useAuth();
   const [brand, setBrand] = useState(null);
@@ -305,7 +402,7 @@ const BrandPortal = ({ slug }) => {
   if (!user) return <BrandLogin brand={brand} onLogin={signIn} />;
   if (user.role !== 'brand' || user.brandId !== brand.id) return <div className="grid min-h-screen place-items-center bg-slate-950 px-4"><div className="max-w-md rounded-3xl bg-white p-7 text-center"><XCircle className="mx-auto h-12 w-12 text-red-500" /><h1 className="mt-3 text-xl font-bold">Wrong account for this portal</h1><p className="mt-2 text-sm text-slate-500">Sign out and use the credentials issued for {brand.name}.</p><button onClick={logout} className="mt-5 rounded-xl bg-slate-950 px-5 py-2.5 font-bold text-white">Sign out</button></div></div>;
 
-  const tabs = [{ id: 'dashboard', label: 'Dashboard', icon: BarChart3 }, { id: 'offers', label: 'Offers', icon: Tag }, { id: 'scanner', label: 'Scan coupon', icon: ScanLine }, { id: 'security', label: 'Password', icon: KeyRound }];
+  const tabs = [{ id: 'dashboard', label: 'Dashboard', icon: BarChart3 }, { id: 'reports', label: 'Reports & export', icon: FileSpreadsheet }, { id: 'offers', label: 'Offers', icon: Tag }, { id: 'scanner', label: 'Scan coupon', icon: ScanLine }, { id: 'security', label: 'Password', icon: KeyRound }];
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950 dark:bg-slate-950 dark:text-white">
@@ -314,6 +411,8 @@ const BrandPortal = ({ slug }) => {
 
       <main className="mx-auto max-w-7xl p-4 py-6 lg:p-8">
         {tab === 'dashboard' && <div className="space-y-6"><div><h1 className="text-3xl font-black">Performance overview</h1><p className="mt-1 text-slate-500">Aggregated coupon activity only—customer identity is never shown.</p></div><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[['Active offers', stats.active], ['Coupons claimed', stats.issued], ['Redemptions', stats.redeemed], ['Redemption rate', `${stats.conversion}%`]].map(([label, value]) => <div key={label} className="rounded-3xl border bg-white p-5 shadow-sm dark:bg-slate-900"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-3xl font-black">{value}</p></div>)}</div><section className="rounded-3xl border bg-white p-5 dark:bg-slate-900"><h2 className="font-bold">Recent anonymous redemptions</h2><div className="mt-4 divide-y">{redemptions.slice(0, 10).map(item => <div key={item.id} className="flex items-center gap-3 py-3"><CheckCircle2 className="h-5 w-5 text-emerald-500" /><div className="min-w-0 flex-1"><p className="truncate font-medium">{item.offerTitle}</p><p className="text-xs text-slate-500">Coupon •••• {item.couponCodeSuffix}</p></div><time className="text-xs text-slate-500">{new Date(item.redeemedAt).toLocaleString('en-IN')}</time></div>)}{!redemptions.length && <p className="py-8 text-center text-sm text-slate-500">No coupons redeemed yet.</p>}</div></section></div>}
+
+        {tab === 'reports' && <BrandReports brand={brand} />}
 
         {tab === 'offers' && (showEditor ? <OfferEditor offer={editingOffer} onClose={() => setShowEditor(false)} onSaved={() => { setShowEditor(false); setEditingOffer(null); }} /> : <div className="space-y-5"><div className="flex items-center justify-between"><div><h1 className="text-3xl font-black">Offers</h1><p className="text-slate-500">Configure validity, limits, schedules, and discount rules.</p></div><button onClick={() => { setEditingOffer(null); setShowEditor(true); }} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white"><Plus className="h-4 w-4" /> New offer</button></div><div className="grid gap-4 lg:grid-cols-2">{offers.map(offer => <article key={offer.id} className="rounded-3xl border bg-white p-5 shadow-sm dark:bg-slate-900"><div className="flex items-start justify-between gap-3"><div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${offer.status === 'published' ? 'bg-emerald-100 text-emerald-700' : offer.status === 'paused' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{offer.status}</span><h2 className="mt-3 text-xl font-bold">{offer.title}</h2></div><button onClick={() => { setEditingOffer(offer); setShowEditor(true); }} className="rounded-xl border px-3 py-2 text-sm font-semibold">Edit</button></div><p className="mt-2 line-clamp-2 text-sm text-slate-500">{offer.description}</p><div className="mt-5 grid grid-cols-3 gap-2 text-center"><div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800"><p className="text-xl font-bold">{offer.issuedCount || 0}</p><p className="text-xs text-slate-500">Claimed</p></div><div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800"><p className="text-xl font-bold">{offer.redeemedCount || 0}</p><p className="text-xs text-slate-500">Redeemed</p></div><div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800"><p className="text-xl font-bold">{offer.totalCouponLimit > 0 ? offer.totalCouponLimit : '∞'}</p><p className="text-xs text-slate-500">Limit</p></div></div></article>)}{!offers.length && <div className="rounded-3xl border border-dashed bg-white p-12 text-center lg:col-span-2"><Tag className="mx-auto h-10 w-10 text-slate-300" /><p className="mt-3 font-semibold">Create your first offer</p></div>}</div></div>)}
         {tab === 'scanner' && <CouponScanner />}

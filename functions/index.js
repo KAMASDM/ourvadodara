@@ -11,6 +11,15 @@ const {
   isDisposableDomain,
   writeSecurityEvent
 } = require('./registration-security');
+const {
+  APP_URL,
+  EMAIL_SECRET_NAMES,
+  cleanText: cleanEmailText,
+  formatIndiaDate,
+  formatMoney,
+  sendBulkTemplatedEmail,
+  sendTemplatedEmail
+} = require('./email');
 
 admin.initializeApp();
 
@@ -104,6 +113,57 @@ const LEAD_TEMPLATE_PATH = 'leadMessageTemplates';
 const LEAD_NOTIFICATION_LOG_PATH = 'leadNotificationLogs';
 const LEAD_WHATSAPP_LOG_PATH = 'leadWhatsAppLogs';
 const BOTNEX_BASE_URL = 'https://app.botnex.io/api/v1';
+const EMAIL_LOG_PATH = 'emailDeliveryLogs';
+
+const sendAndLogEmail = async ({ type, entityId = '', ...message }) => {
+  try {
+    const result = await sendTemplatedEmail(message);
+    await admin.database().ref(EMAIL_LOG_PATH).push({
+      type,
+      entityId,
+      recipient: String(message.to || '').trim().toLowerCase(),
+      status: result?.skipped ? 'skipped' : 'sent',
+      messageId: result?.messageId || '',
+      sentAt: Date.now()
+    });
+    return result;
+  } catch (error) {
+    console.error(`Email delivery failed (${type}):`, error.message);
+    await admin.database().ref(EMAIL_LOG_PATH).push({
+      type,
+      entityId,
+      recipient: String(message.to || '').trim().toLowerCase(),
+      status: 'failed',
+      error: String(error.message || 'Delivery failed').slice(0, 300),
+      failedAt: Date.now()
+    }).catch(() => {});
+    return { sent: false, error: error.message };
+  }
+};
+
+const getUserEmailDetails = async uid => {
+  if (!uid) return {};
+  const [profileSnapshot, authUser] = await Promise.all([
+    admin.database().ref(`users/${uid}`).once('value'),
+    admin.auth().getUser(uid).catch(() => null)
+  ]);
+  const profile = profileSnapshot.val() || {};
+  return {
+    email: profile.profile?.contact?.email || profile.email || authUser?.email || '',
+    name: profile.profile?.personal?.fullName || profile.displayName || authUser?.displayName || 'there',
+    profile
+  };
+};
+
+const getEmailSubscribers = async preference => {
+  const preferencesSnapshot = await admin.database().ref('notificationPreferences').once('value');
+  const preferences = preferencesSnapshot.val() || {};
+  const userIds = Object.entries(preferences)
+    .filter(([, settings]) => settings?.emailNotifications === true && settings?.[preference] !== false)
+    .map(([uid]) => uid);
+  const subscribers = await Promise.all(userIds.map(async uid => ({ uid, ...(await getUserEmailDetails(uid)) })));
+  return subscribers.filter(subscriber => subscriber.email);
+};
 
 // datetime-local values created by the admin UI historically reached RTDB
 // without a timezone. Cloud Functions run in UTC, while the offer dates are
@@ -495,7 +555,7 @@ function getTemplateButtons(template) {
     .slice(0, 3);
 }
 
-exports.createPublicLead = functions.https.onCall(async (data) => {
+exports.createPublicLead = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data) => {
   const contactName = requirePublicLeadString(data, 'contactName', 'Name');
   const companyName = requirePublicLeadString(data, 'companyName', 'Brand name');
   const city = requirePublicLeadString(data, 'city', 'City');
@@ -542,6 +602,27 @@ exports.createPublicLead = functions.https.onCall(async (data) => {
         publicLeadActivity('Lead captured before bot conversation', `${companyName} from ${city}`)
       ]
     });
+
+    if (email) {
+      await sendAndLogEmail({
+        type: 'enquiry_received',
+        entityId: leadRef.key,
+        to: email,
+        subject: `We received your enquiry — ${companyName}`,
+        template: {
+          eyebrow: 'Campaign enquiry',
+          title: 'Thanks for reaching out',
+          greeting: `Hi ${contactName},`,
+          paragraphs: [
+            `We have received your campaign enquiry for ${companyName}.`,
+            'Our team will review the details and contact you with the most relevant options.'
+          ],
+          details: { Brand: companyName, City: city, Interest: 'Campaign and brand solutions' },
+          cta: { label: 'Explore brand solutions', url: `${APP_URL}/advertise` },
+          note: 'You can reply directly to this email if you need to add context before our team contacts you.'
+        }
+      });
+    }
 
     return { success: true, leadId: leadRef.key };
   } catch (error) {
@@ -744,7 +825,7 @@ exports.sendLeadWhatsAppMessage = functions
 });
 
 exports.sendLeadMessageNotifications = functions
-  .runWith({ secrets: ['BOTNEX_API_TOKEN'] })
+  .runWith({ secrets: ['BOTNEX_API_TOKEN', ...EMAIL_SECRET_NAMES] })
   .database
   .ref('/leads/{leadId}')
   .onWrite(async (change, context) => {
@@ -783,7 +864,26 @@ exports.sendLeadMessageNotifications = functions
         const channels = getTemplateChannels(template);
         const shouldSendPush = template.sendPush !== false && channels.includes('push');
         const shouldSendWhatsApp = template.sendWhatsApp === true || channels.includes('whatsapp');
+        const shouldSendEmail = template.sendEmail === true || channels.includes('email');
         const templateResponses = [];
+
+        if (shouldSendEmail && afterLead.email) {
+          const response = await sendAndLogEmail({
+            type: 'lead_automation',
+            entityId: leadId,
+            to: afterLead.email,
+            subject: title,
+            template: {
+              eyebrow: 'Campaign update',
+              title,
+              greeting: `Hi ${afterLead.contactName || 'there'},`,
+              paragraphs: [fullBody || body || 'There is an update regarding your campaign enquiry.'],
+              details: { Brand: afterLead.companyName || '', Status: afterLead.stage || afterLead.status || '' },
+              cta: { label: 'View Our Vadodara', url: APP_URL }
+            }
+          });
+          templateResponses.push({ channel: 'email', response });
+        }
 
         if (shouldSendPush) {
           const payload = {
@@ -1213,7 +1313,7 @@ exports.publishScheduledPosts = functions.pubsub
   });
 
 // Send notification for breaking news updates
-exports.sendBreakingNewsNotification = functions.database
+exports.sendBreakingNewsNotification = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).database
   .ref('/breakingNews/{newsId}')
   .onCreate(async (snapshot, context) => {
     const news = snapshot.val();
@@ -1277,6 +1377,23 @@ exports.sendBreakingNewsNotification = functions.database
 
       // Increment badge count
       await incrementBadgeCount('breaking-news');
+
+      const subscribers = await getEmailSubscribers('breakingNews');
+      if (subscribers.length) {
+        const emailResult = await sendBulkTemplatedEmail({
+          recipients: subscribers,
+          subject: `Breaking: ${title}`,
+          templateForRecipient: subscriber => ({
+            eyebrow: 'Breaking news',
+            title,
+            greeting: `Hi ${subscriber.name},`,
+            paragraphs: [body],
+            cta: { label: 'Read the update', url: `${APP_URL}/breaking/${newsId}` },
+            note: 'Breaking-news emails can be turned off from Notification settings.'
+          })
+        });
+        await admin.database().ref(EMAIL_LOG_PATH).push({ type: 'breaking_news', entityId: newsId, ...emailResult, sentAt: Date.now() });
+      }
 
       return response;
     } catch (error) {
@@ -1493,6 +1610,27 @@ exports.sendTestNotification = functions.https.onCall(async (data, context) => {
   }
 });
 
+exports.sendTestEmail = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Please sign in before sending a test email');
+  const recipient = await getUserEmailDetails(context.auth.uid);
+  if (!recipient.email) throw new functions.https.HttpsError('failed-precondition', 'Add an email address to your profile first');
+  const result = await sendAndLogEmail({
+    type: 'email_test',
+    entityId: context.auth.uid,
+    to: recipient.email,
+    subject: 'Our Vadodara email notifications are working',
+    template: {
+      eyebrow: 'Notification test',
+      title: 'Email notifications are ready',
+      greeting: `Hi ${recipient.name},`,
+      paragraphs: ['This test confirms that Our Vadodara can deliver email notifications to your inbox.'],
+      cta: { label: 'Manage notifications', url: `${APP_URL}/notifications-settings` }
+    }
+  });
+  if (!result?.sent) throw new functions.https.HttpsError('internal', 'Unable to deliver the test email');
+  return { success: true };
+});
+
 // Subscribe user to FCM topics
 exports.subscribeToTopics = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
@@ -1658,7 +1796,7 @@ const requireAdminAccount = async context => {
   return profile;
 };
 
-exports.adminSetUserAccess = functions.https.onCall(async (data, context) => {
+exports.adminSetUserAccess = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
   await requireAdminAccount(context);
   const userId = String(data?.userId || '').trim();
   const requestedRole = data?.role === undefined ? null : String(data.role);
@@ -1703,6 +1841,24 @@ exports.adminSetUserAccess = functions.https.onCall(async (data, context) => {
   await profileRef.update(updates);
   if (resultingStatus !== 'active' || (requestedRole !== null && requestedRole !== profile.role)) {
     await admin.auth().revokeRefreshTokens(userId);
+  }
+  const recipient = await getUserEmailDetails(userId);
+  if (recipient.email) {
+    await sendAndLogEmail({
+      type: 'account_access_updated',
+      entityId: userId,
+      to: recipient.email,
+      subject: 'Your Our Vadodara account access was updated',
+      template: {
+        eyebrow: 'Account security',
+        title: 'Account access updated',
+        greeting: `Hi ${recipient.name},`,
+        paragraphs: ['An administrator updated the access settings for your Our Vadodara account.'],
+        details: { Role: requestedRole || profile.role || 'user', Status: resultingStatus },
+        cta: resultingStatus === 'active' ? { label: 'Open Our Vadodara', url: APP_URL } : null,
+        note: 'If you did not expect this change, reply to this email for assistance.'
+      }
+    });
   }
   return {
     userId,
@@ -1840,7 +1996,7 @@ const uploadBrandLogoDataUrl = async (value, uploaderUid) => {
   return { logoUrl: logoValue, storagePath: '', uploaderUid };
 };
 
-exports.adminCreateBrand = functions.https.onCall(async (data, context) => {
+exports.adminCreateBrand = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
   await requireAdminAccount(context);
   const name = String(data?.name || '').trim().slice(0, 120);
   const slug = slugifyBrand(data?.slug || name);
@@ -1912,6 +2068,21 @@ exports.adminCreateBrand = functions.https.onCall(async (data, context) => {
     updates[`users/${authUser.uid}`] = { email: loginEmail, displayName: name, role: 'brand', status: 'active', brandId, profileComplete: true, createdAt: new Date(now).toISOString(), permissions: { canManageOffers: true, canRedeemCoupons: true, canViewBrandAnalytics: true } };
     updates[`couponCategories/${categoryId}`] = { id: categoryId, name: categoryName, createdAt: now, createdBy: context.auth.uid };
     await admin.database().ref().update(updates);
+    await sendAndLogEmail({
+      type: 'brand_account_created',
+      entityId: brandId,
+      to: loginEmail,
+      subject: `Your ${name} partner portal is ready`,
+      template: {
+        eyebrow: 'Brand partner onboarding',
+        title: 'Welcome to your brand portal',
+        greeting: `Hi ${name} team,`,
+        paragraphs: ['Your Our Vadodara partner account is active. You can create offers, scan coupons, and review privacy-safe campaign reports from the portal.'],
+        details: { 'Login ID': loginEmail, 'Portal URL': `${APP_URL}/${slug}`, Category: categoryName },
+        cta: { label: 'Open brand portal', url: `${APP_URL}/${slug}` },
+        note: 'For security, your password is not included in email. Use the password shared by your administrator and change it after signing in.'
+      }
+    });
     return { brandId, slug, portalUrl: `/${slug}` };
   } catch (error) {
     if (createdAuthUser && authUser?.uid) await admin.auth().deleteUser(authUser.uid).catch(() => {});
@@ -1923,7 +2094,7 @@ exports.adminCreateBrand = functions.https.onCall(async (data, context) => {
   }
 });
 
-exports.adminUpdateBrand = functions.https.onCall(async (data, context) => {
+exports.adminUpdateBrand = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
   await requireAdminAccount(context);
   const brandId = String(data?.brandId || '').trim();
   if (!brandId) throw new functions.https.HttpsError('invalid-argument', 'Brand is required');
@@ -2024,6 +2195,21 @@ exports.adminUpdateBrand = functions.https.onCall(async (data, context) => {
       updates[`${offerPath}/updatedAt`] = now;
     });
     await admin.database().ref().update(updates);
+    await sendAndLogEmail({
+      type: 'brand_account_updated',
+      entityId: brandId,
+      to: loginEmail,
+      subject: `Your ${name} partner account was updated`,
+      template: {
+        eyebrow: 'Brand account',
+        title: 'Partner account updated',
+        greeting: `Hi ${name} team,`,
+        paragraphs: ['An administrator updated your brand account details.'],
+        details: { 'Login ID': loginEmail, Status: active ? 'Active' : 'Inactive', 'Portal URL': `${APP_URL}/${slug}` },
+        cta: active ? { label: 'Open brand portal', url: `${APP_URL}/${slug}` } : null,
+        note: password ? 'Your password was also reset. For security, it is not included in this email.' : 'If you did not expect this change, reply to this email.'
+      }
+    });
     return { brandId, slug, portalUrl: `/${slug}`, loginEmail, active };
   } catch (error) {
     if (uploadedLogoPath) await admin.storage().bucket().file(uploadedLogoPath).delete({ ignoreNotFound: true }).catch(() => {});
@@ -2045,7 +2231,7 @@ exports.adminUpdateBrand = functions.https.onCall(async (data, context) => {
   }
 });
 
-exports.saveBrandOffer = functions.https.onCall(async (data, context) => {
+exports.saveBrandOffer = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
   const { brandId } = await requireBrandAccount(context);
   const brand = (await admin.database().ref(`brandsPublic/${brandId}`).once('value')).val();
   if (!brand?.active) throw new functions.https.HttpsError('failed-precondition', 'Brand is inactive');
@@ -2070,10 +2256,27 @@ exports.saveBrandOffer = functions.https.onCall(async (data, context) => {
     redeemedCount: Number(existing?.redeemedCount || 0), createdAt: existing?.createdAt || now, updatedAt: now
   };
   await offerRef.set(record);
+  const account = (await admin.database().ref(`brandAccounts/${brandId}`).once('value')).val() || {};
+  if (account.loginEmail) {
+    await sendAndLogEmail({
+      type: 'brand_offer_submitted',
+      entityId: offerRef.key,
+      to: account.loginEmail,
+      subject: `Offer submitted for review — ${record.title}`,
+      template: {
+        eyebrow: 'Offer workflow',
+        title: 'Your offer is awaiting review',
+        greeting: `Hi ${brand.name} team,`,
+        paragraphs: ['We received your offer and sent it to the Our Vadodara review queue. We will email you when its status changes.'],
+        details: { Offer: record.title, Status: 'Pending approval', Starts: formatIndiaDate(record.startsAt), Ends: formatIndiaDate(record.endsAt) },
+        cta: { label: 'Open brand portal', url: `${APP_URL}/${brand.slug}` }
+      }
+    });
+  }
   return { offerId: offerRef.key };
 });
 
-exports.adminReviewBrandOffer = functions.https.onCall(async (data, context) => {
+exports.adminReviewBrandOffer = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
   await requireAdminAccount(context);
   const offerId = String(data?.offerId || '').trim();
   const action = String(data?.action || '').trim();
@@ -2098,10 +2301,33 @@ exports.adminReviewBrandOffer = functions.https.onCall(async (data, context) => 
   if (action === 'reject') Object.assign(update, { workflowStatus: 'rejected', approvalStatus: 'rejected', status: 'draft', active: false, rejectionReason: note });
   if (action === 'deactivate') Object.assign(update, { workflowStatus: 'inactive', status: 'paused', active: false, deactivatedAt: now, reviewNote: note });
   await offerRef.update(update);
+  const [accountSnapshot, brandSnapshot] = await Promise.all([
+    admin.database().ref(`brandAccounts/${offer.brandId}`).once('value'),
+    admin.database().ref(`brandsPublic/${offer.brandId}`).once('value')
+  ]);
+  const account = accountSnapshot.val() || {};
+  const brand = brandSnapshot.val() || {};
+  if (account.loginEmail) {
+    const statusLabels = { approve: 'Approved', approve_and_publish: 'Published', publish: 'Published', reject: 'Changes requested', deactivate: 'Deactivated' };
+    await sendAndLogEmail({
+      type: 'brand_offer_reviewed',
+      entityId: offerId,
+      to: account.loginEmail,
+      subject: `${statusLabels[action]} — ${offer.title}`,
+      template: {
+        eyebrow: 'Offer workflow',
+        title: action === 'reject' ? 'Your offer needs changes' : `Your offer is ${statusLabels[action].toLowerCase()}`,
+        greeting: `Hi ${brand.name || offer.brandName || 'brand'} team,`,
+        paragraphs: [action === 'reject' ? 'Our review team has requested changes before this offer can be published.' : `The status of your offer “${offer.title}” has been updated.`],
+        details: { Offer: offer.title, Status: statusLabels[action], ...(note ? { 'Admin note': note } : {}) },
+        cta: { label: 'Review offer', url: `${APP_URL}/${brand.slug || offer.brandSlug}` }
+      }
+    });
+  }
   return { offerId, workflowStatus: update.workflowStatus };
 });
 
-exports.adminSetBrandStatus = functions.https.onCall(async (data, context) => {
+exports.adminSetBrandStatus = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
   await requireAdminAccount(context);
   const brandId = String(data?.brandId || '').trim();
   const status = String(data?.status || '').trim();
@@ -2135,10 +2361,27 @@ exports.adminSetBrandStatus = functions.https.onCall(async (data, context) => {
   await admin.auth().updateUser(account.authUid, { disabled: !active });
   if (!active) await admin.auth().revokeRefreshTokens(account.authUid);
   await admin.database().ref().update(updates);
+  if (account.loginEmail) {
+    await sendAndLogEmail({
+      type: 'brand_status_updated',
+      entityId: brandId,
+      to: account.loginEmail,
+      subject: `${brand.name} account status: ${status}`,
+      template: {
+        eyebrow: 'Brand account',
+        title: `Your partner account is ${status}`,
+        greeting: `Hi ${brand.name} team,`,
+        paragraphs: [`Your Our Vadodara partner account status was changed to ${status}.`],
+        details: { Brand: brand.name, Status: status },
+        cta: active ? { label: 'Open brand portal', url: `${APP_URL}/${brand.slug}` } : null,
+        note: 'Reply to this email if you need help with this account change.'
+      }
+    });
+  }
   return { brandId, status, active };
 });
 
-exports.claimBrandOffer = functions.https.onCall(async (data, context) => {
+exports.claimBrandOffer = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
   if (!context.auth || context.auth.token.firebase?.sign_in_provider === 'anonymous') {
     throw new functions.https.HttpsError('unauthenticated', 'Sign in with a verified account to claim offers');
   }
@@ -2174,6 +2417,8 @@ exports.claimBrandOffer = functions.https.onCall(async (data, context) => {
   const couponRef = admin.database().ref('couponRedemptions').push();
   const code = `OV-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
   const now = Date.now();
+  const claimContact = (await admin.database().ref(`users/${context.auth.uid}/profile/contact`).once('value')).val() || {};
+  const claimPostalCode = String(claimContact.postalCode || '').replace(/\D/g, '');
   const validityExpiry = claimedOffer.couponValidityDays ? now + Number(claimedOffer.couponValidityDays) * 86400000 : Infinity;
   const offerExpiry = parseOfferDateTime(claimedOffer.endsAt, Infinity);
   const expiresAtMs = Math.min(validityExpiry, offerExpiry);
@@ -2181,10 +2426,18 @@ exports.claimBrandOffer = functions.https.onCall(async (data, context) => {
   const coupon = {
     id: couponRef.key, offerId, brandId: claimedOffer.brandId, userId: context.auth.uid, code,
     status: 'issued', issuedAt: now, expiresAt, useCount: 0,
-    maxUses: normalizePositiveLimit(claimedOffer.maxUsesPerCoupon, 1)
+    maxUses: normalizePositiveLimit(claimedOffer.maxUsesPerCoupon, 1),
+    // A coarse snapshot supports future aggregate reports without retaining a
+    // street address or full postal code in the analytics record.
+    analyticsLocation: {
+      city: String(claimContact.city || '').trim().slice(0, 80),
+      postalArea: claimPostalCode.length >= 3 ? `${claimPostalCode.slice(0, 3)}xxx` : ''
+    }
   };
+  const walletCoupon = { ...coupon };
+  delete walletCoupon.analyticsLocation;
   const userCoupon = {
-    ...coupon, userId: null, brandName: claimedOffer.brandName, brandLogoUrl: claimedOffer.brandLogoUrl || '',
+    ...walletCoupon, userId: null, brandName: claimedOffer.brandName, brandLogoUrl: claimedOffer.brandLogoUrl || '',
     offerTitle: claimedOffer.title, description: claimedOffer.description, discountType: claimedOffer.discountType,
     discountValue: claimedOffer.discountValue, minimumPurchase: claimedOffer.minimumPurchase || 0,
     maximumDiscount: claimedOffer.maximumDiscount || 0, terms: claimedOffer.terms || ''
@@ -2202,10 +2455,28 @@ exports.claimBrandOffer = functions.https.onCall(async (data, context) => {
     ]).catch(() => {});
     throw new functions.https.HttpsError('internal', 'Unable to issue the coupon. Please try again.');
   }
+  const customer = await getUserEmailDetails(context.auth.uid);
+  if (customer.email) {
+    await sendAndLogEmail({
+      type: 'coupon_claimed',
+      entityId: couponRef.key,
+      to: customer.email,
+      subject: `Coupon added — ${claimedOffer.title}`,
+      template: {
+        eyebrow: 'Coupon wallet',
+        title: 'Your coupon is ready',
+        greeting: `Hi ${customer.name},`,
+        paragraphs: [`Your ${claimedOffer.brandName} coupon has been added to your Our Vadodara wallet. Open the app and show its QR code at checkout.`],
+        details: { Offer: claimedOffer.title, Brand: claimedOffer.brandName, Expires: expiresAt ? formatIndiaDate(expiresAt) : 'No fixed expiry', 'Uses available': coupon.maxUses },
+        cta: { label: 'Open coupon wallet', url: `${APP_URL}/profile` },
+        note: 'Do not forward your coupon QR code. It can be used by anyone who has access to it.'
+      }
+    });
+  }
   return { couponId: couponRef.key, code, expiresAt, offerTitle: claimedOffer.title };
 });
 
-exports.redeemOfferCoupon = functions.https.onCall(async (data, context) => {
+exports.redeemOfferCoupon = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
   const { brandId } = await requireBrandAccount(context);
   let code = String(data?.code || '').trim();
   try {
@@ -2258,6 +2529,24 @@ exports.redeemOfferCoupon = functions.https.onCall(async (data, context) => {
   updates[`couponAudit/${couponId}/${feedRef.key}`] = { action: 'redeemed', at: redeemedAt, actor: context.auth.uid };
   updates[`offers/${offer.id}/redeemedCount`] = admin.database.ServerValue.increment(1);
   await admin.database().ref().update(updates);
+  const customer = await getUserEmailDetails(updatedCoupon.userId);
+  if (customer.email) {
+    await sendAndLogEmail({
+      type: 'coupon_redeemed',
+      entityId: couponId,
+      to: customer.email,
+      subject: `Coupon redeemed — ${offer.title}`,
+      template: {
+        eyebrow: 'Coupon activity',
+        title: 'Your coupon was redeemed',
+        greeting: `Hi ${customer.name},`,
+        paragraphs: [`Your coupon for “${offer.title}” was successfully redeemed with ${offer.brandName}.`],
+        details: { Offer: offer.title, Brand: offer.brandName, Redeemed: formatIndiaDate(redeemedAt), Usage: `${updatedCoupon.useCount} of ${updatedCoupon.maxUses}` },
+        cta: { label: 'Discover more offers', url: `${APP_URL}/offers` },
+        note: 'If you did not make this redemption, reply to this email promptly.'
+      }
+    });
+  }
   return {
     success: true, offerTitle: offer.title, discountType: offer.discountType,
     discountValue: offer.discountValue, minimumPurchase: offer.minimumPurchase || 0,
@@ -2266,7 +2555,132 @@ exports.redeemOfferCoupon = functions.https.onCall(async (data, context) => {
   };
 });
 
-exports.redeemBrandCoupon = functions.https.onCall(async (data, context) => {
+// Brand reports are assembled on the server so a brand never receives the
+// underlying coupon records or customer profiles. Small location groups are
+// suppressed to make it harder to infer who claimed or redeemed an offer.
+exports.getBrandCouponAnalytics = functions.https.onCall(async (data, context) => {
+  const { brandId } = await requireBrandAccount(context);
+  const allowedPeriods = new Set([7, 30, 90, 365, 0]);
+  const requestedPeriod = Number(data?.periodDays);
+  const periodDays = allowedPeriods.has(requestedPeriod) ? requestedPeriod : 90;
+  const now = Date.now();
+  const from = periodDays ? now - periodDays * 86400000 : 0;
+  const minimumLocationGroup = 5;
+
+  const [brandSnapshot, offersSnapshot, couponsSnapshot, redemptionSnapshot] = await Promise.all([
+    admin.database().ref(`brandsPublic/${brandId}`).once('value'),
+    admin.database().ref('offers').orderByChild('brandId').equalTo(brandId).once('value'),
+    admin.database().ref('couponRedemptions').orderByChild('brandId').equalTo(brandId).once('value'),
+    admin.database().ref(`brandRedemptionFeed/${brandId}`).once('value')
+  ]);
+  const brand = brandSnapshot.val() || {};
+  const offers = offersSnapshot.val() || {};
+  const allCoupons = Object.values(couponsSnapshot.val() || {});
+  const claims = allCoupons.filter(coupon => Number(coupon.issuedAt || 0) >= from && Number(coupon.issuedAt || 0) <= now);
+  const redemptions = Object.values(redemptionSnapshot.val() || {})
+    .filter(item => Number(item.redeemedAt || 0) >= from && Number(item.redeemedAt || 0) <= now);
+
+  const dateKey = timestamp => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(new Date(timestamp));
+    const value = type => parts.find(part => part.type === type)?.value || '';
+    return `${value('year')}-${value('month')}-${value('day')}`;
+  };
+  const incrementCount = (target, key, amount = 1) => {
+    if (!key) return;
+    target[key] = Number(target[key] || 0) + amount;
+  };
+
+  const offerMetrics = Object.entries(offers).reduce((result, [offerId, offer]) => {
+    result[offerId] = {
+      offerId,
+      title: String(offer.title || 'Untitled offer'),
+      status: String(offer.workflowStatus || offer.status || 'draft'),
+      startsAt: offer.startsAt || null,
+      endsAt: offer.endsAt || null,
+      totalCouponLimit: Number(offer.totalCouponLimit || 0),
+      claims: 0,
+      redemptions: 0,
+      redemptionRate: 0
+    };
+    return result;
+  }, {});
+  const daily = {};
+  claims.forEach(coupon => {
+    if (offerMetrics[coupon.offerId]) offerMetrics[coupon.offerId].claims += 1;
+    const day = dateKey(coupon.issuedAt);
+    daily[day] ||= { date: day, claims: 0, redemptions: 0 };
+    daily[day].claims += 1;
+  });
+  redemptions.forEach(redemption => {
+    if (offerMetrics[redemption.offerId]) offerMetrics[redemption.offerId].redemptions += 1;
+    const day = dateKey(redemption.redeemedAt);
+    daily[day] ||= { date: day, claims: 0, redemptions: 0 };
+    daily[day].redemptions += 1;
+  });
+  Object.values(offerMetrics).forEach(metric => {
+    metric.redemptionRate = metric.claims ? Math.round(metric.redemptions / metric.claims * 1000) / 10 : 0;
+  });
+
+  const claimantIds = [...new Set(claims.filter(coupon => !coupon.analyticsLocation).map(coupon => coupon.userId).filter(Boolean))];
+  const profiles = await Promise.all(claimantIds.map(async userId => {
+    const profile = (await admin.database().ref(`users/${userId}/profile/contact`).once('value')).val() || {};
+    return { userId, city: String(profile.city || '').trim(), postalCode: String(profile.postalCode || '').replace(/\D/g, '') };
+  }));
+  const locationsByUser = new Map(profiles.map(profile => [profile.userId, profile]));
+  const cityCounts = {};
+  const postalAreaCounts = {};
+  claims.forEach(coupon => {
+    const fallbackLocation = locationsByUser.get(coupon.userId);
+    const city = String(coupon.analyticsLocation?.city || fallbackLocation?.city || '').trim();
+    const fallbackPostalArea = fallbackLocation?.postalCode?.length >= 3 ? `${fallbackLocation.postalCode.slice(0, 3)}xxx` : '';
+    const postalArea = coupon.analyticsLocation?.postalArea || fallbackPostalArea;
+    incrementCount(cityCounts, city || 'Location not provided');
+    incrementCount(postalAreaCounts, postalArea || 'Postal area not provided');
+  });
+  const suppressSmallGroups = counts => {
+    let suppressed = 0;
+    const visible = Object.entries(counts)
+      .filter(([, count]) => {
+        if (count < minimumLocationGroup) { suppressed += count; return false; }
+        return true;
+      })
+      .map(([location, count]) => ({ location, count }))
+      .sort((left, right) => right.count - left.count || left.location.localeCompare(right.location));
+    if (suppressed) visible.push({ location: 'Other / not enough data', count: suppressed });
+    return visible;
+  };
+
+  const totalClaims = claims.length;
+  const totalRedemptions = redemptions.length;
+  return {
+    generatedAt: now,
+    periodDays,
+    range: { from: from || null, to: now },
+    privacy: {
+      aggregatedOnly: true,
+      minimumLocationGroup,
+      notice: `No names, user IDs, email addresses, phone numbers, street addresses, or full postal codes are included. Location groups with fewer than ${minimumLocationGroup} claims are combined.`
+    },
+    brand: { name: String(brand.name || ''), category: String(brand.category || '') },
+    summary: {
+      offers: Object.keys(offers).length,
+      activeOffers: Object.values(offers).filter(offer => (offer.workflowStatus || offer.status) === 'published').length,
+      claims: totalClaims,
+      redemptions: totalRedemptions,
+      redemptionRate: totalClaims ? Math.round(totalRedemptions / totalClaims * 1000) / 10 : 0
+    },
+    offers: Object.values(offerMetrics).sort((left, right) => right.claims - left.claims || left.title.localeCompare(right.title)),
+    daily: Object.values(daily).sort((left, right) => left.date.localeCompare(right.date)),
+    locations: {
+      cities: suppressSmallGroups(cityCounts),
+      postalAreas: suppressSmallGroups(postalAreaCounts)
+    }
+  };
+});
+
+exports.redeemBrandCoupon = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
   if (!context.auth || context.auth.token.firebase?.sign_in_provider === 'anonymous') throw new functions.https.HttpsError('unauthenticated', 'Sign in with a verified account to claim offers');
   const brandId = String(data?.brandId || '');
   if (!brandId) throw new functions.https.HttpsError('invalid-argument', 'Brand is required');
@@ -2330,10 +2744,27 @@ exports.redeemBrandCoupon = functions.https.onCall(async (data, context) => {
     admin.database().ref(`userCoupons/${context.auth.uid}/${redemptionRef.key}`).set(redemption),
     admin.database().ref(`couponAudit/${redemptionRef.key}`).push({ action: 'issued', at: admin.database.ServerValue.TIMESTAMP, actor: context.auth.uid })
   ]);
+  const customer = await getUserEmailDetails(context.auth.uid);
+  if (customer.email) {
+    await sendAndLogEmail({
+      type: 'coupon_claimed',
+      entityId: redemptionRef.key,
+      to: customer.email,
+      subject: `Coupon added — ${brand.name || 'Our Vadodara offer'}`,
+      template: {
+        eyebrow: 'Coupon wallet',
+        title: 'Your coupon is ready',
+        greeting: `Hi ${customer.name},`,
+        paragraphs: [`Your ${brand.name || 'brand'} coupon is now available in your Our Vadodara wallet.`],
+        details: { Brand: brand.name || '', Expires: brand.endsAt ? formatIndiaDate(brand.endsAt) : 'No fixed expiry' },
+        cta: { label: 'Open coupon wallet', url: `${APP_URL}/profile` }
+      }
+    });
+  }
   return { redemptionId: redemptionRef.key, code, brandName: brand.name || '', expiresAt: brand.endsAt || null };
 });
 
-exports.verifyBrandCoupon = functions.https.onCall(async (data, context) => {
+exports.verifyBrandCoupon = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('permission-denied', 'Admin access required');
   const adminUser = await admin.database().ref(`users/${context.auth.uid}/role`).once('value');
   const legacyAdmin = await admin.database().ref(`admins/${context.auth.uid}`).once('value');
@@ -2352,6 +2783,23 @@ exports.verifyBrandCoupon = functions.https.onCall(async (data, context) => {
       admin.database().ref(`userCoupons/${coupon.userId}/${id}`).update(updates),
       admin.database().ref(`couponAudit/${id}`).push({ action: 'redeemed', at: admin.database.ServerValue.TIMESTAMP, actor: context.auth.uid })
     ]);
+    const customer = await getUserEmailDetails(coupon.userId);
+    if (customer.email) {
+      await sendAndLogEmail({
+        type: 'coupon_redeemed',
+        entityId: id,
+        to: customer.email,
+        subject: `Coupon redeemed — ${coupon.brandName || 'Our Vadodara offer'}`,
+        template: {
+          eyebrow: 'Coupon activity',
+          title: 'Your coupon was redeemed',
+          greeting: `Hi ${customer.name},`,
+          paragraphs: [`Your coupon with ${coupon.brandName || 'the brand'} was successfully redeemed.`],
+          details: { Brand: coupon.brandName || '', Redeemed: formatIndiaDate(Date.now()) },
+          cta: { label: 'Discover more offers', url: `${APP_URL}/offers` }
+        }
+      });
+    }
     return { ...coupon, ...updates, valid: true };
   }
   return { ...coupon, valid: coupon.status === 'issued' && (!coupon.expiresAt || new Date(coupon.expiresAt) >= new Date()) };
@@ -2450,3 +2898,200 @@ exports.auditNewRegistration = functions.auth.user().onCreate(async user => {
   });
   return null;
 });
+
+exports.sendAccountWelcomeEmail = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).database
+  .ref('/users/{userId}')
+  .onCreate(async (snapshot, context) => {
+    const profile = snapshot.val() || {};
+    if (profile.role === 'brand' || profile.status === 'inactive' || profile.status === 'suspended') return null;
+    const recipient = await getUserEmailDetails(context.params.userId);
+    if (!recipient.email) return null;
+    return sendAndLogEmail({
+      type: 'account_welcome',
+      entityId: context.params.userId,
+      to: recipient.email,
+      subject: 'Welcome to Our Vadodara',
+      template: {
+        eyebrow: 'Welcome',
+        title: 'Your city is now closer',
+        greeting: `Hi ${recipient.name},`,
+        paragraphs: [
+          'Welcome to Our Vadodara—your home for local news, breaking updates, events, community conversations, and exclusive offers.',
+          'Complete your profile and notification choices to make the experience truly yours.'
+        ],
+        cta: { label: 'Open Our Vadodara', url: APP_URL },
+        note: 'Editorial email alerts are off until you enable Email Notifications in your settings.'
+      }
+    });
+  });
+
+exports.sendEventRegistrationEmail = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).database
+  .ref('/events/{eventId}/registrations/{registrationId}')
+  .onCreate(async (snapshot, context) => {
+    const registration = snapshot.val() || {};
+    const event = (await admin.database().ref(`events/${context.params.eventId}`).once('value')).val() || {};
+    const recipient = registration.userEmail || registration.attendees?.[0]?.email || '';
+    if (!recipient) return null;
+    const ticketCount = Object.values(registration.tickets || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+    const venueName = typeof event.venue === 'string' ? event.venue : event.venue?.name || event.location || '';
+    const eventDate = event.startDate || event.date || event.startsAt || '';
+    return sendAndLogEmail({
+      type: 'event_registration_confirmed',
+      entityId: context.params.registrationId,
+      to: recipient,
+      subject: `Registration confirmed — ${event.title || 'Our Vadodara event'}`,
+      template: {
+        eyebrow: 'Event confirmation',
+        title: 'You are registered',
+        greeting: `Hi ${registration.userName || registration.attendees?.[0]?.name || 'there'},`,
+        paragraphs: [`Your registration for “${event.title || 'the event'}” is confirmed. Keep your in-app QR ticket ready for check-in.`],
+        details: {
+          Event: event.title || context.params.eventId,
+          Date: formatIndiaDate(eventDate),
+          Venue: venueName,
+          Tickets: ticketCount || 1,
+          Amount: registration.paymentStatus === 'free' ? 'Free' : formatMoney(registration.finalAmount),
+          'Registration ID': context.params.registrationId
+        },
+        cta: { label: 'View events', url: `${APP_URL}/events` },
+        note: 'Please bring your in-app QR ticket and a valid ID if requested by the organizer.'
+      }
+    });
+  });
+
+exports.sendEventCheckInEmail = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).database
+  .ref('/events/{eventId}/registrations/{registrationId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.val() || {};
+    const registration = change.after.val() || {};
+    if (before.checkedIn === true || registration.checkedIn !== true) return null;
+    const event = (await admin.database().ref(`events/${context.params.eventId}`).once('value')).val() || {};
+    const recipient = registration.userEmail || registration.attendees?.[0]?.email || '';
+    if (!recipient) return null;
+    return sendAndLogEmail({
+      type: 'event_check_in',
+      entityId: context.params.registrationId,
+      to: recipient,
+      subject: `Checked in — ${event.title || 'Our Vadodara event'}`,
+      template: {
+        eyebrow: 'Event check-in',
+        title: 'You are checked in',
+        greeting: `Hi ${registration.userName || registration.attendees?.[0]?.name || 'there'},`,
+        paragraphs: [`Your check-in for “${event.title || 'the event'}” was completed successfully. We hope you have a wonderful experience.`],
+        details: { Event: event.title || context.params.eventId, 'Check-in time': formatIndiaDate(registration.checkedInAt || Date.now()) },
+        cta: { label: 'Explore more events', url: `${APP_URL}/events` }
+      }
+    });
+  });
+
+// A database trigger keeps receipts independent from the Razorpay callable's
+// own secret configuration and also covers payments verified by other trusted
+// admin workflows.
+exports.sendEventPaymentReceiptEmail = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).database
+  .ref('/eventPayments/{orderId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.val() || {};
+    const payment = change.after.val() || {};
+    if (before.status === 'verified' || payment.status !== 'verified') return null;
+    const [customer, eventSnapshot] = await Promise.all([
+      getUserEmailDetails(payment.userId),
+      admin.database().ref(`events/${payment.eventId}`).once('value')
+    ]);
+    if (!customer.email) return null;
+    const event = eventSnapshot.val() || {};
+    return sendAndLogEmail({
+      type: 'event_payment_verified',
+      entityId: context.params.orderId,
+      to: customer.email,
+      subject: `Payment received${event.title ? ` — ${event.title}` : ''}`,
+      template: {
+        eyebrow: 'Payment receipt',
+        title: 'Your payment is confirmed',
+        greeting: `Hi ${customer.name},`,
+        paragraphs: ['We successfully verified your event payment. Keep this email as your payment acknowledgement.'],
+        details: { Event: event.title || payment.eventId, Amount: formatMoney(Number(payment.amount || 0) / 100), 'Payment ID': payment.paymentId || '', 'Order ID': context.params.orderId },
+        cta: { label: 'View events', url: `${APP_URL}/events` }
+      }
+    });
+  });
+
+const sendCommentReplyEmail = async (snapshot, context) => {
+  const reply = snapshot.val() || {};
+  const { postId, rootCommentId } = context.params;
+  const parentPath = context.params.deepReplyId
+    ? `comments/${postId}/${rootCommentId}/replies/${context.params.replyId}/replies/${context.params.nestedReplyId}`
+    : context.params.nestedReplyId
+      ? `comments/${postId}/${rootCommentId}/replies/${context.params.replyId}`
+      : `comments/${postId}/${rootCommentId}`;
+  const parent = (await admin.database().ref(parentPath).once('value')).val() || {};
+  if (!parent.authorId || parent.authorId === reply.authorId) return null;
+  const preferences = (await admin.database().ref(`notificationPreferences/${parent.authorId}`).once('value')).val() || {};
+  if (preferences.emailNotifications !== true || preferences.commentReplies === false) return null;
+  const [recipient, postSnapshot, reelSnapshot, carouselSnapshot] = await Promise.all([
+    getUserEmailDetails(parent.authorId),
+    admin.database().ref(`posts/${postId}`).once('value'),
+    admin.database().ref(`reels/${postId}`).once('value'),
+    admin.database().ref(`carousels/${postId}`).once('value')
+  ]);
+  if (!recipient.email) return null;
+  const content = postSnapshot.val() || reelSnapshot.val() || carouselSnapshot.val() || {};
+  const contentTitle = getLocalizedCleanText(content.title || content.headline, 120) || 'a story you commented on';
+  return sendAndLogEmail({
+    type: 'comment_reply',
+    entityId: postId,
+    to: recipient.email,
+    subject: `${reply.author || 'Someone'} replied to your comment`,
+    template: {
+      eyebrow: 'Community reply',
+      title: 'There is a new reply to your comment',
+      greeting: `Hi ${recipient.name},`,
+      paragraphs: [`${reply.author || 'Someone'} replied on “${contentTitle}”:`, `“${cleanEmailText(reply.text || reply.content).slice(0, 300)}”`],
+      cta: { label: 'View conversation', url: `${APP_URL}/post/${postId}` },
+      note: 'Reply emails follow your Comment Replies preference.'
+    }
+  });
+};
+
+exports.sendCommentReplyEmail = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).database
+  .ref('/comments/{postId}/{rootCommentId}/replies/{replyId}')
+  .onCreate(sendCommentReplyEmail);
+
+exports.sendNestedCommentReplyEmail = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).database
+  .ref('/comments/{postId}/{rootCommentId}/replies/{replyId}/replies/{nestedReplyId}')
+  .onCreate(sendCommentReplyEmail);
+
+exports.sendDeepCommentReplyEmail = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).database
+  .ref('/comments/{postId}/{rootCommentId}/replies/{replyId}/replies/{nestedReplyId}/replies/{deepReplyId}')
+  .onCreate(sendCommentReplyEmail);
+
+exports.sendDailyNewsDigestEmail = functions.runWith({ secrets: EMAIL_SECRET_NAMES, timeoutSeconds: 540, memory: '512MB' }).pubsub
+  .schedule('0 8 * * *')
+  .timeZone('Asia/Kolkata')
+  .onRun(async () => {
+    const subscribers = await getEmailSubscribers('dailyDigest');
+    if (!subscribers.length) return null;
+    const postsSnapshot = await admin.database().ref('posts').once('value');
+    const cutoff = Date.now() - 36 * 60 * 60 * 1000;
+    const posts = Object.entries(postsSnapshot.val() || {})
+      .map(([id, post]) => ({ id, ...post }))
+      .filter(post => !['draft', 'scheduled'].includes(post.status || 'published'))
+      .filter(post => (Date.parse(post.publishedAt || post.createdAt || 0) || 0) >= cutoff)
+      .sort((left, right) => (Date.parse(right.publishedAt || right.createdAt || 0) || 0) - (Date.parse(left.publishedAt || left.createdAt || 0) || 0))
+      .slice(0, 8);
+    if (!posts.length) return null;
+    const digestLines = posts.map((post, index) => `${index + 1}. ${getLocalizedCleanText(post.title || post.headline, 140)}`).filter(Boolean);
+    const result = await sendBulkTemplatedEmail({
+      recipients: subscribers,
+      subject: `Your morning Vadodara briefing — ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`,
+      templateForRecipient: subscriber => ({
+        eyebrow: 'Daily digest',
+        title: 'Today in Vadodara',
+        greeting: `Good morning ${subscriber.name},`,
+        paragraphs: ['Here are the local stories worth knowing today.', ...digestLines],
+        cta: { label: 'Read today’s stories', url: APP_URL },
+        note: 'Daily digests can be turned off from Notification settings.'
+      })
+    });
+    await admin.database().ref(EMAIL_LOG_PATH).push({ type: 'daily_digest', ...result, sentAt: Date.now() });
+    return result;
+  });

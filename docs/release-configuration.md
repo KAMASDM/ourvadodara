@@ -30,12 +30,20 @@ Firebase Authentication blocking functions can reject an account before it is wr
 
 ## Coupons
 
-Deploy `redeemBrandCoupon` and `verifyBrandCoupon` before publishing offers. Coupon issuance, one-per-brand enforcement, consumption, and audit writes intentionally happen only through these trusted functions.
+Deploy the coupon callables before publishing offers. Coupon issuance, redemption, audit writes, and privacy-safe brand analytics intentionally happen only through these trusted functions. The analytics callable performs customer-location aggregation on the server and does not return customer records.
 
 ```sh
-firebase deploy --only functions:redeemBrandCoupon,functions:verifyBrandCoupon,database
+firebase deploy --only functions:claimBrandOffer,functions:redeemOfferCoupon,functions:getBrandCouponAnalytics,functions:redeemBrandCoupon,functions:verifyBrandCoupon,database
 ```
 
 ## Verification email
 
 Paste [firebase-email-verification-template.html](firebase-email-verification-template.html) into Firebase Console → Authentication → Templates → Email address verification. Confirm the authorized action URL and sender domain before sending production email.
+
+## Application email notifications
+
+Application emails use the `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASSWORD` Firebase Function secrets. Never store SMTP credentials in source files or frontend environment variables.
+
+Transactional emails cover account onboarding and access changes, enquiries, brand/offer workflows, coupons, event payments, registration, and check-in. Editorial breaking-news, daily-digest, and comment-reply emails require the user to enable Email Notifications and the corresponding preference.
+
+Delivery metadata is recorded under `emailDeliveryLogs`; message bodies and SMTP credentials are not stored there.

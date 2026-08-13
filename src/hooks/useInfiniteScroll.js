@@ -17,7 +17,8 @@ export const useInfiniteScroll = (allItems = [], options = {}) => {
   const [page, setPage] = useState(1);
   const [isFetching, setIsFetching] = useState(false);
   const observerRef = useRef(null);
-  const sentinelRef = useRef(null);
+  const [sentinelNode, setSentinelNode] = useState(null);
+  const sentinelRef = useCallback(node => setSentinelNode(node), []);
 
   // Reset only when the active feed/filter changes. Realtime updates (likes,
   // views, comments) must not throw away mounted pages and rebuild the feed.
@@ -49,7 +50,7 @@ export const useInfiniteScroll = (allItems = [], options = {}) => {
 
   // Intersection Observer for better performance
   useEffect(() => {
-    if (!sentinelRef.current || !hasMore) return;
+    if (!sentinelNode || !hasMore) return undefined;
 
     const options = {
       root: null,
@@ -65,14 +66,47 @@ export const useInfiniteScroll = (allItems = [], options = {}) => {
       });
     }, options);
 
-    observerRef.current.observe(sentinelRef.current);
+    observerRef.current.observe(sentinelNode);
 
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect();
       }
     };
-  }, [hasMore, isFetching, loadMore, threshold]);
+  }, [hasMore, isFetching, loadMore, sentinelNode, threshold]);
+
+  // Mobile Safari/Chrome can miss an observer transition when fixed headers,
+  // bottom navigation, or the browser toolbar resize the visual viewport. A
+  // passive bottom-distance check makes pagination resilient to that case.
+  useEffect(() => {
+    if (!hasMore) return undefined;
+
+    let frame = null;
+    const checkDistanceFromBottom = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        const documentHeight = Math.max(
+          document.documentElement.scrollHeight,
+          document.body?.scrollHeight || 0
+        );
+        const viewportBottom = window.scrollY + window.innerHeight;
+        if (documentHeight - viewportBottom <= Math.max(threshold, 400)) loadMore();
+      });
+    };
+
+    window.addEventListener('scroll', checkDistanceFromBottom, { passive: true });
+    window.addEventListener('resize', checkDistanceFromBottom, { passive: true });
+    window.visualViewport?.addEventListener('resize', checkDistanceFromBottom, { passive: true });
+    checkDistanceFromBottom();
+
+    return () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', checkDistanceFromBottom);
+      window.removeEventListener('resize', checkDistanceFromBottom);
+      window.visualViewport?.removeEventListener('resize', checkDistanceFromBottom);
+    };
+  }, [hasMore, loadMore, threshold]);
 
   return {
     items: displayedItems,
