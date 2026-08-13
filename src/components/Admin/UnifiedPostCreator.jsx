@@ -523,7 +523,13 @@ const UnifiedPostCreator = () => {
       const fileRef = storageRef(storage, `${path}/${user.uid}/${fileName}`);
       
       // Use uploadBytesResumable for progress tracking
-      const uploadTask = uploadBytesResumable(fileRef, mediaFile.file);
+      const uploadTask = uploadBytesResumable(fileRef, mediaFile.file, {
+        contentType: mediaFile.mimeType || mediaFile.file?.type || undefined,
+        // File names are timestamped/immutable. Long-lived browser and edge
+        // caching prevents repeat viewers from downloading the same video on
+        // every visit.
+        cacheControl: 'public,max-age=31536000,immutable'
+      });
       
       return new Promise((resolve, reject) => {
         uploadTask.on(
@@ -545,7 +551,10 @@ const UnifiedPostCreator = () => {
               if (mediaFile.type === 'video' && mediaFile.thumbnailUrl) {
                 const thumbnailBlob = await fetch(mediaFile.thumbnailUrl).then(r => r.blob());
                 const thumbnailRef = storageRef(storage, `${path}/${user.uid}/thumbnails/${fileName}_thumb.jpg`);
-                const thumbnailTask = uploadBytesResumable(thumbnailRef, thumbnailBlob);
+                const thumbnailTask = uploadBytesResumable(thumbnailRef, thumbnailBlob, {
+                  contentType: 'image/jpeg',
+                  cacheControl: 'public,max-age=31536000,immutable'
+                });
                 const thumbnailSnapshot = await thumbnailTask;
                 thumbnailURL = await getDownloadURL(thumbnailSnapshot.ref);
               }
@@ -554,7 +563,9 @@ const UnifiedPostCreator = () => {
               // undefined, so normalize optional fields to null.
               resolve({
                 url: downloadURL,
-                thumbnailUrl: thumbnailURL || downloadURL,
+                // Never use a full video as its own poster: browsers may fetch
+                // the large MP4 merely to paint what should be a tiny preview.
+                thumbnailUrl: thumbnailURL || (mediaFile.type === 'image' ? downloadURL : null),
                 type: mediaFile.type || 'image',
                 mimeType: mediaFile.mimeType || null,
                 width: mediaFile.width ?? null,

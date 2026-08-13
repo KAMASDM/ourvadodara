@@ -22,6 +22,8 @@ const PostCard = ({ post, onPostClick }) => {
   const [showFullContent, setShowFullContent] = useState(false);
   const [mediaError, setMediaError] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
   const [progress, setProgress] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
   const videoRef = useRef(null);
@@ -131,9 +133,24 @@ const PostCard = ({ post, onPostClick }) => {
   const mediaUrl = getUrlFromMediaItem(selectedMediaItem) || fallbackImageUrl || '';
   const isVideoMedia = selectedMediaItem ? isVideoCandidate(selectedMediaItem, mediaUrl) : /(\.mp4|\.webm|\.mov|\.m4v)$/i.test(mediaUrl || '');
 
+  // A feed can contain several very large videos. Attach a video source only
+  // when its card is near the viewport so off-screen cards cannot compete for
+  // bandwidth with the content the reader is currently watching.
+  useEffect(() => {
+    if (!isVideoMedia || !cardRef.current || shouldLoadVideo) return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setShouldLoadVideo(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '600px 0px', threshold: 0.01 });
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, [isVideoMedia, mediaUrl, shouldLoadVideo]);
+
   // Auto-play/pause video based on visibility
   useEffect(() => {
-    if (!isVideoMedia || !videoRef.current) return;
+    if (!isVideoMedia || !shouldLoadVideo || !videoRef.current) return undefined;
 
     const video = videoRef.current;
     const observer = new IntersectionObserver(
@@ -162,7 +179,7 @@ const PostCard = ({ post, onPostClick }) => {
     return () => {
       observer.disconnect();
     };
-  }, [isVideoMedia]);
+  }, [isVideoMedia, shouldLoadVideo, mediaUrl]);
 
   // Track video progress
   useEffect(() => {
@@ -197,6 +214,8 @@ const PostCard = ({ post, onPostClick }) => {
 
   useEffect(() => {
     setMediaError(false);
+    setShouldLoadVideo(false);
+    setIsBuffering(false);
   }, [mediaUrl]);
 
   const toggleVideoPlayback = useCallback((e) => {
@@ -443,7 +462,7 @@ const PostCard = ({ post, onPostClick }) => {
               <div className="relative w-full aspect-video bg-neutral-900">
                 <video
                   ref={videoRef}
-                  src={mediaUrl}
+                  src={shouldLoadVideo ? mediaUrl : undefined}
                   poster={selectedMediaItem?.thumbnailUrl || ''}
                   preload="metadata"
                   playsInline
@@ -451,7 +470,16 @@ const PostCard = ({ post, onPostClick }) => {
                   muted
                   className="w-full h-full object-cover"
                   onError={() => setMediaError(true)}
+                  onLoadStart={() => setIsBuffering(true)}
+                  onWaiting={() => setIsBuffering(true)}
+                  onCanPlay={() => setIsBuffering(false)}
+                  onPlaying={() => setIsBuffering(false)}
                 />
+                {isBuffering && isPlaying && (
+                  <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+                    <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/35 border-t-white drop-shadow-lg" />
+                  </div>
+                )}
                 {/* Play/pause overlay */}
                 <div
                   onClick={toggleVideoPlayback}

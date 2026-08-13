@@ -349,7 +349,11 @@ export const uploadMediaFile = async (file, folder = 'media', userId) => {
     const mediaRef = storageRef(storage, filename);
     
     // Upload file
-    const snapshot = await uploadBytes(mediaRef, file);
+    const immutableMetadata = {
+      contentType: file.type || undefined,
+      cacheControl: 'public,max-age=31536000,immutable'
+    };
+    const snapshot = await uploadBytes(mediaRef, file, immutableMetadata);
     const downloadURL = await getDownloadURL(snapshot.ref);
     
     // Create media item record
@@ -369,7 +373,16 @@ export const uploadMediaFile = async (file, folder = 'media', userId) => {
     
     // If it's a video, generate thumbnail
     if (file.type.startsWith('video/')) {
-      mediaItem.thumbnailUrl = await generateVideoThumbnail(file);
+      const thumbnailDataUrl = await generateVideoThumbnail(file);
+      const thumbnailBlob = await fetch(thumbnailDataUrl).then(response => response.blob());
+      const thumbnailPath = `${folder}/${userId}/thumbnails/${timestamp}_${file.name}.jpg`;
+      const thumbnailRef = storageRef(storage, thumbnailPath);
+      const thumbnailSnapshot = await uploadBytes(thumbnailRef, thumbnailBlob, {
+        contentType: 'image/jpeg',
+        cacheControl: 'public,max-age=31536000,immutable'
+      });
+      mediaItem.thumbnailUrl = await getDownloadURL(thumbnailSnapshot.ref);
+      mediaItem.metadata.thumbnailStorageRef = thumbnailPath;
     }
     
     return { success: true, mediaItem };

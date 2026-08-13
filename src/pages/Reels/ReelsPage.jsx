@@ -30,6 +30,7 @@ import {
   Download,
   GitFork,
   Upload,
+  RefreshCw,
   X
 } from 'lucide-react';
 import { POST_TYPES } from '../../utils/mediaSchema';
@@ -142,6 +143,7 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
   const [progress, setProgress] = useState(0);
   const [buffered, setBuffered] = useState(0);
   const [isBuffering, setIsBuffering] = useState(true);
+  const [playbackError, setPlaybackError] = useState('');
   const [isDesktop, setIsDesktop] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
   );
@@ -207,6 +209,21 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
   const currentFeedItem = feedItems[currentFeedIndex];
   const currentReel = currentFeedItem?.type === 'reel' ? currentFeedItem.reel : null;
+  const activeVideoIndexes = useMemo(() => {
+    const connection = typeof navigator !== 'undefined' ? navigator.connection : null;
+    const constrainedNetwork = connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || '');
+    return new Set(feedItems
+      .map((item, index) => item.type === 'reel' ? index : -1)
+      .filter(index => index >= 0)
+      .sort((a, b) => {
+        const score = index => Math.abs(index - currentFeedIndex) * 2 + (index < currentFeedIndex ? 1 : 0);
+        return score(a) - score(b);
+      })
+      // Keep only the current reel and one nearest neighbour alive. One warm
+      // next item makes swiping feel immediate without allowing multiple
+      // 50–100 MB MP4 files to contend for the same mobile connection.
+      .slice(0, constrainedNetwork ? 1 : 2));
+  }, [currentFeedIndex, feedItems]);
   const { data: currentCommentsData } = useRealtimeData(currentReel?.id ? `comments/${currentReel.id}` : null);
   const currentCommentCount = currentCommentsData
     ? countVisibleComments(currentCommentsData)
@@ -228,17 +245,11 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
     const loadUserInteractions = async () => {
       try {
-        const reelIds = reels.map(r => r.id);
-        
-        // Load only likes for current reels
-        const likesPromises = reelIds.map(async (id) => {
-          const likeRef = ref(db, `likes/${id}/${user.uid}`);
-          const snapshot = await get(likeRef);
-          return { id, liked: snapshot.exists() };
-        });
-
-        const likesResults = await Promise.all(likesPromises);
-        const userLikes = new Set(likesResults.filter(r => r.liked).map(r => r.id));
+        const reelIds = new Set(reels.map(r => r.id));
+        // Likes are mirrored below the signed-in user's private profile. One
+        // read avoids issuing a request per reel when the screen opens.
+        const likesSnapshot = await get(ref(db, `users/${user.uid}/likes`));
+        const userLikes = new Set(Object.keys(likesSnapshot.val() || {}).filter(id => reelIds.has(id)));
         setLikedReels(userLikes);
 
         // Load bookmarks
@@ -258,6 +269,11 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
 
     loadUserInteractions();
   }, [user, reels]);
+
+  useEffect(() => {
+    setPlaybackError('');
+    setIsBuffering(Boolean(currentReel));
+  }, [currentReel?.id]);
 
   // Keep exactly one reel playing. A canplay listener retries automatically
   // when a newly visible video is still arriving over a mobile connection.
@@ -465,6 +481,17 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
     soundPreferenceSetRef.current = true;
     setIsMuted(prev => !prev);
   }, []);
+
+  const retryCurrentVideo = useCallback(() => {
+    const video = videoRefs.current[currentReel?.id];
+    if (!video) return;
+    setPlaybackError('');
+    setIsBuffering(true);
+    video.load();
+    video.play().catch(error => {
+      if (error?.name !== 'AbortError') setPlaybackError('Video could not start. Check your connection and try again.');
+    });
+  }, [currentReel?.id]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -748,6 +775,9 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           if (item.type === 'offers') return <ReelsOfferPanel key={item.id} onContinue={onContinue} />;
           if (item.type === 'poll') return <ReelsPollPanel key={item.id} onContinue={onContinue} />;
           if (item.type === 'weather') return <ReelsWeatherPanel key={item.id} onContinue={onContinue} />;
+          const shouldAttachVideo = activeVideoIndexes.has(index);
+          const videoUrl = getReelVideoUrl(item.reel);
+          const thumbnailUrl = item.reel.mediaContent?.items?.[0]?.thumbnailUrl || item.reel.thumbnail || '';
           return (
           <section
             key={item.reel.id}
@@ -756,29 +786,32 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           >
             <div className={`relative h-full w-full ${isDesktop ? 'max-w-md' : ''}`}>
               <div className={`h-full w-full ${item.reel.duetSourceVideoUrl ? 'grid grid-cols-2 gap-0.5' : ''}`}>
-              {item.reel.duetSourceVideoUrl && (
-                <video src={item.reel.duetSourceVideoUrl} className="h-full w-full object-contain" loop playsInline muted autoPlay={index === currentFeedIndex} aria-label="Original reel" />
+              {item.reel.duetSourceVideoUrl && shouldAttachVideo && (
+                <video src={item.reel.duetSourceVideoUrl} className="h-full w-full object-contain" loop playsInline muted preload={index === currentFeedIndex ? 'auto' : 'metadata'} aria-label="Original reel" />
               )}
-              <video
+              {shouldAttachVideo ? <video
                 ref={element => {
                   if (element) videoRefs.current[item.reel.id] = element;
                   else delete videoRefs.current[item.reel.id];
                 }}
                 data-reel="true"
-                src={getReelVideoUrl(item.reel)}
-                poster={item.reel.mediaContent?.items?.[0]?.thumbnailUrl || item.reel.thumbnail}
+                src={videoUrl}
+                poster={thumbnailUrl}
                 className="h-full w-full object-contain"
                 loop
                 playsInline
-                preload={index === currentFeedIndex || index === currentFeedIndex + 1 ? 'auto' : 'none'}
-                fetchPriority={index === currentFeedIndex ? 'high' : 'auto'}
+                preload={index === currentFeedIndex ? 'auto' : 'metadata'}
+                fetchPriority={index === currentFeedIndex ? 'high' : 'low'}
                 muted={isMuted}
                 controlsList={item.reel.reelSettings?.allowDownload === true ? undefined : 'nodownload'}
                 onLoadStart={() => index === currentFeedIndex && setIsBuffering(true)}
                 onWaiting={() => index === currentFeedIndex && setIsBuffering(true)}
                 onCanPlay={() => index === currentFeedIndex && setIsBuffering(false)}
                 onPlaying={() => index === currentFeedIndex && setIsBuffering(false)}
-              />
+                onError={() => index === currentFeedIndex && setPlaybackError('This video could not be loaded. Check your connection and try again.')}
+              /> : thumbnailUrl ? (
+                <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain" />
+              ) : <div className="h-full w-full bg-black" />}
               </div>
               <button
                 type="button"
@@ -848,6 +881,17 @@ const ReelsPage = ({ onBack, initialReelId = null }) => {
           {isBuffering && isPlaying && (
             <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
               <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/35 border-t-white drop-shadow-lg" />
+            </div>
+          )}
+
+          {playbackError && (
+            <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/45 px-8 text-center">
+              <div className="rounded-2xl bg-black/75 p-5 text-white backdrop-blur-sm">
+                <p className="max-w-xs text-sm">{playbackError}</p>
+                <button type="button" onClick={retryCurrentVideo} className="mt-4 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-bold text-black">
+                  <RefreshCw className="h-4 w-4" /> Try again
+                </button>
+              </div>
             </div>
           )}
 
