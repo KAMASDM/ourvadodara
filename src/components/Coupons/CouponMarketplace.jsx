@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   CalendarDays, CheckCircle2, Clock3, Gift, MapPin, QrCode as QrCodeIcon,
-  Search, ShieldCheck, Sparkles, Store, Tag, TicketCheck, X
+  LockKeyhole, LogIn, Search, ShieldCheck, Sparkles, Store, Tag, TicketCheck, X
 } from 'lucide-react';
 import { onValue, ref } from 'firebase/database';
 import QRCode from 'qrcode';
@@ -131,6 +131,34 @@ const MyCoupons = ({ coupons }) => {
   );
 };
 
+const OffersAuthGate = () => (
+  <main className="grid min-h-screen place-items-center bg-slate-50 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-8 dark:bg-slate-950 lg:pb-10">
+    <section className="relative w-full max-w-xl overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-950 px-6 py-10 text-center text-white shadow-2xl shadow-emerald-950/20 sm:px-10 sm:py-14">
+      <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-emerald-300/15 blur-3xl" />
+      <div className="relative">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/20 backdrop-blur-sm">
+          <LockKeyhole className="h-8 w-8" />
+        </div>
+        <p className="mt-6 text-xs font-black uppercase tracking-[0.2em] text-emerald-200">Members-only offers</p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Log in to access local offers</h1>
+        <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-emerald-50/90 sm:text-base">
+          Log in or create a free account to discover offers, claim secure coupons, and keep them in your coupon wallet.
+        </p>
+        <button
+          type="button"
+          onClick={() => document.dispatchEvent(new CustomEvent('showGuestPrompt'))}
+          className="mx-auto mt-7 inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-sm font-black text-emerald-800 shadow-lg transition hover:-translate-y-0.5 hover:bg-emerald-50 active:translate-y-0"
+        >
+          <LogIn className="h-5 w-5" />
+          Log in or register
+        </button>
+        <p className="mt-4 text-xs text-emerald-100/70">Your claimed coupons stay securely linked to your account.</p>
+      </div>
+    </section>
+  </main>
+);
+
 const OfferCard = ({ offer, coupon, claiming, onAction }) => {
   const soldOut = isSoldOut(offer);
   const logo = offer.brandLogoUrl || offer.logoUrl;
@@ -164,6 +192,7 @@ const OfferCard = ({ offer, coupon, claiming, onAction }) => {
 
 const CouponMarketplace = ({ profileOnly = false }) => {
   const { user } = useAuth();
+  const requiresAuthentication = !user?.uid || user.isAnonymous;
   const [offers, setOffers] = useState([]);
   const [legacyOffers, setLegacyOffers] = useState([]);
   const [coupons, setCoupons] = useState([]);
@@ -175,8 +204,10 @@ const CouponMarketplace = ({ profileOnly = false }) => {
   const [selectedCoupon, setSelectedCoupon] = useState(null);
 
   useEffect(() => {
+    if (requiresAuthentication) return undefined;
+
     const unsubscribers = [];
-    if (user?.uid) unsubscribers.push(onValue(ref(db, `userCoupons/${user.uid}`), snapshot => {
+    unsubscribers.push(onValue(ref(db, `userCoupons/${user.uid}`), snapshot => {
       setCoupons(Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value })).sort((a, b) => Number(b.issuedAt || 0) - Number(a.issuedAt || 0)));
     }));
     if (!profileOnly) {
@@ -194,7 +225,7 @@ const CouponMarketplace = ({ profileOnly = false }) => {
       }));
     }
     return () => unsubscribers.forEach(unsubscribe => unsubscribe());
-  }, [profileOnly, user?.uid]);
+  }, [profileOnly, requiresAuthentication, user?.uid]);
 
   const categories = useMemo(() => [...new Set([...DEFAULT_CATEGORIES, ...savedCategories, ...offers.map(offer => offer.category).filter(Boolean), ...legacyOffers.map(offer => offer.category).filter(Boolean)])].sort((a, b) => a.localeCompare(b)), [savedCategories, offers, legacyOffers]);
   const visible = useMemo(() => [...offers, ...legacyOffers].filter(isPubliclyAvailable).filter(offer => category === 'all' || offer.category === category).filter(offer => `${offer.title} ${offer.brandName} ${offer.description} ${offer.category}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => Number(b.featured || 0) - Number(a.featured || 0) || Number(b.createdAt || 0) - Number(a.createdAt || 0)), [offers, legacyOffers, category, query]);
@@ -225,6 +256,7 @@ const CouponMarketplace = ({ profileOnly = false }) => {
     } finally { setClaiming(''); }
   };
 
+  if (requiresAuthentication) return <OffersAuthGate />;
   if (profileOnly) return <MyCoupons coupons={coupons} />;
 
   return (
