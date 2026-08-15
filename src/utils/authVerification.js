@@ -4,6 +4,11 @@
 // =============================================
 import { sendEmailVerification } from 'firebase/auth';
 
+// Email action links must always return to the public production site. Using
+// window.location.origin here allowed registrations started from an old alias,
+// a deploy preview, or an installed PWA to embed that hostname in the email.
+export const EMAIL_VERIFICATION_CONTINUE_URL = 'https://ourcitymedia.in/?emailVerified=1';
+
 // Only accounts created after this moment must verify their email.
 // Accounts that existed before the policy shipped (admin, early users)
 // are grandfathered in so they are never locked out.
@@ -25,11 +30,8 @@ export const requiresEmailVerification = (firebaseUser) => {
 };
 
 export const sendOurVadodaraVerificationEmail = (firebaseUser) => {
-  const continueUrl = new URL('/', window.location.origin);
-  continueUrl.searchParams.set('emailVerified', '1');
-
   return sendEmailVerification(firebaseUser, {
-    url: continueUrl.toString(),
+    url: EMAIL_VERIFICATION_CONTINUE_URL,
     handleCodeInApp: false
   });
 };
