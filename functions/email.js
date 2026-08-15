@@ -1,6 +1,9 @@
 const nodemailer = require('nodemailer');
 
-const APP_URL = String(process.env.APP_URL || 'https://ourcitymedia.in').replace(/\/+$/, '');
+// Keep every transactional-email link on the canonical public domain. This is
+// intentionally not environment-driven so an old deployment value cannot send
+// customers to a retired hostname.
+const APP_URL = 'https://ourcitymedia.in';
 const BRAND_NAME = 'Our Vadodara';
 const EMAIL_SECRET_NAMES = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD'];
 

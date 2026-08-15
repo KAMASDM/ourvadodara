@@ -1608,6 +1608,57 @@ exports.sendTestEmail = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https
   return { success: true };
 });
 
+exports.sendAccountVerificationEmail = functions.runWith({ secrets: EMAIL_SECRET_NAMES }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Sign in before requesting email verification');
+  }
+
+  const uid = context.auth.uid;
+  const authUser = await admin.auth().getUser(uid).catch(() => null);
+  const isPasswordAccount = authUser?.providerData?.some(provider => provider.providerId === 'password');
+  if (!authUser?.email || !isPasswordAccount) {
+    throw new functions.https.HttpsError('failed-precondition', 'This account does not require email verification');
+  }
+  if (authUser.emailVerified) return { success: true, alreadyVerified: true };
+
+  if (await consumeRateLimit(admin.database(), 'email-verification', uid, 5)) {
+    throw new functions.https.HttpsError(
+      'resource-exhausted',
+      'Too many verification emails requested. Please wait before trying again.'
+    );
+  }
+
+  try {
+    const verificationLink = await admin.auth().generateEmailVerificationLink(authUser.email, {
+      url: `${APP_URL}/?emailVerified=1`,
+      handleCodeInApp: false
+    });
+    const recipient = await getUserEmailDetails(uid);
+    const result = await sendAndLogEmail({
+      type: 'account_email_verification',
+      entityId: uid,
+      to: authUser.email,
+      subject: 'Verify your email | Our Vadodara',
+      template: {
+        preheader: 'Confirm your email address to finish setting up your Our Vadodara account.',
+        eyebrow: 'Secure account setup',
+        title: 'Verify your email address',
+        greeting: `Hello ${recipient.name || authUser.displayName || 'there'},`,
+        paragraphs: [
+          'Confirm your email address to finish creating your Our Vadodara account and securely access local news, events, community conversations, and offers.'
+        ],
+        cta: { label: 'Verify my email', url: verificationLink },
+        note: 'If you did not create an Our Vadodara account, you can safely ignore this email.'
+      }
+    });
+    if (!result?.sent) throw new Error(result?.error || 'Email delivery failed');
+    return { success: true };
+  } catch (error) {
+    console.error(`Unable to send verification email for ${uid}:`, error.message);
+    throw new functions.https.HttpsError('internal', 'Unable to send the verification email. Please try again.');
+  }
+});
+
 // Subscribe user to FCM topics
 exports.subscribeToTopics = functions.https.onCall(async (data, context) => {
   if (!context.auth) {

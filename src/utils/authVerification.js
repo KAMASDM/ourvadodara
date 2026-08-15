@@ -2,7 +2,7 @@
 // src/utils/authVerification.js
 // Mandatory email verification policy for signups
 // =============================================
-import { sendEmailVerification } from 'firebase/auth';
+import { functions, httpsCallable } from '../firebase-config';
 
 // Email action links must always return to the public production site. Using
 // window.location.origin here allowed registrations started from an old alias,
@@ -29,9 +29,12 @@ export const requiresEmailVerification = (firebaseUser) => {
   return Number.isFinite(createdAt) && createdAt >= EMAIL_VERIFICATION_ENFORCED_FROM;
 };
 
-export const sendOurVadodaraVerificationEmail = (firebaseUser) => {
-  return sendEmailVerification(firebaseUser, {
-    url: EMAIL_VERIFICATION_CONTINUE_URL,
-    handleCodeInApp: false
-  });
+export const sendOurVadodaraVerificationEmail = async (firebaseUser) => {
+  if (!firebaseUser?.uid) throw new Error('Sign in before requesting email verification.');
+
+  // Firebase still creates and validates the secure action code, while our
+  // server sends the link through the branded transactional-email service.
+  const sendVerification = httpsCallable(functions, 'sendAccountVerificationEmail');
+  const result = await sendVerification();
+  return result.data;
 };
