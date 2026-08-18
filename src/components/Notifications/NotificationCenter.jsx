@@ -29,7 +29,7 @@ const formatRelativeTime = (timestamp, language) => {
   return new Intl.RelativeTimeFormat(language, { numeric: 'auto' }).format(value, range.unit);
 };
 
-const NotificationCenter = ({ onOpenSettings }) => {
+const NotificationCenter = ({ onOpenSettings, onOpenNotification }) => {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { data: notificationsObject, isLoading } = useRealtimeData(user ? `notifications/${user.uid}` : null);
@@ -65,10 +65,13 @@ const NotificationCenter = ({ onOpenSettings }) => {
   };
 
   const markAsRead = async (notification) => {
-    if (!user || notification.isRead) return;
-    await update(ref(db), {
-      [`/notifications/${user.uid}/${notification.id}/isRead`]: true,
-    });
+    if (!user) return;
+    if (!notification.isRead) {
+      await update(ref(db), {
+        [`/notifications/${user.uid}/${notification.id}/isRead`]: true,
+      });
+    }
+    onOpenNotification?.(notification);
   };
 
   return (

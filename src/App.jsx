@@ -48,9 +48,11 @@ import { TopicFollowingProvider } from './context/Topics/TopicFollowingContext.j
 import { initPWA, registerServiceWorker } from './utils/pwaHelpers.js';
 import { analytics } from './utils/analytics.js';
 import { performanceMonitor } from './utils/performance.js';
-import { initializeNotifications } from './utils/notificationManager.js';
+import notificationManager, { initializeNotifications } from './utils/notificationManager.js';
 import { pushNotificationService } from './utils/pushNotifications.js';
 import { resolveAppRoute } from './utils/appRoutes.js';
+import { db, ref, update } from './firebase-config.js';
+import { useRealtimeData } from './hooks/useRealtimeData.js';
 import './utils/i18n.js';
 
 function AppContent() {
@@ -63,6 +65,70 @@ function AppContent() {
   
   // Use the enhanced auth context
   const { user, profileCompletion } = useEnhancedAuth();
+  const { data: notificationsObject, isLoading: notificationsLoading } = useRealtimeData(
+    user ? `notifications/${user.uid}` : null
+  );
+
+  // Firebase unread state is authoritative for the bell and installed-app
+  // icon. This also corrects any background badge drift whenever the app runs.
+  useEffect(() => {
+    if (!user) {
+      notificationManager.clearBadge();
+      return;
+    }
+    if (notificationsLoading) return;
+
+    const unreadCount = notificationsObject
+      ? Object.values(notificationsObject).filter(notification => !notification.isRead).length
+      : 0;
+    notificationManager.setBadgeCount(unreadCount);
+  }, [user, notificationsLoading, notificationsObject]);
+
+  // Opening the content itself counts as reading its notification, including
+  // direct links launched from an operating-system push notification.
+  useEffect(() => {
+    if (!user || !notificationsObject) return;
+
+    let contentId = null;
+    let contentSource = null;
+    if (currentView.type === 'news-detail') {
+      contentId = currentView.data?.newsId;
+      contentSource = currentView.data?.contentSource || 'posts';
+    } else if (currentView.type === 'reels' && currentView.data?.reelId) {
+      contentId = currentView.data.reelId;
+      contentSource = 'reels';
+    } else if (currentView.type === 'breaking-detail') {
+      contentId = currentView.data?.newsId;
+      contentSource = 'breaking';
+    } else if (currentView.type === 'home') {
+      const searchParams = new URLSearchParams(window.location.search);
+      contentId = searchParams.get('notificationId');
+      contentSource = searchParams.get('notificationType');
+    }
+    if (!contentId) return;
+
+    const updates = {};
+    Object.entries(notificationsObject).forEach(([notificationId, notification]) => {
+      const notificationContentId = notification.postId || notification.contentId || notification.newsId;
+      const notificationSource = notification.contentSource || notification.type;
+      const normalizedNotificationSource = ['news', 'article'].includes(notificationSource)
+        ? 'posts'
+        : notificationSource;
+      const sourceSpecificTypes = ['posts', 'reels', 'stories', 'carousels', 'breaking'];
+      const sourceMatches = !normalizedNotificationSource ||
+        !sourceSpecificTypes.includes(normalizedNotificationSource) ||
+        normalizedNotificationSource === contentSource;
+      if (!notification.isRead && notificationContentId === contentId && sourceMatches) {
+        updates[`/notifications/${user.uid}/${notificationId}/isRead`] = true;
+      }
+    });
+
+    if (Object.keys(updates).length > 0) {
+      update(ref(db), updates).catch(error => {
+        console.error('Unable to mark opened notification as read:', error);
+      });
+    }
+  }, [user, currentView, notificationsObject]);
   
   // Check profile completion after login
   useEffect(() => {
@@ -117,6 +183,26 @@ function AppContent() {
   useEffect(() => {
     window.addEventListener('popstate', handlePathNavigation);
     return () => window.removeEventListener('popstate', handlePathNavigation);
+  }, [handlePathNavigation]);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return undefined;
+
+    const handleServiceWorkerMessage = (event) => {
+      if (event.data?.type !== 'NOTIFICATION_CLICK' || !event.data.url) return;
+      const target = new URL(event.data.url, window.location.origin);
+      if (target.origin !== window.location.origin) return;
+
+      window.history.pushState(
+        { view: 'notification-content' },
+        '',
+        `${target.pathname}${target.search}${target.hash}`
+      );
+      handlePathNavigation();
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
   }, [handlePathNavigation]);
 
   useEffect(() => {
@@ -380,6 +466,20 @@ function AppContent() {
     setCurrentView({ type: 'notifications-settings', data: null });
   };
 
+  const handleOpenNotification = (notification) => {
+    const targetUrl = notification.url || (notification.postId
+      ? notification.type === 'reels'
+        ? `/reels/${encodeURIComponent(notification.postId)}`
+        : notification.type === 'carousels'
+          ? `/post/${encodeURIComponent(notification.postId)}?source=carousels`
+          : `/post/${encodeURIComponent(notification.postId)}`
+      : null);
+    if (!targetUrl) return;
+
+    window.history.pushState({ view: 'notification-content' }, '', targetUrl);
+    handlePathNavigation();
+  };
+
   const renderContent = () => {
     switch (currentView.type) {
       case 'news-detail':
@@ -487,7 +587,12 @@ function AppContent() {
       case 'notifications-settings':
         return <NotificationSettings />;
       case 'notifications':
-        return <NotificationCenter onOpenSettings={handleNotificationSettingsClick} />;
+        return (
+          <NotificationCenter
+            onOpenSettings={handleNotificationSettingsClick}
+            onOpenNotification={handleOpenNotification}
+          />
+        );
       case 'settings':
         return <GeneralSettings />;
       case 'activity':

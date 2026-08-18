@@ -72,6 +72,49 @@ const vapidKey = ${JSON.stringify(vapidKey)};
 
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
+const BADGE_CACHE = 'our-vadodara-badge-v1';
+const BADGE_STATE_URL = new URL('/__our_vadodara_badge_count__', self.location.origin).href;
+let badgeUpdateQueue = Promise.resolve();
+
+async function readBadgeCount() {
+  const cache = await caches.open(BADGE_CACHE);
+  const response = await cache.match(BADGE_STATE_URL);
+  const count = Number(response ? await response.text() : 0);
+  return Number.isFinite(count) ? Math.max(0, count) : 0;
+}
+
+async function setBadgeCount(count) {
+  const normalizedCount = Math.max(0, Number(count) || 0);
+  const cache = await caches.open(BADGE_CACHE);
+  await cache.put(BADGE_STATE_URL, new Response(String(normalizedCount)));
+
+  if (normalizedCount > 0 && self.navigator.setAppBadge) {
+    await self.navigator.setAppBadge(normalizedCount);
+  } else if (normalizedCount === 0 && self.navigator.clearAppBadge) {
+    await self.navigator.clearAppBadge();
+  }
+}
+
+function queueBadgeUpdate(update) {
+  badgeUpdateQueue = badgeUpdateQueue.then(update, update);
+  return badgeUpdateQueue;
+}
+
+function incrementBadge(notificationKey) {
+  return queueBadgeUpdate(async () => {
+    const cache = await caches.open(BADGE_CACHE);
+    const markerUrl = new URL(
+      '/__our_vadodara_badge_item__/' + encodeURIComponent(notificationKey || String(Date.now())),
+      self.location.origin
+    ).href;
+    if (await cache.match(markerUrl)) return;
+
+    // A user can match more than one FCM topic (for example all-news and a
+    // city topic). Count a published item once even if FCM delivers duplicates.
+    await cache.put(markerUrl, new Response('1'));
+    await setBadgeCount((await readBadgeCount()) + 1);
+  });
+}
 
 // Strip any HTML/entities so rich-text article bodies never render as tags.
 function stripTags(value) {
@@ -135,9 +178,20 @@ function buildNotification(payload) {
   return { title, options };
 }
 
-messaging.onBackgroundMessage((payload) => {
+messaging.onBackgroundMessage(async (payload) => {
   const { title, options } = buildNotification(payload);
-  self.registration.showNotification(title, options);
+  await Promise.all([
+    self.registration.showNotification(title, options),
+    incrementBadge(options.tag),
+  ]);
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SET_BADGE_COUNT') {
+    event.waitUntil(queueBadgeUpdate(() => setBadgeCount(event.data.count)));
+  } else if (event.data?.type === 'CLEAR_BADGE') {
+    event.waitUntil(queueBadgeUpdate(() => setBadgeCount(0)));
+  }
 });
 
 self.addEventListener('notificationclick', (event) => {

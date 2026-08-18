@@ -1112,6 +1112,52 @@ async function sendNotificationOnPublish(change, contentId, collection) {
   return null;
 }
 
+// Topic pushes are transient, while the notification bell and app badge need
+// durable unread state. Mirror each published-content alert into the inbox of
+// every registered device owner whose topic subscriptions match the send.
+async function createContentInboxNotifications({
+  contentId,
+  contentSource,
+  title,
+  message,
+  image = '',
+  url,
+  topics
+}) {
+  const tokenSnapshot = await admin.database().ref('/fcmTokens').once('value');
+  if (!tokenSnapshot.exists()) return 0;
+
+  const targetTopics = new Set(topics || []);
+  const notificationId = `${contentSource}-${contentId}`;
+  const updates = {};
+  let recipientCount = 0;
+
+  tokenSnapshot.forEach(userSnapshot => {
+    const tokenData = userSnapshot.val() || {};
+    const subscribedTopics = normalizeTopicList(tokenData.topics);
+    const isRecipient = Boolean(tokenData.token) && subscribedTopics.some(topic => targetTopics.has(topic));
+    if (!isRecipient) return;
+
+    updates[`/notifications/${userSnapshot.key}/${notificationId}`] = {
+      title,
+      message,
+      postId: String(contentId),
+      contentSource,
+      type: contentSource,
+      url,
+      ...(image ? { image } : {}),
+      createdAt: admin.database.ServerValue.TIMESTAMP,
+      isRead: false
+    };
+    recipientCount += 1;
+  });
+
+  if (recipientCount > 0) {
+    await admin.database().ref().update(updates);
+  }
+  return recipientCount;
+}
+
 // Shared function to send notification for newly published content.
 async function sendNotificationForNewPost(post, postId, cityId = null, collection = 'posts') {
   // City post entries are often mirrors of the canonical /posts entry.
@@ -1168,7 +1214,7 @@ async function sendNotificationForNewPost(post, postId, cityId = null, collectio
     : collection === 'carousels'
       ? `/post/${postId}?source=carousels`
       : collection === 'stories'
-        ? '/'
+        ? `/?notificationType=stories&notificationId=${encodeURIComponent(postId)}`
         : `/post/${postId}`;
 
   // Everything the web service worker needs to render a rich notification is
@@ -1273,6 +1319,17 @@ async function sendNotificationForNewPost(post, postId, cityId = null, collectio
     );
 
     console.log('Successfully sent notifications for post:', postId, responses);
+
+    const inboxRecipients = await createContentInboxNotifications({
+      contentId: postId,
+      contentSource: collection,
+      title: notificationTitle,
+      message: body,
+      image: imageUrl,
+      url: targetUrl,
+      topics: uniqueTopics
+    });
+    console.log(`Created ${inboxRecipients} unread inbox notification(s) for ${collection}/${postId}`);
 
     // Update post with notification sent status
     const updatePath = cityId ? `/cities/${cityId}/${collection}/${postId}` : `/${collection}/${postId}`;
@@ -1426,6 +1483,17 @@ exports.sendBreakingNewsNotification = functions.runWith({ secrets: EMAIL_SECRET
       });
 
       console.log('Successfully sent breaking news notification:', newsId, response);
+
+      const inboxRecipients = await createContentInboxNotifications({
+        contentId: newsId,
+        contentSource: 'breaking',
+        title,
+        message: body,
+        image: imageUrl,
+        url: `/breaking/${newsId}`,
+        topics: ['breaking-news']
+      });
+      console.log(`Created ${inboxRecipients} unread inbox notification(s) for breaking/${newsId}`);
 
       const subscribers = await getEmailSubscribers('breakingNews');
       if (subscribers.length) {

@@ -63,8 +63,9 @@ class NotificationManager {
       // Setup foreground message listener
       this.setupForegroundListener();
 
-      // Clear badge on app open
-      this.clearBadge();
+      // Registration may have completed after the Firebase unread listener
+      // first ran. Seed the worker with the already-synchronized count.
+      await this.setBadgeCount(await this.getBadgeCount());
 
       this.isInitialized = true;
       console.log('✅ Notifications initialized successfully');
@@ -221,8 +222,6 @@ class NotificationManager {
         data: data || {}
       });
 
-      // Increment badge
-      this.incrementBadge();
     });
   }
 
@@ -247,75 +246,69 @@ class NotificationManager {
       notification.close();
 
       // Navigate to the relevant page
-      if (data.postId) {
-        window.location.href = `/post/${data.postId}`;
-      } else if (data.url) {
+      if (data.url) {
         window.location.href = data.url;
+      } else if (data.postId) {
+        window.location.href = `/post/${data.postId}`;
       }
 
-      // Decrement badge
-      this.decrementBadge();
     };
   }
 
   // Badge management
-  async incrementBadge() {
-    if (!navigator.setAppBadge) {
-      console.log('Badge API not supported');
-      return;
-    }
+  async setBadgeCount(count) {
+    const normalizedCount = Math.max(0, Number(count) || 0);
 
     try {
+      if (normalizedCount > 0 && navigator.setAppBadge) {
+        await navigator.setAppBadge(normalizedCount);
+      } else if (normalizedCount === 0 && navigator.clearAppBadge) {
+        await navigator.clearAppBadge();
+      }
+
+      await this.saveBadgeCount(normalizedCount);
+
+      // Keep the service worker's background counter aligned with Firebase's
+      // unread count. It can then increment the correct value while the app is
+      // closed and a push arrives.
+      if (navigator.serviceWorker) {
+        const registrations = await navigator.serviceWorker.getRegistrations().catch(() => []);
+        const workers = new Set([
+          navigator.serviceWorker.controller,
+          ...registrations.map(registration => registration.active),
+        ].filter(Boolean));
+        workers.forEach(worker => {
+          worker.postMessage({ type: 'SET_BADGE_COUNT', count: normalizedCount });
+        });
+      }
+    } catch (error) {
+      // Badging is an optional, platform-dependent enhancement. Persist the
+      // count even if the operating system declines to display it.
+      await this.saveBadgeCount(normalizedCount);
+      console.warn('Unable to update app badge:', error);
+    }
+  }
+
+  async incrementBadge() {
+    try {
       const currentCount = await this.getBadgeCount();
-      const newCount = currentCount + 1;
-      await navigator.setAppBadge(newCount);
-      await this.saveBadgeCount(newCount);
-      console.log('Badge incremented to:', newCount);
+      await this.setBadgeCount(currentCount + 1);
     } catch (error) {
       console.error('Error incrementing badge:', error);
     }
   }
 
   async decrementBadge() {
-    if (!navigator.setAppBadge) {
-      return;
-    }
-
     try {
       const currentCount = await this.getBadgeCount();
-      const newCount = Math.max(0, currentCount - 1);
-      
-      if (newCount === 0) {
-        await navigator.clearAppBadge();
-      } else {
-        await navigator.setAppBadge(newCount);
-      }
-      
-      await this.saveBadgeCount(newCount);
-      console.log('Badge decremented to:', newCount);
+      await this.setBadgeCount(currentCount - 1);
     } catch (error) {
       console.error('Error decrementing badge:', error);
     }
   }
 
   async clearBadge() {
-    if (!navigator.clearAppBadge) {
-      return;
-    }
-
-    try {
-      await navigator.clearAppBadge();
-      await this.saveBadgeCount(0);
-      
-      // Also send message to service worker
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_BADGE' });
-      }
-      
-      console.log('Badge cleared');
-    } catch (error) {
-      console.error('Error clearing badge:', error);
-    }
+    await this.setBadgeCount(0);
   }
 
   // Badge count storage (using localStorage)
