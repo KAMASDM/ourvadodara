@@ -1140,20 +1140,19 @@ async function sendNotificationForNewPost(post, postId, cityId = null, collectio
   const body = summary && summary !== title ? summary : 'Tap to read the full story.';
   const category = String(post.category || 'news');
   
-  // Get image from different possible locations
-  let imageUrl = '';
-  if (post.image) {
-    imageUrl = post.image;
-  } else if (post.media && post.media.length > 0) {
-    imageUrl = post.media[0].url || post.media[0].downloadURL || '';
-  } else if (post.mediaContent?.items) {
-    const items = Array.isArray(post.mediaContent.items) 
-      ? post.mediaContent.items 
-      : Object.values(post.mediaContent.items);
-    if (items.length > 0) {
-      imageUrl = items[0].url || items[0].downloadURL || '';
-    }
-  }
+  // Notifications can display a static image, not playable video. Reels
+  // therefore use their generated poster frame; other content uses its lead
+  // image. RTDB may return media arrays as keyed objects, so normalize both.
+  const legacyMedia = Array.isArray(post.media)
+    ? post.media
+    : Object.values(post.media || {});
+  const mediaItems = Array.isArray(post.mediaContent?.items)
+    ? post.mediaContent.items
+    : Object.values(post.mediaContent?.items || {});
+  const primaryMedia = mediaItems[0] || legacyMedia[0] || {};
+  const imageUrl = collection === 'reels'
+    ? post.thumbnailUrl || post.thumbnail || primaryMedia.thumbnailUrl || primaryMedia.posterUrl || ''
+    : post.imageUrl || post.image || primaryMedia.thumbnailUrl || primaryMedia.url || primaryMedia.downloadURL || '';
 
   // Human-friendly category label, e.g. "local-news" -> "Local News"
   const categoryLabel = category
