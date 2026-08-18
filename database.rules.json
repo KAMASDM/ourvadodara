@@ -26,6 +26,7 @@
     
     "reels": {
       ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor')",
+      ".indexOn": ["status"],
       "$reelId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor') && (!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active')",
         "analytics": {
@@ -37,6 +38,7 @@
     
     "carousels": {
       ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor')",
+      ".indexOn": ["status"],
       "$carouselId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'editor') && (!root.child('users').child(auth.uid).child('status').exists() || root.child('users').child(auth.uid).child('status').val() === 'active')",
         "analytics": {

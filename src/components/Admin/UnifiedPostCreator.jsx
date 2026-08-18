@@ -60,6 +60,11 @@ import axios from 'axios';
 const MAX_VISIBLE_CITY_PILLS = 12;
 const CITY_VALIDATION_MESSAGE = 'Please select at least one city | ઓછામાં ઓછું એક શહેર પસંદ કરો';
 const LANGUAGE_CODES = ['en', 'hi', 'gu'];
+const SCHEDULABLE_POST_TYPES = new Set([
+  POST_TYPES.STANDARD,
+  POST_TYPES.REEL,
+  POST_TYPES.CAROUSEL
+]);
 
 const createInitialFormData = () => ({
   title: { en: '', hi: '', gu: '' },
@@ -213,8 +218,9 @@ const UnifiedPostCreator = () => {
   
   // Universal form data structure
   const [formData, setFormData] = useState(createInitialFormData);
-  const hasStandardSchedule = postType === POST_TYPES.STANDARD && formData.publishDate && formData.scheduledTime;
-  const publishActionLabel = hasStandardSchedule ? 'Schedule' : 'Publish';
+  const isSchedulablePostType = SCHEDULABLE_POST_TYPES.has(postType);
+  const hasSchedule = isSchedulablePostType && formData.publishDate && formData.scheduledTime;
+  const publishActionLabel = hasSchedule ? 'Schedule' : 'Publish';
   
   const [newTag, setNewTag] = useState('');
   const [mediaFiles, setMediaFiles] = useState([]);
@@ -620,7 +626,7 @@ const UnifiedPostCreator = () => {
       newErrors.auth = 'Please sign in with an authorized Admin or Editor account before publishing';
     }
 
-    if (postType === POST_TYPES.STANDARD) {
+    if (isSchedulablePostType) {
       if ((formData.publishDate && !formData.scheduledTime) || (!formData.publishDate && formData.scheduledTime)) {
         newErrors.schedule = 'Select both date and time to schedule content';
       }
@@ -674,8 +680,8 @@ const UnifiedPostCreator = () => {
       );
 
       const nowIso = new Date().toISOString();
-      const hasSchedule = postType === POST_TYPES.STANDARD && formData.publishDate && formData.scheduledTime;
-      const scheduledAt = hasSchedule
+      const shouldSchedule = isSchedulablePostType && formData.publishDate && formData.scheduledTime;
+      const scheduledAt = shouldSchedule
         ? new Date(`${formData.publishDate}T${formData.scheduledTime}`).toISOString()
         : null;
       const status = scheduledAt ? 'scheduled' : 'published';
@@ -858,7 +864,7 @@ const UnifiedPostCreator = () => {
             onClick={() => {
               setPostType(type.value);
               setErrors(prev => ({ ...prev, media: null, schedule: null }));
-              if (type.value !== POST_TYPES.STANDARD) {
+              if (!SCHEDULABLE_POST_TYPES.has(type.value)) {
                 setFormData(prev => ({ ...prev, publishDate: '', scheduledTime: '' }));
               }
             }}
@@ -1219,7 +1225,7 @@ const UnifiedPostCreator = () => {
         </div>
       )}
 
-      {postType === POST_TYPES.STANDARD && (
+      {isSchedulablePostType && (
         <div className="pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-700">
           <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 mb-3">Timing</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

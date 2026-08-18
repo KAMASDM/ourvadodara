@@ -1247,58 +1247,60 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
   }
 }
 
-// Publish scheduled posts once their scheduled time has arrived.
-// UnifiedPostCreator.jsx saves scheduled posts with status: 'scheduled',
+// Publish scheduled news, reels, and carousels once their scheduled time has arrived.
+// UnifiedPostCreator.jsx saves scheduled content with status: 'scheduled',
 // isPublished: false, publishedAt: null (RTDB drops null keys), and a
 // scheduledAt ISO timestamp. Nothing else ever flips these to published,
-// so without this job scheduled posts stay stuck in the feed forever
+// so without this job scheduled content stays stuck outside the feed forever
 // with no publishedAt.
 exports.publishScheduledPosts = functions.pubsub
   .schedule('every 5 minutes')
   .onRun(async () => {
     const nowIso = new Date().toISOString();
-
-    const snapshot = await admin.database()
-      .ref('posts')
-      .orderByChild('status')
-      .equalTo('scheduled')
-      .once('value');
-
-    if (!snapshot.exists()) {
-      return null;
-    }
-
     const updates = {};
-    const duePosts = [];
+    const dueContent = [];
+    const schedulableCollections = ['posts', 'reels', 'carousels'];
 
-    snapshot.forEach(child => {
-      const post = child.val();
-      const postId = child.key;
+    const snapshots = await Promise.all(schedulableCollections.map(async collection => ({
+      collection,
+      snapshot: await admin.database()
+        .ref(collection)
+        .orderByChild('status')
+        .equalTo('scheduled')
+        .once('value')
+    })));
 
-      if (!post.scheduledAt || post.scheduledAt > nowIso) {
-        return;
-      }
+    snapshots.forEach(({ collection, snapshot }) => {
+      snapshot.forEach(child => {
+        const content = child.val();
+        const contentId = child.key;
 
-      updates[`/posts/${postId}/status`] = 'published';
-      updates[`/posts/${postId}/isPublished`] = true;
-      updates[`/posts/${postId}/publishedAt`] = nowIso;
-      updates[`/posts/${postId}/updatedAt`] = nowIso;
+        if (!content.scheduledAt || content.scheduledAt > nowIso) {
+          return;
+        }
 
-      if (Array.isArray(post.cities)) {
-        post.cities.forEach(cityId => {
-          updates[`/cities/${cityId}/posts/${postId}/status`] = 'published';
-          updates[`/cities/${cityId}/posts/${postId}/isPublished`] = true;
-          updates[`/cities/${cityId}/posts/${postId}/publishedAt`] = nowIso;
-          updates[`/cities/${cityId}/posts/${postId}/updatedAt`] = nowIso;
+        updates[`/${collection}/${contentId}/status`] = 'published';
+        updates[`/${collection}/${contentId}/isPublished`] = true;
+        updates[`/${collection}/${contentId}/publishedAt`] = nowIso;
+        updates[`/${collection}/${contentId}/updatedAt`] = nowIso;
+
+        if (Array.isArray(content.cities)) {
+          content.cities.forEach(cityId => {
+            updates[`/cities/${cityId}/${collection}/${contentId}/status`] = 'published';
+            updates[`/cities/${cityId}/${collection}/${contentId}/isPublished`] = true;
+            updates[`/cities/${cityId}/${collection}/${contentId}/publishedAt`] = nowIso;
+            updates[`/cities/${cityId}/${collection}/${contentId}/updatedAt`] = nowIso;
+          });
+        }
+
+        dueContent.push({
+          ...content,
+          id: contentId,
+          collection,
+          status: 'published',
+          isPublished: true,
+          publishedAt: nowIso
         });
-      }
-
-      duePosts.push({
-        ...post,
-        id: postId,
-        status: 'published',
-        isPublished: true,
-        publishedAt: nowIso
       });
     });
 
@@ -1307,9 +1309,9 @@ exports.publishScheduledPosts = functions.pubsub
     }
 
     await admin.database().ref().update(updates);
-    console.log(`Published ${duePosts.length} scheduled post(s):`, duePosts.map(p => p.id));
+    console.log(`Published ${dueContent.length} scheduled content item(s):`, dueContent.map(item => `${item.collection}/${item.id}`));
 
-    for (const post of duePosts) {
+    for (const post of dueContent.filter(item => item.collection === 'posts')) {
       try {
         await sendNotificationForNewPost(post, post.id);
       } catch (error) {

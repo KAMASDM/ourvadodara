@@ -11,6 +11,7 @@ import { useCity } from '../../context/CityContext';
 import {
   AlertCircle,
   AlertTriangle,
+  Clock,
   Eye,
   Image as ImageIcon,
   Loader2,
@@ -380,6 +381,12 @@ const MediaContentManagement = () => {
                   <div>
                     <div className="flex items-center gap-3 mb-2">
                       {renderTypeBadge(item)}
+                      {item.status === 'scheduled' && (
+                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                          <Clock className="w-3 h-3 mr-1" />
+                          Scheduled
+                        </span>
+                      )}
                       {item.isFeatured && (
                         <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-800">
                           Featured
@@ -413,7 +420,7 @@ const MediaContentManagement = () => {
                       )}
 
                       <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Created: {formatDate(item.createdAt)}
+                        {item.status === 'scheduled' ? `Publishes: ${formatDate(item.scheduledAt)}` : `Created: ${formatDate(item.createdAt)}`}
                       </span>
 
                       {item.expiresAt && (
