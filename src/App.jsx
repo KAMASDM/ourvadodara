@@ -225,10 +225,22 @@ function AppContent() {
     : `max-w-2xl mx-auto w-full ${hasMobileHeader ? 'pt-[calc(56px+env(safe-area-inset-top))]' : ''}`;
   // --- LAYOUT FIX END ---
 
-  const handlePostClick = (postId) => {
-    window.history.pushState({ view: 'news-detail', newsId: postId }, '', `/post/${postId}`);
-    setCurrentView({ type: 'news-detail', data: { newsId: postId } });
-    analytics.track('post_viewed', { postId });
+  const handlePostClick = (postId, contentSource = 'posts') => {
+    if (contentSource === 'reels') {
+      const reelPath = `/reels/${encodeURIComponent(postId)}`;
+      window.history.pushState({ view: 'reels', reelId: postId }, '', reelPath);
+      setCurrentView({ type: 'reels', data: { reelId: postId } });
+      setActiveTab('reels');
+      analytics.track('post_viewed', { postId, contentSource });
+      return;
+    }
+
+    const normalizedSource = contentSource === 'carousels' ? 'carousels' : 'posts';
+    const sourceQuery = normalizedSource === 'carousels' ? '?source=carousels' : '';
+    const postPath = `/post/${encodeURIComponent(postId)}${sourceQuery}`;
+    window.history.pushState({ view: 'news-detail', newsId: postId, contentSource: normalizedSource }, '', postPath);
+    setCurrentView({ type: 'news-detail', data: { newsId: postId, contentSource: normalizedSource } });
+    analytics.track('post_viewed', { postId, contentSource: normalizedSource });
   };
 
   const handleBackToHome = () => {
@@ -374,6 +386,7 @@ function AppContent() {
         return (
           <NewsDetailPage 
             newsId={currentView.data.newsId}
+            contentSource={currentView.data.contentSource}
             onBack={handleBackToHome}
             onPostClick={handlePostClick}
           />

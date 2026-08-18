@@ -26,7 +26,7 @@ const SavedPosts = ({ onPostClick, onEventClick }) => {
   const { data: postsData } = useRealtimeData('publicPosts', { scope: 'global' });
   const { data: reelsData } = useRealtimeData('publicReels', { scope: 'global' });
   const { data: carouselsData } = useRealtimeData('publicCarousels', { scope: 'global' });
-  const { data: eventsData } = useRealtimeData('events', { scope: 'global' });
+  const { data: eventsData } = useRealtimeData('publicEvents', { scope: 'global' });
 
   // The user's bookmark index: bookmarks/{uid}/{postId} -> { timestamp, source }
   useEffect(() => {
@@ -56,16 +56,16 @@ const SavedPosts = ({ onPostClick, onEventClick }) => {
     const collections = { posts: postsData, reels: reelsData, carousels: carouselsData };
     const savedNews = Object.entries(bookmarks)
       .map(([postId, bookmark]) => {
-        const source = bookmark?.source || 'posts';
-        const post =
-          collections[source]?.[postId] ||
-          postsData?.[postId] ||
-          reelsData?.[postId] ||
-          carouselsData?.[postId];
+        const requestedSource = bookmark?.source || 'posts';
+        const sourceOrder = [requestedSource, 'posts', 'reels', 'carousels']
+          .filter((source, index, sources) => collections[source] && sources.indexOf(source) === index);
+        const source = sourceOrder.find(candidate => collections[candidate]?.[postId]);
+        const post = source ? collections[source][postId] : null;
         if (!post) return null; // post was deleted since it was saved
         return {
-          id: postId,
           ...post,
+          id: postId,
+          source,
           savedAt: bookmark?.timestamp || bookmark?.savedAt || post.publishedAt || post.createdAt,
           savedKind: 'news'
         };
@@ -121,8 +121,12 @@ const SavedPosts = ({ onPostClick, onEventClick }) => {
       }
       return;
     }
-    if (onPostClick) onPostClick(item.id);
-    else window.location.href = `/post/${item.id}`;
+    if (onPostClick) onPostClick(item.id, item.source);
+    else if (item.source === 'reels') window.location.href = `/reels/${encodeURIComponent(item.id)}`;
+    else {
+      const sourceQuery = item.source === 'carousels' ? '?source=carousels' : '';
+      window.location.href = `/post/${encodeURIComponent(item.id)}${sourceQuery}`;
+    }
   };
 
   return (

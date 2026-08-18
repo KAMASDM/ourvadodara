@@ -60,6 +60,15 @@ for (const reservedPath of ['/home', '/signin', '/signup', '/polls', '/trending'
   );
 }
 
+assert.deepEqual(
+  resolveAppRoute('/post/carousel-123', '?source=carousels').data,
+  { newsId: 'carousel-123', contentSource: 'carousels' }
+);
+assert.deepEqual(
+  resolveAppRoute('/post/post-123').data,
+  { newsId: 'post-123', contentSource: 'posts' }
+);
+
 assert.equal(resolveAppRoute('/anything', '?setup=firebase').type, 'brand-portal');
 assert.equal(resolveAppRoute('/anything', '?admin=upgrade').type, 'brand-portal');
 

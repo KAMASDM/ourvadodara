@@ -78,7 +78,7 @@ const getArticleImage = article => {
   return items[0]?.url || article.thumbnail || '';
 };
 
-const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
+const NewsDetailPage = ({ newsId, contentSource = 'posts', onBack, onPostClick }) => {
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
   const { user } = useAuth();
@@ -86,7 +86,9 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
   
   // Fetch the requested article directly so old deep links remain valid, plus
   // a bounded recent window for recommendations.
-  const { data: postData, isLoading, error } = useRealtimeData(newsId ? `publicPosts/${newsId}` : null, { scope: 'global' });
+  const normalizedContentSource = contentSource === 'carousels' ? 'carousels' : 'posts';
+  const publicCollection = normalizedContentSource === 'carousels' ? 'publicCarousels' : 'publicPosts';
+  const { data: postData, isLoading, error } = useRealtimeData(newsId ? `${publicCollection}/${newsId}` : null, { scope: 'global' });
   const { data: recentPostsObject } = useRealtimeData('publicPosts', { scope: 'global', orderByField: 'timestamp', limitLast: 120 });
   const { data: userLikesData } = useRealtimeData(`users/${user?.uid}/likes`);
   const { data: userReadsData } = useRealtimeData(`users/${user?.uid}/reads`);
@@ -96,7 +98,7 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
   );
   
   // Initialize view tracking
-  useViewTracking(newsId, 'posts');
+  useViewTracking(newsId, normalizedContentSource);
   
   // Initialize read time tracking
   useReadTime(newsId, user?.uid);
@@ -270,7 +272,7 @@ const NewsDetailPage = ({ newsId, onBack, onPostClick }) => {
         await set(bookmarkRef, {
           timestamp: Date.now(),
           type: news?.type || 'post',
-          source: 'posts'
+          source: normalizedContentSource
         });
       }
       success(wasSaved ? 'Removed from saved posts' : 'Saved to your collection');

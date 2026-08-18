@@ -65,6 +65,7 @@ export const resolveAppRoute = (rawPath, rawSearch = '') => {
   const path = normalizeAppPath(rawPath);
   const lowerPath = path.toLowerCase();
   const canonicalPath = path !== rawPath ? path : null;
+  const searchParams = new URLSearchParams(rawSearch);
 
   if (lowerPath === '/' || lowerPath === '/home') {
     return route('home', 'home', null, {
@@ -78,8 +79,10 @@ export const resolveAppRoute = (rawPath, rawSearch = '') => {
 
   const postMatch = path.match(/^\/post\/([^/]+)$/i);
   if (postMatch) {
+    const requestedSource = searchParams.get('source');
     return route('news-detail', 'home', {
-      newsId: safeDecode(postMatch[1])
+      newsId: safeDecode(postMatch[1]),
+      contentSource: requestedSource === 'carousels' ? 'carousels' : 'posts'
     }, { canonicalPath });
   }
 
