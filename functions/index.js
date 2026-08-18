@@ -1049,28 +1049,32 @@ exports.sendNewNewsNotification = functions.database
 exports.sendPublishedNewsNotification = functions.database
   .ref('/posts/{postId}')
   .onUpdate(async (change, context) => {
-    const before = change.before.val() || {};
-    const after = change.after.val() || {};
-
-    if (after.notificationSent) {
-      console.log('Post notification already sent, skipping update notification');
-      return null;
-    }
-
-    // Scheduled posts are handled by publishScheduledPosts, which sends the
-    // notification after flipping the post live.
-    if (before.status === 'scheduled') {
-      console.log('Scheduled post publish handled by scheduler, skipping update notification');
-      return null;
-    }
-
-    if (!isPublishedPost(before) && isPublishedPost(after)) {
-      return sendNotificationForNewPost(after, context.params.postId);
-    }
-
-    console.log('Post update did not transition to published, skipping notification');
-    return null;
+    return sendNotificationOnPublish(change, context.params.postId, 'posts');
   });
+
+exports.sendNewReelNotification = functions.database
+  .ref('/reels/{contentId}')
+  .onCreate((snapshot, context) => sendNotificationForNewPost(snapshot.val(), context.params.contentId, null, 'reels'));
+
+exports.sendPublishedReelNotification = functions.database
+  .ref('/reels/{contentId}')
+  .onUpdate((change, context) => sendNotificationOnPublish(change, context.params.contentId, 'reels'));
+
+exports.sendNewStoryNotification = functions.database
+  .ref('/stories/{contentId}')
+  .onCreate((snapshot, context) => sendNotificationForNewPost(snapshot.val(), context.params.contentId, null, 'stories'));
+
+exports.sendPublishedStoryNotification = functions.database
+  .ref('/stories/{contentId}')
+  .onUpdate((change, context) => sendNotificationOnPublish(change, context.params.contentId, 'stories'));
+
+exports.sendNewCarouselNotification = functions.database
+  .ref('/carousels/{contentId}')
+  .onCreate((snapshot, context) => sendNotificationForNewPost(snapshot.val(), context.params.contentId, null, 'carousels'));
+
+exports.sendPublishedCarouselNotification = functions.database
+  .ref('/carousels/{contentId}')
+  .onUpdate((change, context) => sendNotificationOnPublish(change, context.params.contentId, 'carousels'));
 
 // Send push notification when new news is published in a city
 exports.sendNewCityNewsNotification = functions.database
@@ -1084,8 +1088,32 @@ function isPublishedPost(post = {}) {
   return post.status !== 'draft' && post.status !== 'scheduled' && post.isPublished !== false;
 }
 
-// Shared function to send notification for new posts
-async function sendNotificationForNewPost(post, postId, cityId = null) {
+async function sendNotificationOnPublish(change, contentId, collection) {
+  const before = change.before.val() || {};
+  const after = change.after.val() || {};
+
+  if (after.notificationSent) {
+    console.log(`${collection}/${contentId} notification already sent, skipping update notification`);
+    return null;
+  }
+
+  // The scheduler sends after its atomic publish update. Skipping this
+  // database-triggered copy prevents duplicate notifications.
+  if (before.status === 'scheduled') {
+    console.log(`Scheduled ${collection}/${contentId} publish handled by scheduler`);
+    return null;
+  }
+
+  if (!isPublishedPost(before) && isPublishedPost(after)) {
+    return sendNotificationForNewPost(after, contentId, null, collection);
+  }
+
+  console.log(`${collection}/${contentId} did not transition to published`);
+  return null;
+}
+
+// Shared function to send notification for newly published content.
+async function sendNotificationForNewPost(post, postId, cityId = null, collection = 'posts') {
   // City post entries are often mirrors of the canonical /posts entry.
   // The canonical post already targets city topics, so skip mirrored writes.
   if (cityId && post.mainPostId) {
@@ -1100,7 +1128,14 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
   }
 
   // Get post details
-  const title = getLocalizedCleanText(post.title, 90) || 'New Article Published';
+  const contentLabels = {
+    posts: 'Article',
+    reels: 'Reel',
+    stories: 'Story',
+    carousels: 'Carousel'
+  };
+  const contentLabel = contentLabels[collection] || 'Update';
+  const title = getLocalizedCleanText(post.title, 90) || `New ${contentLabel} Published`;
   const summary = getLocalizedCleanText(post.excerpt, 160) || getLocalizedCleanText(post.content, 160);
   const body = summary && summary !== title ? summary : 'Tap to read the full story.';
   const category = String(post.category || 'news');
@@ -1129,6 +1164,13 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
 
   // Build notification payload
   const notificationTitle = post.isBreaking ? `Breaking News: ${title}` : title;
+  const targetUrl = collection === 'reels'
+    ? `/reels/${postId}`
+    : collection === 'carousels'
+      ? `/post/${postId}?source=carousels`
+      : collection === 'stories'
+        ? '/'
+        : `/post/${postId}`;
 
   // Everything the web service worker needs to render a rich notification is
   // duplicated into `data` (FCM data values must be strings). The web SW
@@ -1142,7 +1184,8 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
     },
     data: {
       postId: String(postId),
-      type: 'news',
+      type: collection,
+      contentSource: collection,
       category: category,
       categoryLabel: categoryLabel,
       cityId: cityId || '',
@@ -1150,7 +1193,7 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
       body: body,
       image: imageUrl || '',
       isBreaking: post.isBreaking ? 'true' : 'false',
-      url: `/?post=${postId}`,
+      url: targetUrl,
       timestamp: new Date().toISOString(),
       click_action: 'FLUTTER_NOTIFICATION_CLICK'
     },
@@ -1163,7 +1206,7 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
         badge: '/icons/icon-72x72.png',
         icon: imageUrl || '/icons/icon-192x192.png',
         ...(imageUrl ? { image: imageUrl } : {}),
-        tag: `news-${postId}`,
+        tag: `${collection}-${postId}`,
         requireInteraction: Boolean(post.isBreaking),
         renotify: Boolean(post.isBreaking),
         vibrate: post.isBreaking ? [200, 100, 200, 100, 200] : [200, 100, 200],
@@ -1180,7 +1223,7 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
         ]
       },
       fcmOptions: {
-        link: `/?post=${postId}`
+        link: targetUrl
       }
     }
   };
@@ -1233,7 +1276,7 @@ async function sendNotificationForNewPost(post, postId, cityId = null) {
     console.log('Successfully sent notifications for post:', postId, responses);
 
     // Update post with notification sent status
-    const updatePath = cityId ? `/cities/${cityId}/posts/${postId}` : `/posts/${postId}`;
+    const updatePath = cityId ? `/cities/${cityId}/${collection}/${postId}` : `/${collection}/${postId}`;
     await admin.database().ref(updatePath).update({
       notificationSent: true,
       notificationSentAt: admin.database.ServerValue.TIMESTAMP,
@@ -1311,11 +1354,11 @@ exports.publishScheduledPosts = functions.pubsub
     await admin.database().ref().update(updates);
     console.log(`Published ${dueContent.length} scheduled content item(s):`, dueContent.map(item => `${item.collection}/${item.id}`));
 
-    for (const post of dueContent.filter(item => item.collection === 'posts')) {
+    for (const post of dueContent) {
       try {
-        await sendNotificationForNewPost(post, post.id);
+        await sendNotificationForNewPost(post, post.id, null, post.collection);
       } catch (error) {
-        console.error(`Error sending notification for scheduled post ${post.id}:`, error);
+        console.error(`Error sending notification for scheduled ${post.collection}/${post.id}:`, error);
       }
     }
 

@@ -110,7 +110,7 @@ function buildNotification(payload) {
     body,
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-72x72.png',
-    tag: data.tag || ('news-' + (data.postId || Date.now())),
+    tag: data.tag || ((data.type || 'news') + '-' + (data.postId || Date.now())),
     renotify: true,
     requireInteraction: isBreaking,
     vibrate: isBreaking ? [200, 100, 200, 100, 200] : [200, 100, 200],
@@ -148,7 +148,7 @@ self.addEventListener('notificationclick', (event) => {
   }
 
   const data = event.notification.data || {};
-  const targetUrl = data.postId ? \`/post/\${data.postId}\` : (data.url || '/');
+  const targetUrl = data.url || (data.postId ? '/post/' + data.postId : '/');
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

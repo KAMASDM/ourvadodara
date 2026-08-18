@@ -153,7 +153,7 @@ class PushNotificationService {
       body,
       icon: '/icons/icon-192x192.png',
       badge: '/icons/icon-72x72.png',
-      tag: `news-${data.postId || Date.now()}`,
+      tag: `${data.type || 'news'}-${data.postId || Date.now()}`,
       renotify: true,
       requireInteraction: isBreaking,
       vibrate: isBreaking ? [200, 100, 200, 100, 200] : [200, 100, 200],
